@@ -3,7 +3,7 @@ import os
 from groq import Groq
 
 # Remplace par ta clé API que tu obtiendras sur console.groq.com
-client = Groq(api_key="TON_API_KEY_ICI")
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def rechercher_sur_le_web(requete):
     # 1. Recherche Wikipédia (toujours utile)
@@ -29,7 +29,7 @@ def rechercher_sur_le_web(requete):
                 {"role": "system", "content": "Tu es Leila, une IA intelligente et serviable."},
                 {"role": "user", "content": f"En te basant sur ces infos : {contexte_wiki}, réponds à : {requete}"}
             ],
-            model="llama-3.3-70b",
+            model="llama-3.3-70b-versatile",
         )
         return completion.choices[0].message.content
     except Exception as e:
