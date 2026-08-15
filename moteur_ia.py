@@ -27,7 +27,8 @@ if prompt := st.chat_input("Que voulez-vous savoir ?"):
 
     with st.chat_message("assistant"):
         with st.spinner("Leyla cherche sur le web..."):
-            reponse = rechercher_sur_le_web(prompt)
+            # C'est ici qu'on change 'prompt' par 'st.session_state.messages' pour lui donner la mémoire !
+            reponse = rechercher_sur_le_web(st.session_state.messages)
             st.markdown(reponse)
     
     st.session_state.messages.append({"role": "assistant", "content": reponse})
