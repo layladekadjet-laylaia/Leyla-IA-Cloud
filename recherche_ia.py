@@ -1,35 +1,32 @@
-import requests
 import os
 from groq import Groq
+from duckduckgo_search import DDGS
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def rechercher_sur_le_web(historique):
-    # On récupère seulement la dernière question du professeur pour faire la recherche web
+    # On récupère la dernière question du professeur pour interroger le web
     derniere_requete = historique[-1]["content"]
     
-    url_api = "https://fr.wikipedia.org/w/api.php"
-    params = {"action": "query", "list": "search", "srsearch": derniere_requete, "format": "json", "srlimit": 2}
-    headers = {'User-Agent': 'LeilaAssistant/1.0'}
-    
-    contexte_wiki = ""
+    contexte_web = ""
     try:
-        response = requests.get(url_api, params=params, headers=headers, timeout=5)
-        data = response.json()
-        search_results = data.get("query", {}).get("search", [])
-        for item in search_results:
-            snippet = item.get("snippet", "").replace('<span class="searchmatch">', "").replace('</span>', "")
-            contexte_wiki += snippet + " "
-    except:
-        contexte_wiki = "Aucune recherche internet disponible."
+        # Recherche directe sur le web via DuckDuckGo (sans clé API requise)
+        with DDGS() as ddgs:
+            resultats = [r for r in ddgs.text(derniere_requete, max_results=3)]
+            for item in resultats:
+                titre = item.get("title", "")
+                corps = item.get("body", "")
+                contexte_web += f"- {titre}: {corps}\n"
+    except Exception as e:
+        contexte_web = "Aucune recherche internet disponible pour le moment."
 
-    # On prépare le message système avec le contexte web
+    # On prépare le message système enrichi avec les résultats du web
     message_systeme = {
         "role": "system", 
-        "content": f"Tu es Leyla, l'IA de Djè Akadjé. Ton créateur est Djè Akadjé (Mon Professeur). Tu dois l'appeler 'Mon Professeur'. Voici des infos du web pour t'aider : {contexte_wiki}"
+        "content": f"Tu es Leyla, l'IA intelligente et serviable de Djè Akadjé. Ton créateur, ton concepteur et ton professeur est Djè Akadjé. Tu dois impérativement l'appeler 'Mon Professeur'. Voici des informations fraîches du web pour t'aider à répondre précisément : {contexte_web}"
     }
     
-    # On construit la liste complète : système + tout l'historique
+    # On assemble le tout : système + tout l'historique de la conversation
     messages_complets = [message_systeme] + historique
 
     try:
