@@ -2,13 +2,14 @@ import requests
 import os
 from groq import Groq
 
-# Remplace par ta clé API que tu obtiendras sur console.groq.com
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-def rechercher_sur_le_web(requete):
-    # 1. Recherche Wikipédia (toujours utile)
+def rechercher_sur_le_web(historique):
+    # On récupère seulement la dernière question du professeur pour faire la recherche web
+    derniere_requete = historique[-1]["content"]
+    
     url_api = "https://fr.wikipedia.org/w/api.php"
-    params = {"action": "query", "list": "search", "srsearch": requete, "format": "json", "srlimit": 2}
+    params = {"action": "query", "list": "search", "srsearch": derniere_requete, "format": "json", "srlimit": 2}
     headers = {'User-Agent': 'LeilaAssistant/1.0'}
     
     contexte_wiki = ""
@@ -20,15 +21,20 @@ def rechercher_sur_le_web(requete):
             snippet = item.get("snippet", "").replace('<span class="searchmatch">', "").replace('</span>', "")
             contexte_wiki += snippet + " "
     except:
-        contexte_wiki = "Aucune source Wikipédia trouvée."
+        contexte_wiki = "Aucune recherche internet disponible."
 
-    # 2. Appel au modèle dans le Cloud via Groq (Remplace Mistral local)
+    # On prépare le message système avec le contexte web
+    message_systeme = {
+        "role": "system", 
+        "content": f"Tu es Leyla, l'IA de Djè Akadjé. Ton créateur est Djè Akadjé (Mon Professeur). Tu dois l'appeler 'Mon Professeur'. Voici des infos du web pour t'aider : {contexte_wiki}"
+    }
+    
+    # On construit la liste complète : système + tout l'historique
+    messages_complets = [message_systeme] + historique
+
     try:
         completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "Tu es Leyla, une IA intelligente et serviable. Ton créateur, ton concepteur et ton professeur est Djè Akadjé. Tu dois impérativement l'appeler 'Mon Professeur' ou 'Professeur' à chaque fois que tu t'adresses à lui."},
-                {"role": "user", "content": f"En te basant sur ces infos : {contexte_wiki}, réponds à : {requete}"}
-            ],
+            messages=messages_complets,
             model="llama-3.3-70b-versatile",
         )
         return completion.choices[0].message.content
