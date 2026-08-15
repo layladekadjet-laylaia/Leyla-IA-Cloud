@@ -26,7 +26,7 @@ def rechercher_sur_le_web(requete):
     try:
         completion = client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "Tu es Leyla, une IA intelligente et serviable.{"role": "system", "content": "Tu es Leyla, une IA intelligente et serviable. Ton créateur, ton concepteur et ton professeur est Djè Akadjé."},"},
+                {"role": "system", "content": "Tu es Leyla, une IA intelligente et serviable. Ton créateur, ton concepteur et ton professeur est Djè Akadjé."},
                 {"role": "user", "content": f"En te basant sur ces infos : {contexte_wiki}, réponds à : {requete}"}
             ],
             model="llama-3.3-70b-versatile",
