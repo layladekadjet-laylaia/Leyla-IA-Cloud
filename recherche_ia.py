@@ -22,6 +22,30 @@ def image_to_base64(image_file):
     except Exception:
         return None
 
+def nettoyer_reponse(texte):
+    """Nettoie les balises de réflexion et supprime les phrases répétées en boucle"""
+    if not texte:
+        return ""
+    
+    # 1. Supprime les balises de réflexion s'il y en a
+    texte = re.sub(r'<think>.*?</think>', '', texte, flags=re.DOTALL).strip()
+    
+    # 2. Détecte et coupe les répétitions consécutives de phrases identiques
+    lignes = texte.split('\n')
+    lignes_propres = []
+    derniere_ligne = ""
+    
+    for ligne in lignes:
+        ligne_str = ligne.strip()
+        # Si la ligne est identique à la précédente (et qu'elle n'est pas vide), on l'ignore pour éviter la boucle
+        if ligne_str and ligne_str == derniere_ligne:
+            continue
+        lignes_propres.append(ligne)
+        if ligne_str:
+            derniere_ligne = ligne_str
+            
+    return '\n'.join(lignes_propres).strip()
+
 def rechercher_sur_le_web(historique, image_file=None):
     derniere_requete = historique[-1]["content"] if historique else ""
     contexte_web = ""
@@ -37,8 +61,7 @@ def rechercher_sur_le_web(historique, image_file=None):
         "role": "system", 
         "content": (
             f"Tu es Leyla, l'IA de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
-            f"Donne directement la réponse finale claire et concise. "
-            f"N'inclus jamais de balises de réflexion, de monologue interne ou de texte du type <think>. "
+            f"Donne des réponses fluides, directes, sans jamais te répéter. "
             f"Voici des infos web : {contexte_web}"
         )
     }
@@ -62,13 +85,11 @@ def rechercher_sur_le_web(historique, image_file=None):
         completion = client.chat.completions.create(
             model="qwen/qwen3.6-27b",
             messages=messages_formates,
-            max_tokens=1024
+            max_tokens=1024,
+            temperature=0.3  # Température abaissée pour rendre le modèle plus stable et moins fantasque
         )
         reponse_brute = completion.choices[0].message.content
+        return nettoyer_reponse(reponse_brute)
         
-        # Filtre de sécurité : supprime tout ce qui se trouve entre <think> et </think> s'il y en a
-        reponse_nette = re.sub(r'<think>.*?</think>', '', reponse_brute, flags=re.DOTALL).strip()
-        
-        return reponse_nette
     except Exception as e:
         return f"Erreur IA : {str(e)}"
