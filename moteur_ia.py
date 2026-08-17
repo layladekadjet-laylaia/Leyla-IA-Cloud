@@ -1,5 +1,9 @@
 import streamlit as st
 from recherche_ia import rechercher_sur_le_web
+import db_manager
+
+# Initialisation de la base de données SQLite
+db_manager.init_db()
 
 st.set_page_config(page_title="Leyla IA", page_icon="🤖")
 
@@ -8,27 +12,32 @@ try:
 except Exception:
     pass
 
-st.title("🤖 Leyla IA - Recherche Web")
+st.title("🤖 Leyla IA - Mémoire SQLite")
 st.write("Posez une question, Leyla ira chercher l'information pour vous.")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# Récupération de l'historique depuis la base de données SQLite
+messages = db_manager.get_history()
 
 # Affichage de l'historique
-for message in st.session_state.messages:
+for message in messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # Zone de saisie
 if prompt := st.chat_input("Que voulez-vous savoir ?"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    # 1. Sauvegarder la question de l'utilisateur en BDD
+    db_manager.save_message("user", prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # 2. Recharger l'historique complet (incluant le nouveau prompt) pour l'IA
+    messages_actuels = db_manager.get_history()
+
     with st.chat_message("assistant"):
         with st.spinner("Leyla cherche sur le web..."):
-            # C'est ici qu'on change 'prompt' par 'st.session_state.messages' pour lui donner la mémoire !
-            reponse = rechercher_sur_le_web(st.session_state.messages)
+            # L'IA analyse toute la conversation grâce à la BDD et DuckDuckGo
+            reponse = rechercher_sur_le_web(messages_actuels)
             st.markdown(reponse)
     
-    st.session_state.messages.append({"role": "assistant", "content": reponse})
+    # 3. Sauvegarder la réponse de l'assistant en BDD
+    db_manager.save_message("assistant", reponse)
