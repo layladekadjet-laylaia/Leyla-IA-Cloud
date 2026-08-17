@@ -53,12 +53,13 @@ def rechercher_sur_le_web(historique, image_file=None):
         else:
             messages_formates.append({"role": msg["role"], "content": msg["content"]})
 
-    try:
+        try:
         completion = client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview",
+            model="llama-3.2-90b-vision-preview",  # Nouveau modèle multimodal actif chez Groq
             messages=messages_formates,
             max_tokens=1024
         )
         return completion.choices[0].message.content
     except Exception as e:
-        return f"Erreur IA : {str(e)}"
+        return f"Erreur Cloud (Vision) : {str(e)}"
+
