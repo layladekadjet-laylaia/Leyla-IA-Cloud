@@ -2,8 +2,8 @@ import streamlit as st
 import uuid
 from recherche_ia import rechercher_sur_le_web
 import db_manager
+import streamlit.components.v1 as components
 from utils_memoire import generer_resume
-from streamlit_tts import text_to_speech
 import os
 import re
 import speech_recognition as sr
@@ -199,7 +199,7 @@ if prompt:
             if img_url: 
                 st.image(img_url, width=400, caption="Illustration automatique")
 
-                        if activer_voix:
+            if activer_voix:
                 # Nettoyage du texte pour éviter les erreurs de syntaxe JavaScript avec les apostrophes ou retours à la ligne
                 texte_propre = re.sub(r'[\n\r]+', ' ', reponse).replace('"', '\\"').replace("'", "\\'")
                 
@@ -222,7 +222,6 @@ if prompt:
                     """,
                     height=0,
                 )
-
 
     db_manager.save_message(st.session_state.session_id, "assistant", reponse)
     st.rerun()
