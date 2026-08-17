@@ -45,7 +45,7 @@ with st.sidebar:
         st.rerun()
         
     st.markdown("---")
-    st.write("Développé par Mon Professeur.")
+    st.write("Développé pour Mon Professeur.")
 
 # --- DICTIONNAIRE D'IMAGES DYNAMIQUES ---
 IMAGE_MAP = {
@@ -71,7 +71,7 @@ if len(messages) > 10:
         with st.spinner("Leyla consolide sa mémoire à long terme..."):
             resume_texte = generer_resume(messages)
             message_resume = f"[Résumé automatique] : {resume_texte}"
-            if hasattr(db_manager, "save_message_with_user"): # Sécurité selon la structure
+            if hasattr(db_manager, "save_message_with_user"): 
                 db_manager.save_message_by_user(user_id, "system", message_resume)
             else:
                 db_manager.save_message("system", message_resume)
@@ -83,12 +83,19 @@ for message in messages:
         with st.chat_message(message["role"]): 
             st.markdown(message["content"])
 
-# --- BARRE D'OUTILS (Images & Vocaux) ---
-col1, col2 = st.columns(2)
-with col1: 
-    image_uploadee = st.file_uploader("📎 Joindre une image", type=["jpg", "jpeg", "png"])
-with col2: 
-    audio_file = st.audio_input("🎙️ Enregistrer un vocal")
+# --- BARRE D'OUTILS MULTIMÉDIA (Images, Caméra & Vocaux) ---
+st.markdown("### 🛠️ Options d'envoi")
+choix_source = st.radio("Comment souhaitez-vous fournir une image ?", ["Aucune", "📁 Importer un fichier", "📷 Prendre une photo avec la caméra"])
+
+image_finale = None
+
+if choix_source == "📁 Importer un fichier":
+    image_finale = st.file_uploader("Choisissez une image", type=["jpg", "jpeg", "png"])
+elif choix_source == "📷 Prendre une photo avec la caméra":
+    image_finale = st.camera_input("Prenez la photo de votre culture")
+
+# Enregistrement vocal
+audio_file = st.audio_input("🎙️ Enregistrer un vocal (Optionnel)")
 
 prompt_vocal = None
 if audio_file:
@@ -103,19 +110,18 @@ if audio_file:
     except Exception: 
         st.warning("Impossible de transcrire l'audio.")
 
-prompt_texte = st.chat_input("Que voulez-vous savoir ?")
+prompt_texte = st.chat_input("Que voulez-vous savoir, Mon Professeur ?")
 prompt = prompt_vocal if prompt_vocal else prompt_texte
 
 # --- TRAITEMENT DE LA REQUÊTE ---
 if prompt:
-    # Sauvegarde et affichage du message utilisateur
     contenu_u = prompt
-    if image_uploadee is not None:
-        contenu_u = f"[Image envoyée] {prompt}"
+    if image_finale is not None:
+        contenu_u = f"[Image transmise] {prompt}"
 
     with st.chat_message("user"):
-        if image_uploadee is not None:
-            st.image(image_uploadee, width=300)
+        if image_finale is not None:
+            st.image(image_finale, width=300, caption="Photo transmise à Leyla")
         st.markdown(prompt)
 
     if hasattr(db_manager, "save_message_by_user"):
@@ -123,21 +129,17 @@ if prompt:
     else:
         db_manager.save_message("user", contenu_u)
 
-    # Récupération actualisée pour l'IA
     messages_actuels = db_manager.get_history_by_user(user_id) if hasattr(db_manager, "get_history_by_user") else db_manager.get_history()
 
-    # Réponse de l'assistant
     with st.chat_message("assistant"):
-        with st.spinner("Leyla réfléchit..."):
+        with st.spinner("Leyla réfléchit et analyse..."):
             reponse = rechercher_sur_le_web(messages_actuels)
             st.markdown(reponse)
 
-            # Affichage d'une image illustrative si détectée dans le texte
             img_url = get_image_for_text(reponse)
             if img_url: 
                 st.image(img_url, width=400, caption="Illustration automatique")
 
-            # Synthèse vocale de la réponse
             if activer_voix:
                 try:
                     tts = gTTS(text=reponse, lang='fr', slow=False)
@@ -147,7 +149,6 @@ if prompt:
                 except Exception as e:
                     st.warning(f"Audio indisponible : {e}")
 
-    # Sauvegarde de la réponse de l'assistant
     if hasattr(db_manager, "save_message_by_user"):
         db_manager.save_message_by_user(user_id, "assistant", reponse)
     else:
