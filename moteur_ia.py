@@ -3,6 +3,7 @@ from recherche_ia import rechercher_sur_le_web
 import db_manager
 from gtts import gTTS
 import os
+import re
 
 # Initialisation de la base de données SQLite
 db_manager.init_db()
@@ -12,12 +13,10 @@ st.set_page_config(page_title="Leyla IA", page_icon="🤖", layout="centered")
 # --- PERSONNALISATION CSS STYLE CLAIR (BLANC) ---
 st.markdown("""
 <style>
-    /* Style général : Fond blanc éclatant et texte sombre */
     .stApp {
         background-color: #ffffff;
         color: #1f1f1f;
     }
-    /* Style des bulles de chat en mode clair */
     .stChatMessage {
         border-radius: 16px;
         padding: 12px 16px;
@@ -25,14 +24,12 @@ st.markdown("""
         background-color: #f8f9fa;
         border: 1px solid #e5e5e5;
     }
-    /* Zone de saisie arrondie */
     .stChatInputContainer input {
         border-radius: 24px !important;
         background-color: #f0f4f9 !important;
         color: #1f1f1f !important;
         border: 1px solid #c4c7c5 !important;
     }
-    /* Textes et titres en mode clair */
     h1, h2, h3, p, label {
         color: #1f1f1f !important;
     }
@@ -48,27 +45,40 @@ except Exception:
 st.title("Leyla IA")
 st.caption("Votre assistant intelligent, conçu par Djè Akadjé pour Mon Professeur.")
 
-# Barre latérale pour les paramètres
+# Barre latérale
 with st.sidebar:
     st.header("Paramètres")
     activer_voix = st.checkbox("Activer la réponse vocale", value=True)
     st.markdown("---")
     st.write("Mode Clair & Mémoire SQLite actif.")
 
-# Récupération de l'historique depuis la base de données SQLite
+# --- DICTIONNAIRE D'IMAGES PAR MOTS-CLÉS ---
+IMAGE_MAP = {
+    "voiture": "https://images.unsplash.com/photo-1524985069026-b1c7d9d4f8c3?auto=format&fit=crop&w=800&q=80",
+    "vélo": "https://images.unsplash.com/photo-1508609348766-92a5d6a1e7e9?auto=format&fit=crop&w=800&q=80",
+    "cacao": "https://images.unsplash.com/photo-1587590227264-0ac641a9bc63?auto=format&fit=crop&w=800&q=80",
+    "ordinateur": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=800&q=80",
+}
+
+def get_image_for_text(text: str) -> str | None:
+    mots = re.findall(r'\b\w+\b', text.lower())
+    for mot in mots:
+        if mot in IMAGE_MAP:
+            return IMAGE_MAP[mot]
+    return None
+
+# Récupération de l'historique
 messages = db_manager.get_history()
 
-# Affichage de l'historique des messages avec des avatars distincts
 for message in messages:
     avatar_icon = "👨‍💻" if message["role"] == "user" else "🤖"
     with st.chat_message(message["role"], avatar=avatar_icon):
         st.markdown(message["content"])
 
-# --- GESTION DES ENTRÉES : TEXTE ET FICHIER/IMAGE ---
+# Gestion des entrées
 image_uploadee = st.file_uploader("Ajouter une image ou un fichier de diagnostic", type=["jpg", "jpeg", "png"])
 
 if prompt := st.chat_input("Posez votre question à Leyla..."):
-    
     contenu_utilisateur = prompt
     if image_uploadee is not None:
         image_path = "temp_image.png"
@@ -78,25 +88,24 @@ if prompt := st.chat_input("Posez votre question à Leyla..."):
         with st.chat_message("user", avatar="👨‍💻"):
             st.image(image_uploadee, caption="Image transmise", width=300)
             st.markdown(prompt)
-        
         contenu_utilisateur = f"[Image envoyée] {prompt}"
     else:
         with st.chat_message("user", avatar="👨‍💻"):
             st.markdown(prompt)
 
-    # Sauvegarde de la question
     db_manager.save_message("user", contenu_utilisateur)
-
-    # Récupération de l'historique mis à jour
     messages_actuels = db_manager.get_history()
 
-    # Réponse de l'assistant
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("Leyla réfléchit..."):
             reponse = rechercher_sur_le_web(messages_actuels)
             st.markdown(reponse)
             
-            # Gestion de la synthèse vocale
+            # Affichage d'une image si un mot-clé correspond dans la réponse
+            img_url = get_image_for_text(reponse)
+            if img_url:
+                st.image(img_url, width=400, caption="Illustration liée à la réponse")
+
             if activer_voix:
                 try:
                     tts = gTTS(text=reponse, lang='fr', slow=False)
@@ -106,5 +115,4 @@ if prompt := st.chat_input("Posez votre question à Leyla..."):
                 except Exception as e:
                     st.warning(f"Audio non disponible : {e}")
     
-    # Sauvegarde de la réponse
     db_manager.save_message("assistant", reponse)
