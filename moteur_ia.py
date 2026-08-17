@@ -237,7 +237,8 @@ if prompt:
 
     with st.chat_message("assistant"):
         with st.spinner("Leyla réfléchit et analyse..."):
-            reponse = rechercher_sur_le_web(messages_actuels)
+            reponse = rechercher_sur_le_web(messages_actuels, image_file=image_finale)
+
             st.markdown(reponse)
 
             img_url = get_image_for_text(reponse)
