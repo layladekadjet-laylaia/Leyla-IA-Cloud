@@ -9,26 +9,32 @@ db_manager.init_db()
 
 st.set_page_config(page_title="Leyla IA", page_icon="🤖", layout="centered")
 
-# --- PERSONNALISATION CSS STYLE GEMINI ---
+# --- PERSONNALISATION CSS STYLE CLAIR (BLANC) ---
 st.markdown("""
 <style>
-    /* Style général de fond */
+    /* Style général : Fond blanc éclatant et texte sombre */
     .stApp {
-        background-color: #131314;
-        color: #e3e3e3;
+        background-color: #ffffff;
+        color: #1f1f1f;
     }
-    /* Style des bulles de chat */
+    /* Style des bulles de chat en mode clair */
     .stChatMessage {
         border-radius: 16px;
         padding: 12px 16px;
         margin-bottom: 10px;
+        background-color: #f8f9fa;
+        border: 1px solid #e5e5e5;
     }
-    /* Bouton d'envoi et inputs */
+    /* Zone de saisie arrondie */
     .stChatInputContainer input {
         border-radius: 24px !important;
-        background-color: #1e1f20 !important;
-        color: white !important;
-        border: 1px solid #444746 !important;
+        background-color: #f0f4f9 !important;
+        color: #1f1f1f !important;
+        border: 1px solid #c4c7c5 !important;
+    }
+    /* Textes et titres en mode clair */
+    h1, h2, h3, p, label {
+        color: #1f1f1f !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -40,14 +46,14 @@ except Exception:
     pass
 
 st.title("Leyla IA")
-st.caption("Votre assistant intelligent, conçu par Djè Akadjé Mon Professeur.")
+st.caption("Votre assistant intelligent, conçu par Djè Akadjé pour Mon Professeur.")
 
 # Barre latérale pour les paramètres
 with st.sidebar:
     st.header("Paramètres")
     activer_voix = st.checkbox("Activer la réponse vocale", value=True)
     st.markdown("---")
-    st.write("Mode Multimédia & Mémoire SQLite actif.")
+    st.write("Mode Clair & Mémoire SQLite actif.")
 
 # Récupération de l'historique depuis la base de données SQLite
 messages = db_manager.get_history()
