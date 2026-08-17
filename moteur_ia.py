@@ -30,17 +30,14 @@ except Exception:
 st.title("🤖 Leyla IA")
 st.write("Votre assistante personnelle intelligente, vocale, visuelle et persistante.")
 
-# --- BARRE LATÉRALE : PROFIL & PARAMÈTRES ---
+# --- BARRE LATÉRALE : PARAMÈTRES ---
 with st.sidebar:
-    st.header("Profil Utilisateur")
-    user_id = st.text_input("Identifiant (Nom / ID) :", value="Djè Akadjé")
-    
-    st.markdown("---")
+    st.header("Paramètres")
     activer_voix = st.checkbox("Activer la réponse vocale", value=True)
     
     st.markdown("---")
     if st.button("🗑️ Nettoyer la mémoire"):
-        db_manager.clear_history() if hasattr(db_manager, "clear_history") else None
+        db_manager.clear_history()
         st.success("Mémoire effacée !")
         st.rerun()
         
@@ -61,8 +58,8 @@ def get_image_for_text(text: str) -> str | None:
             return IMAGE_MAP[mot]
     return None
 
-# Récupération de l'historique spécifique à l'utilisateur
-messages = db_manager.get_history_by_user(user_id) if hasattr(db_manager, "get_history_by_user") else db_manager.get_history()
+# Récupération automatique de l'historique de l'appareil
+messages = db_manager.get_history()
 
 # --- GESTION DE LA MÉMOIRE LONGUE (Résumé automatique si > 10 messages) ---
 if len(messages) > 10:
@@ -71,11 +68,8 @@ if len(messages) > 10:
         with st.spinner("Leyla consolide sa mémoire à long terme..."):
             resume_texte = generer_resume(messages)
             message_resume = f"[Résumé automatique] : {resume_texte}"
-            if hasattr(db_manager, "save_message_with_user"): 
-                db_manager.save_message_by_user(user_id, "system", message_resume)
-            else:
-                db_manager.save_message("system", message_resume)
-            messages = db_manager.get_history_by_user(user_id) if hasattr(db_manager, "get_history_by_user") else db_manager.get_history()
+            db_manager.save_message("system", message_resume)
+            messages = db_manager.get_history()
 
 # --- AFFICHAGE DE L'HISTORIQUE ---
 for message in messages:
@@ -124,12 +118,9 @@ if prompt:
             st.image(image_finale, width=300, caption="Photo transmise à Leyla")
         st.markdown(prompt)
 
-    if hasattr(db_manager, "save_message_by_user"):
-        db_manager.save_message_by_user(user_id, "user", contenu_u)
-    else:
-        db_manager.save_message("user", contenu_u)
+    db_manager.save_message("user", contenu_u)
 
-    messages_actuels = db_manager.get_history_by_user(user_id) if hasattr(db_manager, "get_history_by_user") else db_manager.get_history()
+    messages_actuels = db_manager.get_history()
 
     with st.chat_message("assistant"):
         with st.spinner("Leyla réfléchit et analyse..."):
@@ -149,7 +140,4 @@ if prompt:
                 except Exception as e:
                     st.warning(f"Audio indisponible : {e}")
 
-    if hasattr(db_manager, "save_message_by_user"):
-        db_manager.save_message_by_user(user_id, "assistant", reponse)
-    else:
-        db_manager.save_message("assistant", reponse)
+    db_manager.save_message("assistant", reponse)
