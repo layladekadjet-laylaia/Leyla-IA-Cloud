@@ -15,13 +15,10 @@ st.set_page_config(page_title="Leyla IA", page_icon="🤖", layout="centered")
 # --- PERSONNALISATION CSS & LOGO EN ARRIÈRE-PLAN (FILIGRANE) ---
 st.markdown("""
 <style>
-    /* Couleur de fond générale */
     .stApp { 
         background-color: #ffffff; 
         color: #1f1f1f; 
     }
-    
-    /* Logo en filigrane (arrière-plan transparent et fixe) */
     .stApp::before {
         content: "";
         position: fixed;
@@ -34,12 +31,10 @@ st.markdown("""
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain;
-        opacity: 0.07; /* Transparence subtile du filigrane */
-        pointer-events: none; /* Laisse passer les clics à travers l'image */
-        z-index: 0; /* Reste bien en arrière-plan */
+        opacity: 1;
+        pointer-events: none;
+        z-index: 0;
     }
-
-    /* Style des bulles de chat avec opacité pour rester lisibles par-dessus le filigrane */
     .stChatMessage { 
         border-radius: 16px; 
         padding: 12px 16px; 
@@ -49,7 +44,6 @@ st.markdown("""
         position: relative;
         z-index: 1;
     }
-    
     .stChatInputContainer input { 
         border-radius: 24px !important; 
         background-color: #f0f4f9 !important; 
@@ -67,7 +61,7 @@ if not user_name:
     if nom_saisi:
         db_manager.save_user_name(nom_saisi)
         st.rerun()
-    st.stop()  # Bloque l'interface tant que le nom n'est pas défini
+    st.stop()
 
 # --- GESTION DES SESSIONS DE DISCUSSION ---
 if 'session_id' not in st.session_state:
@@ -106,7 +100,7 @@ with st.sidebar:
     st.markdown("---")
     st.write("Développé pour Mon Professeur.")
 
-# --- EN-TÊTE ÉPURÉ (Le logo est désormais en arrière-plan) ---
+# --- EN-TÊTE ÉPURÉ ---
 st.title(f"🤖 Bonjour {user_name} !")
 st.write(f"Session active : `{st.session_state.session_id}`")
 
@@ -124,7 +118,7 @@ def get_image_for_text(text: str) -> str | None:
             return IMAGE_MAP[mot]
     return None
 
-# Récupération automatique de l'historique de la session active
+# Récupération de l'historique
 messages = db_manager.get_history(st.session_state.session_id)
 
 # --- GESTION DE LA MÉMOIRE LONGUE ---
@@ -143,8 +137,8 @@ for message in messages:
         with st.chat_message(message["role"]): 
             st.markdown(message["content"])
 
-# --- OPTIONS MULTIMÉDIA DISCRÈTES (JUSTE AVANT LE CHAT INPUT) ---
-with st.expander("🛠️ Options d'envoi (Image ou Vocal)", expanded=False):
+# --- OPTIONS MULTIMÉDIA (SÉPARÉES POUR ÉVITER LES BOGUES) ---
+with st.expander("📁 Options d'envoi d'image", expanded=False):
     choix_source = st.radio("Source de l'image :", ["Aucune", "📁 Importer un fichier", "📷 Caméra"], horizontal=True)
     image_finale = None
     if choix_source == "📁 Importer un fichier":
@@ -152,21 +146,34 @@ with st.expander("🛠️ Options d'envoi (Image ou Vocal)", expanded=False):
     elif choix_source == "📷 Caméra":
         image_finale = st.camera_input("Prenez une photo")
 
-    audio_file = st.audio_input("🎙️ Enregistrer un message vocal")
+# Zone vocale stable en dehors de l'expander
+st.markdown("### 🎙️ Enregistrement Vocal")
+audio_file = st.audio_input("Enregistrer un message vocal")
 
 prompt_vocal = None
 if audio_file:
-    with open("temp_audio.wav", "wb") as f: 
-        f.write(audio_file.getbuffer())
-    try:
-        r = sr.Recognizer()
-        with sr.AudioFile("temp_audio.wav") as source:
-            audio_data = r.record(source)
-            prompt_vocal = r.recognize_google(audio_data, language="fr-FR")
-            st.success(f"🎙️ Transcrit : {prompt_vocal}")
-    except Exception: 
-        st.warning("Impossible de transcrire l'audio.")
-    image_finale = None  # Sécurité
+    # Initialisation de l'état de la session pour l'audio si inexistant
+    if 'last_audio_id' not in st.session_state:
+        st.session_state.last_audio_id = None
+
+    audio_bytes = audio_file.getvalue()
+    # On ne traite l'audio que s'il est nouveau pour éviter les boucles infinies
+    if audio_bytes != st.session_state.last_audio_id:
+        st.session_state.last_audio_id = audio_bytes
+        
+        with open("temp_audio.wav", "wb") as f: 
+            f.write(audio_bytes)
+        try:
+            r = sr.Recognizer()
+            with sr.AudioFile("temp_audio.wav") as source:
+                audio_data = r.record(source)
+                prompt_vocal = r.recognize_google(audio_data, language="fr-FR")
+        except Exception: 
+            st.warning("Impossible de transcrire l'audio.")
+        finally:
+            if os.path.exists("temp_audio.wav"):
+                os.remove("temp_audio.wav")
+        image_finale = None  # Sécurité
 
 prompt_texte = st.chat_input(f"Que voulez-vous savoir, {user_name} ?")
 prompt = prompt_vocal if prompt_vocal else prompt_texte
