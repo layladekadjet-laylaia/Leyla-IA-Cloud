@@ -27,7 +27,7 @@ def rechercher_sur_le_web(historique):
 
     try:
         completion = client.chat.completions.create(
-            model="gemma2-9b-it",
+            model="openai/gpt-oss-20b",
             messages=messages_complets
         )
         return completion.choices[0].message.content
