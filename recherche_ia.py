@@ -1,13 +1,15 @@
 import os
 import base64
 import re
+import io
+from PIL import Image
 from groq import Groq
 from duckduckgo_search import DDGS
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def image_to_base64(image_file):
-    """Convertit de manière sécurisée le fichier Streamlit en Base64"""
+    """Convertit et compresse l'image pour éviter de dépasser la limite de 8000 tokens"""
     try:
         if image_file is None: 
             return None
@@ -18,8 +20,23 @@ def image_to_base64(image_file):
             data = image_file.read()
         else:
             return None
-        return base64.b64encode(data).decode("utf-8")
-    except Exception:
+            
+        # Compression automatique avec Pillow
+        image = Image.open(io.BytesIO(data))
+        
+        # Convertir en RGB si l'image a de la transparence (PNG)
+        if image.mode in ("RGBA", "P"):
+            image = image.convert("RGB")
+            
+        # Redimensionnement maximal à 512x512 pixels pour réduire drastiquement le poids
+        image.thumbnail((512, 512))
+        
+        # Sauvegarde dans la mémoire tampon au lieu du disque
+        buffered = io.BytesIO()
+        image.save(buffered, format="JPEG", quality=75)
+        
+        return base64.b64encode(buffered.getvalue()).decode("utf-8")
+    except Exception as e:
         return None
 
 def nettoyer_reponse(texte):
@@ -27,10 +44,8 @@ def nettoyer_reponse(texte):
     if not texte:
         return ""
     
-    # Supprime les balises de réflexion
     texte = re.sub(r'<think>.*?</think>', '', texte, flags=re.DOTALL).strip()
     
-    # Coupe les répétitions consécutives de phrases identiques
     lignes = texte.split('\n')
     lignes_propres = []
     derniere_ligne = ""
@@ -46,7 +61,10 @@ def nettoyer_reponse(texte):
     return '\n'.join(lignes_propres).strip()
 
 def rechercher_sur_le_web(historique, image_file=None):
-    derniere_requete = historique[-1]["content"] if historique else ""
+    # On ne garde que les 3 derniers messages de l'historique pour économiser des tokens
+    historique_reduit = historique[-3:] if len(historique) > 3 else historique
+    
+    derniere_requete = historique_reduit[-1]["content"] if historique_reduit else ""
     contexte_web = ""
     try:
         with DDGS() as ddgs:
@@ -69,8 +87,8 @@ def rechercher_sur_le_web(historique, image_file=None):
     messages_formates = [message_systeme]
     img_b64 = image_to_base64(image_file) if image_file else None
     
-    for i, msg in enumerate(historique):
-        if i == len(historique) - 1 and img_b64:
+    for i, msg in enumerate(historique_reduit):
+        if i == len(historique_reduit) - 1 and img_b64:
             messages_formates.append({
                 "role": "user",
                 "content": [
