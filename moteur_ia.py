@@ -1,6 +1,7 @@
 import streamlit as st
 from recherche_ia import rechercher_sur_le_web
 import db_manager
+from utils_memoire import generer_resume
 from gtts import gTTS
 import os
 import re
@@ -20,22 +21,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# En-tête
-try: st.image("LOGO LAYLA.png", width=250)
-except Exception: pass
-st.title("Leyla IA")
+# En-tête avec logo
+try: 
+    st.image("LOGO LAYLA.png", width=300)
+except Exception: 
+    pass
 
-# --- BARRE LATÉRALE AVEC FONCTION DE NETTOYAGE ---
+st.title("🤖 Leyla IA")
+st.write("Votre assistante personnelle intelligente, vocale, visuelle et persistante.")
+
+# --- BARRE LATÉRALE : PROFIL & PARAMÈTRES ---
 with st.sidebar:
-    st.header("Paramètres")
+    st.header("Profil Utilisateur")
+    user_id = st.text_input("Identifiant (Nom / ID) :", value="Djè Akadjé")
+    
+    st.markdown("---")
     activer_voix = st.checkbox("Activer la réponse vocale", value=True)
+    
     st.markdown("---")
     if st.button("🗑️ Nettoyer la mémoire"):
-        db_manager.clear_history()  # Assurez-vous que cette fonction existe dans db_manager.py
+        db_manager.clear_history() if hasattr(db_manager, "clear_history") else None
         st.success("Mémoire effacée !")
         st.rerun()
+        
+    st.markdown("---")
+    st.write("Développé par Mon Professeur.")
 
-# --- DICTIONNAIRE D'IMAGES ---
+# --- DICTIONNAIRE D'IMAGES DYNAMIQUES ---
 IMAGE_MAP = {
     "voiture": "https://images.unsplash.com/photo-1524985069026-b1c7d9d4f8c3?auto=format&fit=crop&w=800&q=80",
     "vélo": "https://images.unsplash.com/photo-1508609348766-92a5d6a1e7e9?auto=format&fit=crop&w=800&q=80",
@@ -45,50 +57,98 @@ IMAGE_MAP = {
 def get_image_for_text(text: str) -> str | None:
     mots = re.findall(r'\b\w+\b', text.lower())
     for mot in mots:
-        if mot in IMAGE_MAP: return IMAGE_MAP[mot]
+        if mot in IMAGE_MAP: 
+            return IMAGE_MAP[mot]
     return None
 
-# Affichage historique
-messages = db_manager.get_history()
-for message in messages:
-    with st.chat_message(message["role"]): st.markdown(message["content"])
+# Récupération de l'historique spécifique à l'utilisateur
+messages = db_manager.get_history_by_user(user_id) if hasattr(db_manager, "get_history_by_user") else db_manager.get_history()
 
-# --- BARRE D'OUTILS ---
+# --- GESTION DE LA MÉMOIRE LONGUE (Résumé automatique si > 10 messages) ---
+if len(messages) > 10:
+    dernier_msg = messages[-1]["content"] if messages else ""
+    if not dernier_msg.startswith("[Résumé automatique]"):
+        with st.spinner("Leyla consolide sa mémoire à long terme..."):
+            resume_texte = generer_resume(messages)
+            message_resume = f"[Résumé automatique] : {resume_texte}"
+            if hasattr(db_manager, "save_message_with_user"): # Sécurité selon la structure
+                db_manager.save_message_by_user(user_id, "system", message_resume)
+            else:
+                db_manager.save_message("system", message_resume)
+            messages = db_manager.get_history_by_user(user_id) if hasattr(db_manager, "get_history_by_user") else db_manager.get_history()
+
+# --- AFFICHAGE DE L'HISTORIQUE ---
+for message in messages:
+    if message["role"] != "system":
+        with st.chat_message(message["role"]): 
+            st.markdown(message["content"])
+
+# --- BARRE D'OUTILS (Images & Vocaux) ---
 col1, col2 = st.columns(2)
-with col1: image_uploadee = st.file_uploader("📎 Joindre une image", type=["jpg", "jpeg", "png"])
-with col2: audio_file = st.audio_input("🎙️ Enregistrer un vocal")
+with col1: 
+    image_uploadee = st.file_uploader("📎 Joindre une image", type=["jpg", "jpeg", "png"])
+with col2: 
+    audio_file = st.audio_input("🎙️ Enregistrer un vocal")
 
 prompt_vocal = None
 if audio_file:
-    with open("temp_audio.wav", "wb") as f: f.write(audio_file.getbuffer())
+    with open("temp_audio.wav", "wb") as f: 
+        f.write(audio_file.getbuffer())
     try:
         r = sr.Recognizer()
         with sr.AudioFile("temp_audio.wav") as source:
             audio_data = r.record(source)
             prompt_vocal = r.recognize_google(audio_data, language="fr-FR")
             st.success(f"🎙️ Transcrit : {prompt_vocal}")
-    except: st.warning("Impossible de transcrire.")
+    except Exception: 
+        st.warning("Impossible de transcrire l'audio.")
 
-prompt_texte = st.chat_input("Posez votre question...")
+prompt_texte = st.chat_input("Que voulez-vous savoir ?")
 prompt = prompt_vocal if prompt_vocal else prompt_texte
 
+# --- TRAITEMENT DE LA REQUÊTE ---
 if prompt:
-    with st.chat_message("user"): st.markdown(prompt)
-    db_manager.save_message("user", prompt)
-    
+    # Sauvegarde et affichage du message utilisateur
+    contenu_u = prompt
+    if image_uploadee is not None:
+        contenu_u = f"[Image envoyée] {prompt}"
+
+    with st.chat_message("user"):
+        if image_uploadee is not None:
+            st.image(image_uploadee, width=300)
+        st.markdown(prompt)
+
+    if hasattr(db_manager, "save_message_by_user"):
+        db_manager.save_message_by_user(user_id, "user", contenu_u)
+    else:
+        db_manager.save_message("user", contenu_u)
+
+    # Récupération actualisée pour l'IA
+    messages_actuels = db_manager.get_history_by_user(user_id) if hasattr(db_manager, "get_history_by_user") else db_manager.get_history()
+
+    # Réponse de l'assistant
     with st.chat_message("assistant"):
         with st.spinner("Leyla réfléchit..."):
-            reponse = rechercher_sur_le_web(db_manager.get_history())
+            reponse = rechercher_sur_le_web(messages_actuels)
             st.markdown(reponse)
-            
-            img_url = get_image_for_text(reponse)
-            if img_url: st.image(img_url, width=400)
 
+            # Affichage d'une image illustrative si détectée dans le texte
+            img_url = get_image_for_text(reponse)
+            if img_url: 
+                st.image(img_url, width=400, caption="Illustration automatique")
+
+            # Synthèse vocale de la réponse
             if activer_voix:
                 try:
                     tts = gTTS(text=reponse, lang='fr', slow=False)
-                    tts.save("reponse_leyla.mp3")
-                    st.audio("reponse_leyla.mp3", autoplay=True)
-                except: st.warning("Audio indisponible.")
-    
-    db_manager.save_message("assistant", reponse)
+                    audio_path = "reponse_leyla.mp3"
+                    tts.save(audio_path)
+                    st.audio(audio_path, format="audio/mp3", autoplay=True)
+                except Exception as e:
+                    st.warning(f"Audio indisponible : {e}")
+
+    # Sauvegarde de la réponse de l'assistant
+    if hasattr(db_manager, "save_message_by_user"):
+        db_manager.save_message_by_user(user_id, "assistant", reponse)
+    else:
+        db_manager.save_message("assistant", reponse)
