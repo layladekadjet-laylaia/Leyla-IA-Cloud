@@ -104,6 +104,39 @@ with st.sidebar:
 st.title(f"🤖 Bonjour {user_name} !")
 st.write(f"Session active : `{st.session_state.session_id}`")
 
+# --- CONTRÔLES VOCAUX RAPIDES (EN HAUT) ---
+col_play, col_stop, _ = st.columns([1, 1, 4])
+with col_play:
+    if st.button("▶️ Écouter", use_container_width=True):
+        messages_actuels = db_manager.get_history(st.session_state.session_id)
+        derniere_reponse = ""
+        for m in reversed(messages_actuels):
+            if m["role"] == "assistant":
+                derniere_reponse = m["content"]
+                break
+        if derniere_reponse:
+            texte_propre = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"').replace("'", "\\'")
+            components.html(
+                f"""
+                <script>
+                    if ('speechSynthesis' in window) {{
+                        window.speechSynthesis.cancel();
+                        var utterance = new SpeechSynthesisUtterance("{texte_propre}");
+                        utterance.lang = 'fr-FR';
+                        utterance.rate = 1.0;
+                        window.speechSynthesis.speak(utterance);
+                    }}
+                </script>
+                """,
+                height=0,
+            )
+
+with col_stop:
+    if st.button("⏹️ Stop", use_container_width=True):
+        components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
+
+st.markdown("---")
+
 # --- DICTIONNAIRE D'IMAGES DYNAMIQUES ---
 IMAGE_MAP = {
     "voiture": "https://images.unsplash.com/photo-1524985069026-b1c7d9d4f8c3?auto=format&fit=crop&w=800&q=80",
@@ -200,22 +233,15 @@ if prompt:
                 st.image(img_url, width=400, caption="Illustration automatique")
 
             if activer_voix:
-                # Nettoyage du texte pour éviter les erreurs de syntaxe JavaScript avec les apostrophes ou retours à la ligne
                 texte_propre = re.sub(r'[\n\r]+', ' ', reponse).replace('"', '\\"').replace("'", "\\'")
-                
-                # Injection de l'API de synthèse vocale native du navigateur (Web Speech API)
                 components.html(
                     f"""
                     <script>
                         if ('speechSynthesis' in window) {{
-                            // Arrêter toute parole en cours pour éviter les superpositions
                             window.speechSynthesis.cancel();
-                            
                             var utterance = new SpeechSynthesisUtterance("{texte_propre}");
                             utterance.lang = 'fr-FR';
                             utterance.rate = 1.0;
-                            
-                            // Lancer la lecture vocale
                             window.speechSynthesis.speak(utterance);
                         }}
                     </script>
