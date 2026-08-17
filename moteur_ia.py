@@ -138,7 +138,7 @@ for message in messages:
         with st.chat_message(message["role"]): 
             st.markdown(message["content"])
 
-# --- OPTIONS MULTIMÉDIA (SÉPARÉES POUR ÉVITER LES BOGUES) ---
+# --- OPTIONS MULTIMÉDIA (SÉPARÉES) ---
 with st.expander("📁 Options d'envoi d'image", expanded=False):
     choix_source = st.radio("Source de l'image :", ["Aucune", "📁 Importer un fichier", "📷 Caméra"], horizontal=True)
     image_finale = None
@@ -147,9 +147,10 @@ with st.expander("📁 Options d'envoi d'image", expanded=False):
     elif choix_source == "📷 Caméra":
         image_finale = st.camera_input("Prenez une photo")
 
-# Zone vocale stable en dehors de l'expander
-st.markdown("### 🎙️ Enregistrement Vocal")
-audio_file = st.audio_input("Enregistrer un message vocal")
+# --- ZONE BASSE : TOUS LES CONTRÔLES RASSEMBLÉS EN LIGNE ---
+
+# 1. Enregistrement vocal discret
+audio_file = st.audio_input("🎙️ Enregistrer un message vocal")
 
 prompt_vocal = None
 if audio_file:
@@ -174,8 +175,9 @@ if audio_file:
                 os.remove("temp_audio.wav")
         image_finale = None
 
-# --- CONTRÔLES VOCAUX CÔTE À CÔTE EN BAS ---
-col_play, col_stop, _ = st.columns([1, 1, 2])
+# 2. Boutons Écouter, Stop et un espace alignés côte à côte juste au-dessus de la saisie
+col_play, col_stop, col_espace = st.columns([1, 1, 1])
+
 with col_play:
     if st.button("▶️ Écouter", use_container_width=True, key="btn_ecouter_bas"):
         messages_actuels = db_manager.get_history(st.session_state.session_id)
@@ -205,7 +207,7 @@ with col_stop:
     if st.button("⏹️ Stop", use_container_width=True, key="btn_stop_bas"):
         components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
 
-# Zone de saisie du message
+# 3. Zone de saisie manuelle (placée par Streamlit tout en bas)
 prompt_texte = st.chat_input(f"Que voulez-vous savoir, {user_name} ?")
 prompt = prompt_vocal if prompt_vocal else prompt_texte
 
