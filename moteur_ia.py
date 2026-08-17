@@ -50,6 +50,16 @@ st.markdown("""
         color: #1f1f1f !important; 
         border: 1px solid #c4c7c5 !important; 
     }
+    .fixed-audio-controls {
+        position: sticky;
+        bottom: 70px;
+        background-color: rgba(255, 255, 255, 0.95);
+        padding: 8px;
+        border-radius: 12px;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        z-index: 99;
+        margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -103,38 +113,6 @@ with st.sidebar:
 # --- EN-TÊTE ÉPURÉ ---
 st.title(f"🤖 Bonjour {user_name} !")
 st.write(f"Session active : `{st.session_state.session_id}`")
-
-# --- CONTRÔLES VOCAUX RAPIDES (EN HAUT) ---
-col_play, col_stop, _ = st.columns([1, 1, 4])
-with col_play:
-    if st.button("▶️ Écouter", use_container_width=True):
-        messages_actuels = db_manager.get_history(st.session_state.session_id)
-        derniere_reponse = ""
-        for m in reversed(messages_actuels):
-            if m["role"] == "assistant":
-                derniere_reponse = m["content"]
-                break
-        if derniere_reponse:
-            texte_propre = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"').replace("'", "\\'")
-            components.html(
-                f"""
-                <script>
-                    if ('speechSynthesis' in window) {{
-                        window.speechSynthesis.cancel();
-                        var utterance = new SpeechSynthesisUtterance("{texte_propre}");
-                        utterance.lang = 'fr-FR';
-                        utterance.rate = 1.0;
-                        window.speechSynthesis.speak(utterance);
-                    }}
-                </script>
-                """,
-                height=0,
-            )
-
-with col_stop:
-    if st.button("⏹️ Stop", use_container_width=True):
-        components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
-
 st.markdown("---")
 
 # --- DICTIONNAIRE D'IMAGES DYNAMIQUES ---
@@ -206,6 +184,40 @@ if audio_file:
                 os.remove("temp_audio.wav")
         image_finale = None
 
+# --- CONTRÔLES VOCAUX FIXES EN BAS (ÉCOUTER / STOP) ---
+st.markdown('<div class="fixed-audio-controls">', unsafe_allow_html=True)
+col_play, col_stop, _ = st.columns([1, 1, 3])
+with col_play:
+    if st.button("▶️ Écouter", use_container_width=True, key="btn_ecouter_bas"):
+        messages_actuels = db_manager.get_history(st.session_state.session_id)
+        derniere_reponse = ""
+        for m in reversed(messages_actuels):
+            if m["role"] == "assistant":
+                derniere_reponse = m["content"]
+                break
+        if derniere_reponse:
+            texte_propre = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"').replace("'", "\\'")
+            components.html(
+                f"""
+                <script>
+                    if ('speechSynthesis' in window) {{
+                        window.speechSynthesis.cancel();
+                        var utterance = new SpeechSynthesisUtterance("{texte_propre}");
+                        utterance.lang = 'fr-FR';
+                        utterance.rate = 1.0;
+                        window.speechSynthesis.speak(utterance);
+                    }}
+                </script>
+                """,
+                height=0,
+            )
+
+with col_stop:
+    if st.button("⏹️ Stop", use_container_width=True, key="btn_stop_bas"):
+        components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Zone de saisie du message
 prompt_texte = st.chat_input(f"Que voulez-vous savoir, {user_name} ?")
 prompt = prompt_vocal if prompt_vocal else prompt_texte
 
