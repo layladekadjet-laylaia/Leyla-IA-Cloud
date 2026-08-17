@@ -12,69 +12,163 @@ import speech_recognition as sr
 db_manager.init_db()
 st.set_page_config(page_title="Leyla IA", page_icon="🤖", layout="centered")
 
-# --- GESTION DES SESSIONS ---
-if 'session_id' not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())[:8]
+# --- PERSONNALISATION CSS ---
+st.markdown("""
+<style>
+    .stApp { background-color: #ffffff; color: #1f1f1f; }
+    .stChatMessage { border-radius: 16px; padding: 12px 16px; margin-bottom: 10px; background-color: #f8f9fa; border: 1px solid #e5e5e5; }
+    .stChatInputContainer input { border-radius: 24px !important; background-color: #f0f4f9 !important; color: #1f1f1f !important; border: 1px solid #c4c7c5 !important; }
+</style>
+""", unsafe_allow_html=True)
 
-# --- SIDEBAR : GESTION DES SESSIONS ---
+# --- GESTION DU PROFIL UTILISATEUR ---
+user_name = db_manager.get_user_name()
+if not user_name:
+    st.title("🤖 Bienvenue sur Leyla IA")
+    nom_saisi = st.text_input("Bonjour ! Je suis Leyla. Comment dois-je vous appeler ?")
+    if nom_saisi:
+        db_manager.save_user_name(nom_saisi)
+        st.rerun()
+    st.stop()  # Bloque l'interface tant que le nom n'est pas défini
+
+# --- GESTION DES SESSIONS DE DISCUSSION ---
+if 'session_id' not in st.session_state:
+    sessions_existantes = db_manager.get_all_sessions()
+    if sessions_existantes:
+        st.session_state.session_id = sessions_existantes[-1]
+    else:
+        st.session_state.session_id = str(uuid.uuid4())[:8]
+
+# --- BARRE LATÉRALE : SESSIONS & PARAMÈTRES ---
 with st.sidebar:
-    st.title("Mes Discussions")
-    if st.button("➕ Nouvelle Discussion"):
+    st.header("Mes Discussions")
+    if st.button("➕ Nouvelle Discussion", use_container_width=True):
         st.session_state.session_id = str(uuid.uuid4())[:8]
         st.rerun()
     
+    st.markdown("---")
     sessions = db_manager.get_all_sessions()
     for s in sessions:
-        if st.button(f"💬 Discussion {s}", key=s):
+        label_btn = f"💬 Discussion {s[:4]}..."
+        if s == st.session_state.session_id:
+            label_btn = f"▶️ {label_btn}"
+        if st.button(label_btn, key=s, use_container_width=True):
             st.session_state.session_id = s
             st.rerun()
+            
+    st.markdown("---")
+    st.header("Paramètres")
+    activer_voix = st.checkbox("Activer la réponse vocale", value=True)
+    
+    if st.button("🗑️ Effacer cette discussion", use_container_width=True):
+        db_manager.clear_session(st.session_state.session_id)
+        st.success("Discussion effacée !")
+        st.rerun()
+        
+    st.markdown("---")
+    st.write("Développé pour Mon Professeur.")
 
-# --- LOGIQUE PROFIL & CSS ---
-# (Gardez votre CSS ici...)
+# --- EN-TÊTE AVEC LOGO ET PRÉNOM ---
+try: 
+    st.image("LOGO LAYLA.png", width=300)
+except Exception: 
+    pass
 
-user_name = db_manager.get_user_name()
-# ... (votre bloc de vérification de nom reste identique)
+st.title(f"🤖 Bonjour {user_name} !")
+st.write(f"Session active : `{st.session_state.session_id}`")
 
-st.title(f"🤖 Discussion {st.session_state.session_id}")
+# --- DICTIONNAIRE D'IMAGES DYNAMIQUES ---
+IMAGE_MAP = {
+    "voiture": "https://images.unsplash.com/photo-1524985069026-b1c7d9d4f8c3?auto=format&fit=crop&w=800&q=80",
+    "vélo": "https://images.unsplash.com/photo-1508609348766-92a5d6a1e7e9?auto=format&fit=crop&w=800&q=80",
+    "cacao": "https://images.unsplash.com/photo-1587590227264-0ac641a9bc63?auto=format&fit=crop&w=800&q=80",
+}
 
-# --- RÉCUPÉRATION HISTORIQUE ---
+def get_image_for_text(text: str) -> str | None:
+    mots = re.findall(r'\b\w+\b', text.lower())
+    for mot in mots:
+        if mot in IMAGE_MAP: 
+            return IMAGE_MAP[mot]
+    return None
+
+# Récupération automatique de l'historique de la session active
 messages = db_manager.get_history(st.session_state.session_id)
-for message in messages:
-    with st.chat_message(message["role"]): 
-        st.markdown(message["content"])
 
-# --- ZONE DE SAISIE UNIFIÉE ---
-# On crée des colonnes pour aligner les outils au-dessus/autour du chat_input
-col1, col2, col3 = st.columns([1, 1, 6])
-with col1:
-    fichier = st.file_uploader("📁", type=["jpg", "png"], label_visibility="collapsed")
-with col2:
-    vocal = st.audio_input("🎙️")
+# --- GESTION DE LA MÉMOIRE LONGUE ---
+if len(messages) > 10:
+    dernier_msg = messages[-1]["content"] if messages else ""
+    if not dernier_msg.startswith("[Résumé automatique]"):
+        with st.spinner("Leyla consolide sa mémoire à long terme..."):
+            resume_texte = generer_resume(messages)
+            message_resume = f"[Résumé automatique] : {resume_texte}"
+            db_manager.save_message(st.session_state.session_id, "system", message_resume)
+            messages = db_manager.get_history(st.session_state.session_id)
+
+# --- AFFICHAGE DE L'HISTORIQUE ---
+for message in messages:
+    if message["role"] != "system":
+        with st.chat_message(message["role"]): 
+            st.markdown(message["content"])
+
+# --- OPTIONS MULTIMÉDIA DISCRÈTES (JUSTE AVANT LE CHAT INPUT) ---
+with st.expander("🛠️ Options d'envoi (Image ou Vocal)", expanded=False):
+    choix_source = st.radio("Source de l'image :", ["Aucune", "📁 Importer un fichier", "📷 Caméra"], horizontal=True)
+    image_finale = None
+    if choix_source == "📁 Importer un fichier":
+        image_finale = st.file_uploader("Choisissez une image", type=["jpg", "jpeg", "png"])
+    elif choix_source == "📷 Caméra":
+        image_finale = st.camera_input("Prenez une photo")
+
+    audio_file = st.audio_input("🎙️ Enregistrer un message vocal")
+
+prompt_vocal = None
+if audio_file:
+    with open("temp_audio.wav", "wb") as f: 
+        f.write(audio_file.getbuffer())
+    try:
+        r = sr.Recognizer()
+        with sr.AudioFile("temp_audio.wav") as source:
+            audio_data = r.record(source)
+            prompt_vocal = r.recognize_google(audio_data, language="fr-FR")
+            st.success(f"🎙️ Transcrit : {prompt_vocal}")
+    except Exception: 
+        st.warning("Impossible de transcrire l'audio.")
+    image_finale = None  # Sécurité
 
 prompt_texte = st.chat_input(f"Que voulez-vous savoir, {user_name} ?")
+prompt = prompt_vocal if prompt_vocal else prompt_texte
 
-# --- TRAITEMENT ---
-prompt = None
-if vocal:
-    # (Votre logique de transcription ici...)
-    prompt = prompt_vocal
-elif prompt_texte:
-    prompt = prompt_texte
-
+# --- TRAITEMENT DE LA REQUÊTE ---
 if prompt:
-    # 1. Afficher l'utilisateur
+    contenu_u = prompt
+    if image_finale is not None:
+        contenu_u = f"[Image transmise] {prompt}"
+
     with st.chat_message("user"):
-        if fichier: st.image(fichier, width=200)
+        if image_finale is not None:
+            st.image(image_finale, width=300, caption="Photo transmise à Leyla")
         st.markdown(prompt)
-    
-    # 2. Sauvegarder dans la session active
-    db_manager.save_message(st.session_state.session_id, "user", prompt)
-    
-    # 3. Réponse de Leyla
+
+    db_manager.save_message(st.session_state.session_id, "user", contenu_u)
+    messages_actuels = db_manager.get_history(st.session_state.session_id)
+
     with st.chat_message("assistant"):
-        reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id))
-        st.markdown(reponse)
-        # (Logique image et TTS ici...)
-        
+        with st.spinner("Leyla réfléchit et analyse..."):
+            reponse = rechercher_sur_le_web(messages_actuels)
+            st.markdown(reponse)
+
+            img_url = get_image_for_text(reponse)
+            if img_url: 
+                st.image(img_url, width=400, caption="Illustration automatique")
+
+            if activer_voix:
+                try:
+                    tts = gTTS(text=reponse, lang='fr', slow=False)
+                    audio_path = "reponse_leyla.mp3"
+                    tts.save(audio_path)
+                    st.audio(audio_path, format="audio/mp3", autoplay=True)
+                except Exception as e:
+                    st.warning(f"Audio indisponible : {e}")
+
     db_manager.save_message(st.session_state.session_id, "assistant", reponse)
     st.rerun()
