@@ -92,7 +92,7 @@ if audio_file is not None:
         with sr.AudioFile("temp_audio.wav") as source:
             audio_data = r.record(source)
             prompt_vocal = r.recognize_google(audio_data, language="fr-FR")
-            st.success(Texte transcrit : "{prompt_vocal}")
+            st.success(f"Texte transcrit : {prompt_vocal}")
     except Exception as e:
         st.warning("Impossible de transcrire l'audio. Veuillez réessayer ou utiliser le texte.")
 
