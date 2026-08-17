@@ -2,6 +2,7 @@ import streamlit as st
 import uuid
 from recherche_ia import rechercher_sur_le_web
 import db_manager
+import streamlit.components.v1 as components
 from utils_memoire import generer_resume
 from gtts import gTTS
 import os
@@ -152,12 +153,10 @@ audio_file = st.audio_input("Enregistrer un message vocal")
 
 prompt_vocal = None
 if audio_file:
-    # Initialisation de l'état de la session pour l'audio si inexistant
     if 'last_audio_id' not in st.session_state:
         st.session_state.last_audio_id = None
 
     audio_bytes = audio_file.getvalue()
-    # On ne traite l'audio que s'il est nouveau pour éviter les boucles infinies
     if audio_bytes != st.session_state.last_audio_id:
         st.session_state.last_audio_id = audio_bytes
         
@@ -173,7 +172,7 @@ if audio_file:
         finally:
             if os.path.exists("temp_audio.wav"):
                 os.remove("temp_audio.wav")
-        image_finale = None  # Sécurité
+        image_finale = None
 
 prompt_texte = st.chat_input(f"Que voulez-vous savoir, {user_name} ?")
 prompt = prompt_vocal if prompt_vocal else prompt_texte
@@ -206,7 +205,28 @@ if prompt:
                     tts = gTTS(text=reponse, lang='fr', slow=False)
                     audio_path = "reponse_leyla.mp3"
                     tts.save(audio_path)
-                    st.audio(audio_path, format="audio/mp3", autoplay=True)
+                    
+                    # Affichage du lecteur audio standard en secours
+                    st.audio(audio_path, format="audio/mp3")
+                    
+                    # Script JS pour forcer le lancement automatique de la lecture audio
+                    components.html(
+                        f"""
+                        <audio autoplay>
+                            <source src="app/static/{audio_path}" type="audio/mp3">
+                        </audio>
+                        <script>
+                            setTimeout(function() {{
+                                var audioElements = window.parent.document.getElementsByTagName('audio');
+                                if (audioElements.length > 0) {{
+                                    var lastAudio = audioElements[audioElements.length - 1];
+                                    lastAudio.play().catch(error => console.log("Autoplay bloqué par le navigateur : ", error));
+                                }}
+                            }}, 500);
+                        </script>
+                        """,
+                        height=0,
+                    )
                 except Exception as e:
                     st.warning(f"Audio indisponible : {e}")
 
