@@ -165,7 +165,7 @@ if prompt:
                 try:
                     tts = gTTS(text=reponse, lang='fr', slow=False)
                     audio_path = "reponse_leyla.mp3"
-                    tts.save(audio_path)
+                   tts.save(audio_path)
                     st.audio(audio_path, format="audio/mp3", autoplay=True)
                 except Exception as e:
                     st.warning(f"Audio indisponible : {e}")
