@@ -41,7 +41,7 @@ st.markdown(f"""
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain;
-        opacity: 0.12; /* Ajustez la transparence si besoin (ex: 0.12 pour un beau filigrane discret) */
+        opacity: 0.60; /* Ajustez la transparence si besoin (ex: 0.12 pour un beau filigrane discret) */
         pointer-events: none;
         z-index: 0;
     }}
