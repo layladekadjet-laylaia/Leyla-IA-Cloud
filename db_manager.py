@@ -4,6 +4,18 @@ import hashlib
 
 DB_NAME = 'leyla_cloud.db'
 
+def save_user_name(name):
+    with open("user_name.txt", "w") as f:
+        f.write(name)
+
+def get_user_name():
+    if os.path.exists("user_name.txt"):
+        with open("user_name.txt", "r") as f:
+            return f.read()
+    return None
+
+
+
 def get_device_id():
     """Génère un identifiant unique basé sur l'adresse MAC de l'appareil."""
     # uuid.getnode() récupère l'adresse MAC du matériel
