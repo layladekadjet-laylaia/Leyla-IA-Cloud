@@ -2,9 +2,8 @@ import streamlit as st
 import uuid
 from recherche_ia import rechercher_sur_le_web
 import db_manager
-import streamlit.components.v1 as components
 from utils_memoire import generer_resume
-from gtts import gTTS
+from streamlit_tts import text_to_speech
 import os
 import re
 import speech_recognition as sr
@@ -202,31 +201,8 @@ if prompt:
 
             if activer_voix:
                 try:
-                    tts = gTTS(text=reponse, lang='fr', slow=False)
-                    audio_path = "reponse_leyla.mp3"
-                    tts.save(audio_path)
-                    
-                    # Affichage du lecteur audio standard en secours
-                    st.audio(audio_path, format="audio/mp3")
-                    
-                    # Script JS pour forcer le lancement automatique de la lecture audio
-                    components.html(
-                        f"""
-                        <audio autoplay>
-                            <source src="app/static/{audio_path}" type="audio/mp3">
-                        </audio>
-                        <script>
-                            setTimeout(function() {{
-                                var audioElements = window.parent.document.getElementsByTagName('audio');
-                                if (audioElements.length > 0) {{
-                                    var lastAudio = audioElements[audioElements.length - 1];
-                                    lastAudio.play().catch(error => console.log("Autoplay bloqué par le navigateur : ", error));
-                                }}
-                            }}, 500);
-                        </script>
-                        """,
-                        height=0,
-                    )
+                    # Utilisation de la synthèse vocale native du navigateur via streamlit-tts
+                    text_to_speech(reponse, language='fr-FR')
                 except Exception as e:
                     st.warning(f"Audio indisponible : {e}")
 
