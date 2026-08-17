@@ -3,3 +3,4 @@ groq
 requests
 duckduckgo_search
 gTTS
+SpeechRecognition
