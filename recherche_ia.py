@@ -27,7 +27,7 @@ def rechercher_sur_le_web(historique):
 
     try:
         completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=messages_complets
         )
         return completion.choices[0].message.content
