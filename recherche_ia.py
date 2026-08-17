@@ -31,8 +31,8 @@ def rechercher_sur_le_web(historique):
 
     try:
         completion = client.chat.completions.create(
-            messages=messages_complets,
-            llama3-70b-8192,
+            model="llama-3.1-8b-instant",
+            messages=messages_complets
         )
         return completion.choices[0].message.content
     except Exception as e:
