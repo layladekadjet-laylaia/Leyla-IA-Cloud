@@ -4,13 +4,14 @@ import db_manager
 from gtts import gTTS
 import os
 import re
+import speech_recognition as sr
 
 # Initialisation de la base de données SQLite
 db_manager.init_db()
 
 st.set_page_config(page_title="Leyla IA", page_icon="🤖", layout="centered")
 
-# --- PERSONNALISATION CSS STYLE CLAIR (BLANC) ---
+# --- PERSONNALISATION CSS STYLE GEMINI (BLANC) ---
 st.markdown("""
 <style>
     .stApp {
@@ -45,15 +46,12 @@ except Exception:
 st.title("Leyla IA")
 st.caption("Votre assistant intelligent, conçu par Djè Akadjé pour Mon Professeur.")
 
-# Barre latérale pour les options multimédias discrètes
+# Barre latérale
 with st.sidebar:
-    st.header("Options & Multimédia")
-    activer_voix = st.checkbox("Activer la réponse vocale (Audio)", value=True)
+    st.header("Paramètres")
+    activer_voix = st.checkbox("Activer la réponse vocale", value=True)
     st.markdown("---")
-    st.subheader("📎 Joindre une image")
-    image_uploadee = st.file_uploader("Sélectionner une photo", type=["jpg", "jpeg", "png"])
-    st.markdown("---")
-    st.write("Mode Barre Unifiée actif.")
+    st.write("Mode Multimédia & Vocal actif.")
 
 # --- DICTIONNAIRE D'IMAGES PAR MOTS-CLÉS ---
 IMAGE_MAP = {
@@ -78,11 +76,36 @@ for message in messages:
     with st.chat_message(message["role"], avatar=avatar_icon):
         st.markdown(message["content"])
 
-# --- BARRE DE SAISIE UNIQUE UNIFIÉE ---
-if prompt := st.chat_input("Posez votre question ou parlez à Leyla..."):
-    contenu_utilisateur = prompt
+# --- BARRE D'OUTILS MULTIMÉDIA (Regroupée juste au-dessus de la saisie) ---
+with st.container():
+    col1, col2 = st.columns(2)
+    with col1:
+        image_uploadee = st.file_uploader("📎 Joindre une image", type=["jpg", "jpeg", "png"], key="img_up")
+    with col2:
+        audio_file = st.audio_input("🎙️ Enregistrer un vocal")
+
+prompt_vocal = None
+if audio_file is not None:
+    with open("temp_audio.wav", "wb") as f:
+        f.write(audio_file.getbuffer())
     
-    # Si une image a été jointe dans la barre latérale
+    r = sr.Recognizer()
+    try:
+        with sr.AudioFile("temp_audio.wav") as source:
+            audio_data = r.record(source)
+            prompt_vocal = r.recognize_google(audio_data, language="fr-FR")
+            st.success(f"🎙️ Transcrit : {prompt_vocal}")
+    except Exception:
+        st.warning("Impossible de transcrire l'audio.")
+
+# Saisie texte classique
+prompt_texte = st.chat_input("Posez votre question à Leyla...")
+
+# Fusion des canaux d'entrée (Vocal ou Texte)
+prompt = prompt_vocal if prompt_vocal else prompt_texte
+
+if prompt:
+    contenu_utilisateur = prompt
     if image_uploadee is not None:
         with st.chat_message("user", avatar="👨‍💻"):
             st.image(image_uploadee, caption="Image transmise", width=300)
@@ -100,7 +123,6 @@ if prompt := st.chat_input("Posez votre question ou parlez à Leyla..."):
             reponse = rechercher_sur_le_web(messages_actuels)
             st.markdown(reponse)
             
-            # Affichage d'une image si un mot-clé correspond
             img_url = get_image_for_text(reponse)
             if img_url:
                 st.image(img_url, width=400, caption="Illustration liée à la réponse")
@@ -114,4 +136,5 @@ if prompt := st.chat_input("Posez votre question ou parlez à Leyla..."):
                 except Exception as e:
                     st.warning(f"Audio non disponible : {e}")
     
+    db_manager.save_message("assistant", sauvegarder := reponse) # Correction syntaxe db
     db_manager.save_message("assistant", reponse)
