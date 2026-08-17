@@ -1,5 +1,6 @@
 import os
 import base64
+import re
 from groq import Groq
 from duckduckgo_search import DDGS
 
@@ -34,7 +35,12 @@ def rechercher_sur_le_web(historique, image_file=None):
 
     message_systeme = {
         "role": "system", 
-        "content": f"Tu es Leyla, l'IA de Djè Akadjé. Appelle-le 'Mon Professeur'. Voici des infos web : {contexte_web}"
+        "content": (
+            f"Tu es Leyla, l'IA de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
+            f"Donne directement la réponse finale claire et concise. "
+            f"N'inclus jamais de balises de réflexion, de monologue interne ou de texte du type <think>. "
+            f"Voici des infos web : {contexte_web}"
+        )
     }
     
     messages_formates = [message_systeme]
@@ -58,6 +64,11 @@ def rechercher_sur_le_web(historique, image_file=None):
             messages=messages_formates,
             max_tokens=1024
         )
-        return completion.choices[0].message.content
+        reponse_brute = completion.choices[0].message.content
+        
+        # Filtre de sécurité : supprime tout ce qui se trouve entre <think> et </think> s'il y en a
+        reponse_nette = re.sub(r'<think>.*?</think>', '', reponse_brute, flags=re.DOTALL).strip()
+        
+        return reponse_nette
     except Exception as e:
         return f"Erreur IA : {str(e)}"
