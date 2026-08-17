@@ -1,6 +1,7 @@
 import sqlite3
 import uuid
 import hashlib
+import os
 
 DB_NAME = 'leyla_cloud.db'
 
@@ -14,59 +15,61 @@ def get_user_name():
             return f.read()
     return None
 
-
-
 def get_device_id():
     """Génère un identifiant unique basé sur l'adresse MAC de l'appareil."""
-    # uuid.getnode() récupère l'adresse MAC du matériel
     mac = str(uuid.getnode())
-    # On crée un hash pour avoir un ID propre et sécurisé
     return hashlib.sha256(mac.encode()).hexdigest()[:16]
 
-# On récupère l'ID de l'appareil une fois pour toutes au démarrage
 DEVICE_ID = get_device_id()
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
+    # Ajout de la colonne session_id pour isoler les différentes discussions
     c.execute('''CREATE TABLE IF NOT EXISTS messages 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, role TEXT, content TEXT)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  device_id TEXT, 
+                  session_id TEXT, 
+                  role TEXT, 
+                  content TEXT)''')
     conn.commit()
     conn.close()
 
-def save_message(user_id_ou_role, role_ou_content, content=None):
-    """Sauvegarde en utilisant le DEVICE_ID par défaut si aucun user_id n'est spécifié."""
-    if content is None:
-        user_id = DEVICE_ID
-        role = user_id_ou_role
-        content = role_ou_content
-    else:
-        user_id = user_id_ou_role
-        role = role_ou_content
-
+def get_all_sessions(device_id=None):
+    """Récupère la liste de toutes les sessions distinctes pour cet appareil."""
+    dev_id = device_id if device_id else DEVICE_ID
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)", (user_id, role, content))
+    c.execute("SELECT DISTINCT session_id FROM messages WHERE device_id = ?", (dev_id,))
+    rows = c.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
+def save_message(session_id, role, content, device_id=None):
+    """Sauvegarde un message dans une session spécifique."""
+    dev_id = device_id if device_id else DEVICE_ID
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO messages (device_id, session_id, role, content) VALUES (?, ?, ?, ?)", 
+              (dev_id, session_id, role, content))
     conn.commit()
     conn.close()
 
-def get_history(user_id=None):
-    """Récupère l'historique lié à l'appareil par défaut."""
-    uid = user_id if user_id else DEVICE_ID
+def get_history(session_id, device_id=None):
+    """Récupère l'historique d'une session spécifique."""
+    dev_id = device_id if device_id else DEVICE_ID
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("SELECT role, content FROM messages WHERE user_id = ?", (uid,))
+    c.execute("SELECT role, content FROM messages WHERE device_id = ? AND session_id = ?", (dev_id, session_id))
     rows = c.fetchall()
     conn.close()
     return [{"role": row[0], "content": row[1]} for row in rows]
 
-def get_history_by_user(user_id):
-    return get_history(user_id)
-
-def clear_history(user_id=None):
-    uid = user_id if user_id else DEVICE_ID
+def clear_session(session_id, device_id=None):
+    """Efface une session de discussion spécifique."""
+    dev_id = device_id if device_id else DEVICE_ID
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM messages WHERE user_id = ?", (uid,))
+    cursor.execute("DELETE FROM messages WHERE device_id = ? AND session_id = ?", (dev_id, session_id))
     conn.commit()
     conn.close()
