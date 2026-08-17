@@ -12,12 +12,50 @@ import speech_recognition as sr
 db_manager.init_db()
 st.set_page_config(page_title="Leyla IA", page_icon="🤖", layout="centered")
 
-# --- PERSONNALISATION CSS ---
+# --- PERSONNALISATION CSS & LOGO EN ARRIÈRE-PLAN (FILIGRANE) ---
 st.markdown("""
 <style>
-    .stApp { background-color: #ffffff; color: #1f1f1f; }
-    .stChatMessage { border-radius: 16px; padding: 12px 16px; margin-bottom: 10px; background-color: #f8f9fa; border: 1px solid #e5e5e5; }
-    .stChatInputContainer input { border-radius: 24px !important; background-color: #f0f4f9 !important; color: #1f1f1f !important; border: 1px solid #c4c7c5 !important; }
+    /* Couleur de fond générale */
+    .stApp { 
+        background-color: #ffffff; 
+        color: #1f1f1f; 
+    }
+    
+    /* Logo en filigrane (arrière-plan transparent et fixe) */
+    .stApp::before {
+        content: "";
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 450px;
+        height: 450px;
+        background-image: url("LOGO LAYLA.png");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        opacity: 0.07; /* Transparence subtile du filigrane */
+        pointer-events: none; /* Laisse passer les clics à travers l'image */
+        z-index: 0; /* Reste bien en arrière-plan */
+    }
+
+    /* Style des bulles de chat avec opacité pour rester lisibles par-dessus le filigrane */
+    .stChatMessage { 
+        border-radius: 16px; 
+        padding: 12px 16px; 
+        margin-bottom: 10px; 
+        background-color: rgba(248, 249, 250, 0.95); 
+        border: 1px solid #e5e5e5; 
+        position: relative;
+        z-index: 1;
+    }
+    
+    .stChatInputContainer input { 
+        border-radius: 24px !important; 
+        background-color: #f0f4f9 !important; 
+        color: #1f1f1f !important; 
+        border: 1px solid #c4c7c5 !important; 
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -68,12 +106,7 @@ with st.sidebar:
     st.markdown("---")
     st.write("Développé pour Mon Professeur.")
 
-# --- EN-TÊTE AVEC LOGO ET PRÉNOM ---
-try: 
-    st.image("LOGO LAYLA.png", width=300)
-except Exception: 
-    pass
-
+# --- EN-TÊTE ÉPURÉ (Le logo est désormais en arrière-plan) ---
 st.title(f"🤖 Bonjour {user_name} !")
 st.write(f"Session active : `{st.session_state.session_id}`")
 
