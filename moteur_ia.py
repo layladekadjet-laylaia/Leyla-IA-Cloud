@@ -7,19 +7,29 @@ from utils_memoire import generer_resume
 import os
 import re
 import speech_recognition as sr
+import base64
 
 # --- INITIALISATION ---
 db_manager.init_db()
 st.set_page_config(page_title="Leyla IA", page_icon="🤖", layout="centered")
 
+# --- FONCTION DE CONVERSION DU LOGO EN BASE64 ---
+def get_base64_image(image_path):
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    return ""
+
+img_base64 = get_base64_image("LOGO LAYLA.png")
+
 # --- PERSONNALISATION CSS & LOGO EN ARRIÈRE-PLAN (FILIGRANE) ---
-st.markdown("""
+st.markdown(f"""
 <style>
-    .stApp { 
+    .stApp {{ 
         background-color: #ffffff; 
         color: #1f1f1f; 
-    }
-    .stApp::before {
+    }}
+    .stApp::before {{
         content: "";
         position: fixed;
         top: 50%;
@@ -27,15 +37,15 @@ st.markdown("""
         transform: translate(-50%, -50%);
         width: 450px;
         height: 450px;
-        background-image: url("LOGO LAYLA.png");
+        background-image: url("data:image/png;base64,{img_base64}");
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain;
-        opacity: 1;
+        opacity: 0.12; /* Ajustez la transparence si besoin (ex: 0.12 pour un beau filigrane discret) */
         pointer-events: none;
         z-index: 0;
-    }
-    .stChatMessage { 
+    }}
+    .stChatMessage {{ 
         border-radius: 16px; 
         padding: 12px 16px; 
         margin-bottom: 10px; 
@@ -43,13 +53,13 @@ st.markdown("""
         border: 1px solid #e5e5e5; 
         position: relative;
         z-index: 1;
-    }
-    .stChatInputContainer input { 
+    }}
+    .stChatInputContainer input {{ 
         border-radius: 24px !important; 
         background-color: #f0f4f9 !important; 
         color: #1f1f1f !important; 
         border: 1px solid #c4c7c5 !important; 
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 
