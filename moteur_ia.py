@@ -3,71 +3,94 @@ from recherche_ia import rechercher_sur_le_web
 import db_manager
 from gtts import gTTS
 import os
-import base64
 
 # Initialisation de la base de données SQLite
 db_manager.init_db()
 
-st.set_page_config(page_title="Leyla IA", page_icon="🤖")
+st.set_page_config(page_title="Leyla IA", page_icon="🤖", layout="centered")
 
+# --- PERSONNALISATION CSS STYLE GEMINI ---
+st.markdown("""
+<style>
+    /* Style général de fond */
+    .stApp {
+        background-color: #131314;
+        color: #e3e3e3;
+    }
+    /* Style des bulles de chat */
+    .stChatMessage {
+        border-radius: 16px;
+        padding: 12px 16px;
+        margin-bottom: 10px;
+    }
+    /* Bouton d'envoi et inputs */
+    .stChatInputContainer input {
+        border-radius: 24px !important;
+        background-color: #1e1f20 !important;
+        color: white !important;
+        border: 1px solid #444746 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# En-tête avec logo
 try:
-    st.image("LOGO LAYLA.png", width=350)
+    st.image("LOGO LAYLA.png", width=250)
 except Exception:
     pass
 
-st.title("🤖 Leyla IA - Multimédia & Mémoire")
-st.write("Posez vos questions, envoyez des images, Leyla vous répond par texte, image et voix !")
+st.title("Leyla IA")
+st.caption("Votre assistant intelligent, conçu par Djè Akadjé Mon Professeur.")
 
-# Options de configuration dans la barre latérale
+# Barre latérale pour les paramètres
 with st.sidebar:
-    st.header("Paramètres de Leyla")
+    st.header("Paramètres")
     activer_voix = st.checkbox("Activer la réponse vocale", value=True)
     st.markdown("---")
-    st.write("Conçu par Djè Akadjé pour Mon Professeur.")
+    st.write("Mode Multimédia & Mémoire SQLite actif.")
 
 # Récupération de l'historique depuis la base de données SQLite
 messages = db_manager.get_history()
 
-# Affichage de l'historique des messages
+# Affichage de l'historique des messages avec des avatars distincts
 for message in messages:
-    with st.chat_message(message["role"]):
+    avatar_icon = "👨‍💻" if message["role"] == "user" else "🤖"
+    with st.chat_message(message["role"], avatar=avatar_icon):
         st.markdown(message["content"])
 
 # --- GESTION DES ENTRÉES : TEXTE ET FICHIER/IMAGE ---
-image_uploadee = st.file_uploader("Envoyer une photo ou un fichier à Leyla (ex: diagnostic de plante)", type=["jpg", "jpeg", "png"])
+image_uploadee = st.file_uploader("Ajouter une image ou un fichier de diagnostic", type=["jpg", "jpeg", "png"])
 
-if prompt := st.chat_input("Que voulez-vous savoir, Mon Professeur ?"):
+if prompt := st.chat_input("Posez votre question à Leyla..."):
     
     contenu_utilisateur = prompt
     if image_uploadee is not None:
-        # Sauvegarde temporaire de l'image pour l'afficher
         image_path = "temp_image.png"
         with open(image_path, "wb") as f:
             f.write(image_uploadee.getbuffer())
         
-        # Affichage de l'image dans le chat
-        with st.chat_message("user"):
-            st.image(image_uploadee, caption="Image envoyée par Mon Professeur", width=300)
+        with st.chat_message("user", avatar="👨‍💻"):
+            st.image(image_uploadee, caption="Image transmise", width=300)
             st.markdown(prompt)
         
         contenu_utilisateur = f"[Image envoyée] {prompt}"
     else:
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar="👨‍💻"):
             st.markdown(prompt)
 
-    # Sauvegarde dans la base de données
+    # Sauvegarde de la question
     db_manager.save_message("user", contenu_utilisateur)
 
     # Récupération de l'historique mis à jour
     messages_actuels = db_manager.get_history()
 
-    with st.chat_message("assistant"):
-        with st.spinner("Leyla analyse et cherche..."):
-            # Appel de la fonction de recherche et d'intelligence
+    # Réponse de l'assistant
+    with st.chat_message("assistant", avatar="🤖"):
+        with st.spinner("Leyla réfléchit..."):
             reponse = rechercher_sur_le_web(messages_actuels)
             st.markdown(reponse)
             
-            # Génération de la voix si activée
+            # Gestion de la synthèse vocale
             if activer_voix:
                 try:
                     tts = gTTS(text=reponse, lang='fr', slow=False)
@@ -77,5 +100,5 @@ if prompt := st.chat_input("Que voulez-vous savoir, Mon Professeur ?"):
                 except Exception as e:
                     st.warning(f"Audio non disponible : {e}")
     
-    # Sauvegarde de la réponse de l'assistant
+    # Sauvegarde de la réponse
     db_manager.save_message("assistant", reponse)
