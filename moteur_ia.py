@@ -21,14 +21,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# En-tête avec logo
+# --- GESTION DU PROFIL UTILISATEUR ---
+user_name = db_manager.get_user_name()
+if not user_name:
+    st.title("🤖 Bienvenue sur Leyla IA")
+    nom_saisi = st.text_input("Bonjour ! Je suis Leyla. Comment dois-je vous appeler ?")
+    if nom_saisi:
+        db_manager.save_user_name(nom_saisi)
+        st.rerun()
+    st.stop()  # Bloque l'interface tant que le nom n'est pas défini
+
+# --- EN-TÊTE AVEC LOGO ET PRÉNOM ---
 try: 
     st.image("LOGO LAYLA.png", width=300)
 except Exception: 
     pass
 
-st.title("🤖 Leyla IA")
-st.write("Votre assistante personnelle intelligente, vocale, visuelle et persistante.")
+st.title(f"🤖 Bonjour {user_name} !")
+st.write("Votre assistante personnelle intelligente est prête.")
 
 # --- BARRE LATÉRALE : PARAMÈTRES ---
 with st.sidebar:
@@ -61,7 +71,7 @@ def get_image_for_text(text: str) -> str | None:
 # Récupération automatique de l'historique de l'appareil
 messages = db_manager.get_history()
 
-# --- GESTION DE LA MÉMOIRE LONGUE (Résumé automatique si > 10 messages) ---
+# --- GESTION DE LA MÉMOIRE LONGUE ---
 if len(messages) > 10:
     dernier_msg = messages[-1]["content"] if messages else ""
     if not dernier_msg.startswith("[Résumé automatique]"):
@@ -77,18 +87,16 @@ for message in messages:
         with st.chat_message(message["role"]): 
             st.markdown(message["content"])
 
-# --- BARRE D'OUTILS MULTIMÉDIA (Images, Caméra & Vocaux) ---
+# --- BARRE D'OUTILS MULTIMÉDIA ---
 st.markdown("### 🛠️ Options d'envoi")
 choix_source = st.radio("Comment souhaitez-vous fournir une image ?", ["Aucune", "📁 Importer un fichier", "📷 Prendre une photo avec la caméra"])
 
 image_finale = None
-
 if choix_source == "📁 Importer un fichier":
     image_finale = st.file_uploader("Choisissez une image", type=["jpg", "jpeg", "png"])
 elif choix_source == "📷 Prendre une photo avec la caméra":
     image_finale = st.camera_input("Prenez la photo de votre culture")
 
-# Enregistrement vocal
 audio_file = st.audio_input("🎙️ Enregistrer un vocal (Optionnel)")
 
 prompt_vocal = None
@@ -104,7 +112,7 @@ if audio_file:
     except Exception: 
         st.warning("Impossible de transcrire l'audio.")
 
-prompt_texte = st.chat_input("Que voulez-vous savoir, Mon Professeur ?")
+prompt_texte = st.chat_input(f"Que voulez-vous savoir, {user_name} ?")
 prompt = prompt_vocal if prompt_vocal else prompt_texte
 
 # --- TRAITEMENT DE LA REQUÊTE ---
@@ -119,7 +127,6 @@ if prompt:
         st.markdown(prompt)
 
     db_manager.save_message("user", contenu_u)
-
     messages_actuels = db_manager.get_history()
 
     with st.chat_message("assistant"):
