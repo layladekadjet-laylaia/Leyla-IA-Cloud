@@ -237,7 +237,12 @@ if prompt:
 
     with st.chat_message("assistant"):
         with st.spinner("Leyla réfléchit et analyse..."):
-            reponse = rechercher_sur_le_web(messages_actuels, image_file=image_finale)
+            # Modifiez cette ligne dans moteur_ia.py
+if image_finale is not None:
+    reponse = rechercher_sur_le_web(messages_actuels, image_file=image_finale)
+else:
+    reponse = rechercher_sur_le_web(messages_actuels)
+
 
             st.markdown(reponse)
 
