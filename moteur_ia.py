@@ -4,7 +4,6 @@ import db_manager
 from gtts import gTTS
 import os
 import re
-import speech_recognition as sr
 
 # Initialisation de la base de données SQLite
 db_manager.init_db()
@@ -46,12 +45,15 @@ except Exception:
 st.title("Leyla IA")
 st.caption("Votre assistant intelligent, conçu par Djè Akadjé pour Mon Professeur.")
 
-# Barre latérale
+# Barre latérale pour les options multimédias discrètes
 with st.sidebar:
-    st.header("Paramètres")
-    activer_voix = st.checkbox("Activer la réponse vocale", value=True)
+    st.header("Options & Multimédia")
+    activer_voix = st.checkbox("Activer la réponse vocale (Audio)", value=True)
     st.markdown("---")
-    st.write("Mode Clair & Saisie Vocale actif.")
+    st.subheader("📎 Joindre une image")
+    image_uploadee = st.file_uploader("Sélectionner une photo", type=["jpg", "jpeg", "png"])
+    st.markdown("---")
+    st.write("Mode Barre Unifiée actif.")
 
 # --- DICTIONNAIRE D'IMAGES PAR MOTS-CLÉS ---
 IMAGE_MAP = {
@@ -76,40 +78,12 @@ for message in messages:
     with st.chat_message(message["role"], avatar=avatar_icon):
         st.markdown(message["content"])
 
-# --- GESTION DE LA SAISIE VOCALE (MICROPHONE) ---
-st.write("🎙️ **Parler à Leyla :**")
-audio_file = st.audio_input("Enregistrez votre message vocal")
-
-prompt_vocal = None
-if audio_file is not None:
-    # Sauvegarde temporaire du fichier audio enregistré
-    with open("temp_audio.wav", "wb") as f:
-        f.write(audio_file.getbuffer())
-    
-    # Transcription de l'audio en texte
-    r = sr.Recognizer()
-    try:
-        with sr.AudioFile("temp_audio.wav") as source:
-            audio_data = r.record(source)
-            prompt_vocal = r.recognize_google(audio_data, language="fr-FR")
-            st.success(f"Texte transcrit : {prompt_vocal}")
-    except Exception as e:
-        st.warning("Impossible de transcrire l'audio. Veuillez réessayer ou utiliser le texte.")
-
-# Gestion des entrées (Texte classique OU Vocal transcrit)
-image_uploadee = st.file_uploader("Ajouter une image ou un fichier de diagnostic", type=["jpg", "jpeg", "png"])
-prompt_texte = st.chat_input("Posez votre question à Leyla...")
-
-# On choisit le prompt actif (priorité au vocal s'il vient d'être enregistré, sinon texte)
-prompt = prompt_vocal if prompt_vocal else prompt_texte
-
-if prompt:
+# --- BARRE DE SAISIE UNIQUE UNIFIÉE ---
+if prompt := st.chat_input("Posez votre question ou parlez à Leyla..."):
     contenu_utilisateur = prompt
+    
+    # Si une image a été jointe dans la barre latérale
     if image_uploadee is not None:
-        image_path = "temp_image.png"
-        with open(image_path, "wb") as f:
-            f.write(image_uploadee.getbuffer())
-        
         with st.chat_message("user", avatar="👨‍💻"):
             st.image(image_uploadee, caption="Image transmise", width=300)
             st.markdown(prompt)
