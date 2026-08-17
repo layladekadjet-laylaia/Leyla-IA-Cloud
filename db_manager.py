@@ -1,5 +1,13 @@
 import sqlite3
 
+def clear_history():
+    # Exemple si vous utilisez SQLite
+    conn = sqlite3.connect('chat_history.db') # Adaptez le nom
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM messages") # Adaptez selon votre table
+    conn.commit()
+    conn.close()
+    
 def init_db():
     conn = sqlite3.connect('chat_history.db')
     c = conn.cursor()
