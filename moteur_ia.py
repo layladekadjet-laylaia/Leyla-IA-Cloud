@@ -41,7 +41,7 @@ st.markdown(f"""
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain;
-        opacity: 0.60; /* Ajustez la transparence si besoin (ex: 0.12 pour un beau filigrane discret) */
+        opacity: 0.60;
         pointer-events: none;
         z-index: 0;
     }}
@@ -237,12 +237,10 @@ if prompt:
 
     with st.chat_message("assistant"):
         with st.spinner("Leyla réfléchit et analyse..."):
-            # Modifiez cette ligne dans moteur_ia.py
-if image_finale is not None:
-    reponse = rechercher_sur_le_web(messages_actuels, image_file=image_finale)
-else:
-    reponse = rechercher_sur_le_web(messages_actuels)
-
+            if image_finale is not None:
+                reponse = rechercher_sur_le_web(messages_actuels, image_file=image_finale)
+            else:
+                reponse = rechercher_sur_le_web(messages_actuels)
 
             st.markdown(reponse)
 
@@ -268,4 +266,5 @@ else:
                 )
 
     db_manager.save_message(st.session_state.session_id, "assistant", reponse)
+    image_finale = None
     st.rerun()
