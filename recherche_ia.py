@@ -54,7 +54,7 @@ def rechercher_sur_le_web(historique, image_file=None):
 
     try:
         completion = client.chat.completions.create(
-            model="meta-llama/llama-3.2-90b-instruct",
+            model="qwen/qwen3.6-27b",
             messages=messages_formates,
             max_tokens=1024
         )
