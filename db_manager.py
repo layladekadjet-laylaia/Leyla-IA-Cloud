@@ -25,7 +25,7 @@ DEVICE_ID = get_device_id()
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # Ajout de la colonne session_id pour isoler les différentes discussions
+    # Table avec support des sessions multiples
     c.execute('''CREATE TABLE IF NOT EXISTS messages 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   device_id TEXT, 
@@ -71,5 +71,14 @@ def clear_session(session_id, device_id=None):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM messages WHERE device_id = ? AND session_id = ?", (dev_id, session_id))
+    conn.commit()
+    conn.close()
+
+def clear_history(device_id=None):
+    """Efface tout l'historique de l'appareil si besoin."""
+    dev_id = device_id if device_id else DEVICE_ID
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM messages WHERE device_id = ?", (dev_id,))
     conn.commit()
     conn.close()
