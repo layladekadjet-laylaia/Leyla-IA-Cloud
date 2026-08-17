@@ -8,8 +8,8 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 def image_to_base64(image_file):
     """Convertit de manière sécurisée le fichier Streamlit en Base64"""
     try:
-        if image_file is None: return None
-        # Accès aux données binaires selon le type d'objet Streamlit
+        if image_file is None: 
+            return None
         if hasattr(image_file, "getvalue"):
             data = image_file.getvalue()
         elif hasattr(image_file, "read"):
@@ -41,7 +41,6 @@ def rechercher_sur_le_web(historique, image_file=None):
     img_b64 = image_to_base64(image_file) if image_file else None
     
     for i, msg in enumerate(historique):
-        # Si c'est le dernier message et qu'on a une image valide
         if i == len(historique) - 1 and img_b64:
             messages_formates.append({
                 "role": "user",
@@ -53,13 +52,12 @@ def rechercher_sur_le_web(historique, image_file=None):
         else:
             messages_formates.append({"role": msg["role"], "content": msg["content"]})
 
-        try:
+    try:
         completion = client.chat.completions.create(
-            model="llama-3.2-90b-vision-preview",  # Nouveau modèle multimodal actif chez Groq
+            model="llama-3.2-90b-vision-preview",
             messages=messages_formates,
             max_tokens=1024
         )
         return completion.choices[0].message.content
     except Exception as e:
-        return f"Erreur Cloud (Vision) : {str(e)}"
-
+        return f"Erreur IA : {str(e)}"
