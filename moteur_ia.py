@@ -199,12 +199,30 @@ if prompt:
             if img_url: 
                 st.image(img_url, width=400, caption="Illustration automatique")
 
-            if activer_voix:
-                try:
-                    # Utilisation de la synthèse vocale native du navigateur via streamlit-tts
-                    text_to_speech(reponse, language='fr-FR')
-                except Exception as e:
-                    st.warning(f"Audio indisponible : {e}")
+                        if activer_voix:
+                # Nettoyage du texte pour éviter les erreurs de syntaxe JavaScript avec les apostrophes ou retours à la ligne
+                texte_propre = re.sub(r'[\n\r]+', ' ', reponse).replace('"', '\\"').replace("'", "\\'")
+                
+                # Injection de l'API de synthèse vocale native du navigateur (Web Speech API)
+                components.html(
+                    f"""
+                    <script>
+                        if ('speechSynthesis' in window) {{
+                            // Arrêter toute parole en cours pour éviter les superpositions
+                            window.speechSynthesis.cancel();
+                            
+                            var utterance = new SpeechSynthesisUtterance("{texte_propre}");
+                            utterance.lang = 'fr-FR';
+                            utterance.rate = 1.0;
+                            
+                            // Lancer la lecture vocale
+                            window.speechSynthesis.speak(utterance);
+                        }}
+                    </script>
+                    """,
+                    height=0,
+                )
+
 
     db_manager.save_message(st.session_state.session_id, "assistant", reponse)
     st.rerun()
