@@ -36,12 +36,22 @@ def image_to_base64(image_file):
         return None
 
 def nettoyer_reponse(texte):
-    """Nettoie les balises et supprime les répétitions consécutives"""
+    """Nettoie les balises, supprime les répétitions et filtre l'anglais résiduel"""
     if not texte:
         return ""
     
+    # 1. Supprime les balises de réflexion
     texte = re.sub(r'<think>.*?</think>', '', texte, flags=re.DOTALL).strip()
     
+    # 2. Nettoyage de sécurité contre les phrases en anglais courantes injectées par le modèle
+    mots_anglais_interdits = [
+        r'\bthe\b', r'\band\b', r'\byou\b', r'\bcan\b', r'\bimage\b', 
+        r'\bvision\b', r'\bmodel\b', r'\bplease\b', r'\bnotice\b'
+    ]
+    for mot in mots_anglais_interdits:
+        texte = re.sub(mot, '', texte, flags=re.IGNORECASE)
+
+    # 3. Supprime les lignes répétées en boucle
     lignes = texte.split('\n')
     lignes_propres = []
     derniere_ligne = ""
@@ -72,11 +82,11 @@ def rechercher_sur_le_web(historique, image_file=None):
     message_systeme = {
         "role": "system", 
         "content": (
-            f"Tu es Leyla, l'intelligence artificielle de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
-            f"RÈGLE ABSOLUE DE LANGUE : Parle exclusivement en français, sans jamais mélanger d'anglais ou d'autres langues. "
-            f"RÈGLE ABSOLUE POUR LA VOIX : N'utilise jamais aucun symbole de mise en forme (pas d'astérisques, pas de tirets, pas de dièses, pas de puces, pas de caractères spéciaux). "
-            f"Écris uniquement des phrases rédigées en texte brut parfaitement fluide et naturel. "
-            f"Ne te répète jamais. Voici des infos web : {contexte_web}"
+            f"Tu es Leyla, l'intelligence artificielle exclusive de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
+            f"LANGUE OBLIGATOIRE : Rédige l'intégralité de ta réponse en français courant. L'utilisation de l'anglais est formellement interdite. "
+            f"RÈGLE DE VOIX : N'utilise aucun symbole de mise en forme (pas d'astérisques, pas de tirets, pas de dièses, pas de puces). "
+            f"Écris uniquement des phrases en texte brut fluide, naturel et sans répétition. "
+            f"Voici des infos web : {contexte_web}"
         )
     }
     
@@ -100,7 +110,7 @@ def rechercher_sur_le_web(historique, image_file=None):
             model="qwen/qwen3.6-27b",
             messages=messages_formates,
             max_tokens=1024,
-            temperature=0.3
+            temperature=0.2
         )
         reponse_brute = completion.choices[0].message.content
         return nettoyer_reponse(reponse_brute)
