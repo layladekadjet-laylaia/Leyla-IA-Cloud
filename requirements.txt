@@ -1,5 +1,7 @@
 Streamlit
-groq
+google-genai
+pillow
+duckduckgo-search
 requests
 duckduckgo_search
 gTTS
