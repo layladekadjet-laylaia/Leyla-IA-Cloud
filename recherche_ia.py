@@ -1,39 +1,12 @@
 import os
-import base64
 import re
-import io
 from PIL import Image
-from groq import Groq
+from google import genai
+from google.genai import types
 from duckduckgo_search import DDGS
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-
-def image_to_base64(image_file):
-    """Convertit et compresse l'image pour optimiser la taille de la requête"""
-    try:
-        if image_file is None: 
-            return None
-        if hasattr(image_file, "getvalue"):
-            data = image_file.getvalue()
-        elif hasattr(image_file, "read"):
-            image_file.seek(0)
-            data = image_file.read()
-        else:
-            return None
-            
-        image = Image.open(io.BytesIO(data))
-        
-        if image.mode in ("RGBA", "P"):
-            image = image.convert("RGB")
-            
-        image.thumbnail((512, 512))
-        
-        buffered = io.BytesIO()
-        image.save(buffered, format="JPEG", quality=75)
-        
-        return base64.b64encode(buffered.getvalue()).decode("utf-8")
-    except Exception:
-        return None
+# Initialisation du client Google GenAI avec la clé d'environnement
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 def nettoyer_reponse(texte):
     """Nettoie les balises, supprime les répétitions et filtre l'anglais résiduel"""
@@ -43,7 +16,7 @@ def nettoyer_reponse(texte):
     # 1. Supprime les balises de réflexion
     texte = re.sub(r'<think>.*?</think>', '', texte, flags=re.DOTALL).strip()
     
-    # 2. Nettoyage de sécurité contre les mots en anglais courantes
+    # 2. Nettoyage de sécurité contre les mots en anglais courants
     mots_anglais_interdits = [
         r'\bthe\b', r'\band\b', r'\byou\b', r'\bcan\b', r'\bimage\b', 
         r'\bvision\b', r'\bmodel\b', r'\bplease\b', r'\bnotice\b'
@@ -58,15 +31,16 @@ def nettoyer_reponse(texte):
     
     for ligne in lignes:
         ligne_str = ligne.strip()
-        if ligne_str and ligne_str == derniere_ligne:
+        if ligne_str and ligne_str == dernière_ligne:
             continue
         lignes_propres.append(ligne)
         if ligne_str:
-            derniere_ligne = ligne_str
+            dernière_ligne = ligne_str
             
     return '\n'.join(lignes_propres).strip()
 
 def rechercher_sur_le_web(historique, image_file=None):
+    # Réduction de l'historique pour garder le contexte récent
     historique_reduit = historique[-3:] if len(historique) > 3 else historique
     
     derniere_requete = historique_reduit[-1]["content"] if historique_reduit else ""
@@ -79,41 +53,51 @@ def rechercher_sur_le_web(historique, image_file=None):
     except Exception:
         contexte_web = "Recherche web indisponible."
 
-    message_systeme = {
-        "role": "system", 
-        "content": (
-            f"Tu es Leyla, l'intelligence artificielle exclusive de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
-            f"LANGUE OBLIGATOIRE : Rédige l'intégralité de ta réponse en français courant. L'utilisation de l'anglais est formellement interdite. "
-            f"RÈGLE DE VOIX : N'utilise aucun symbole de mise en forme (pas d'astérisques, pas de tirets, pas de dièses, pas de puces). "
-            f"Écris uniquement des phrases en texte brut fluide, naturel et sans répétition. "
-            f"Voici des infos web : {contexte_web}"
-        )
-    }
-    
-    messages_formates = [message_systeme]
-    img_b64 = image_to_base64(image_file) if image_file else None
-    
-    for i, msg in enumerate(historique_reduit):
-        if i == len(historique_reduit) - 1 and img_b64:
-            messages_formates.append({
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": msg["content"]},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
-                ]
-            })
-        else:
-            messages_formates.append({"role": msg["role"], "content": msg["content"]})
+    # Consignes strictes pour Leyla
+    consignes_systeme = (
+        f"Tu es Leyla, l'intelligence artificielle exclusive de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
+        f"LANGUE OBLIGATOIRE : Rédige l'intégralité de ta réponse en français courant. L'utilisation de l'anglais est formellement interdite. "
+        f"RÈGLE DE VOIX : N'utilise aucun symbole de mise en forme (pas d'astérisques, pas de tirets, pas de dièses, pas de puces). "
+        f"Écris uniquement des phrases en texte brut fluide, naturel et sans répétition. "
+        f"Informations web contextuelles : {contexte_web}"
+    )
+
+    # Préparation du contenu pour le nouveau SDK Gemini
+    contenus_prompt = []
+
+    # Si une image est fournie, on l'ouvre proprement avec PIL et on l'ajoute
+    if image_file is not None:
+        try:
+            image_file.seek(0) if hasattr(image_file, "seek") else None
+            pil_img = Image.open(image_file)
+            contenus_prompt.append(pil_img)
+        except Exception:
+            pass
+
+    # Reconstruction de l'historique textuel pour le prompt de fin
+    historique_texte = ""
+    for msg in historique_reduit:
+        role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
+        # Nettoyage des balises d'images textuelles éventuelles dans l'historique
+        texte_propre_msg = re.sub(r'\[Image transmise\]', '', msg["content"]).strip()
+        historique_texte += f"{role_label} : {texte_propre_msg}\n"
+
+    contenus_prompt.append(historique_texte)
 
     try:
-        completion = client.chat.completions.create(
-            model="qwen/qwen3.6-27b",
-            messages=messages_formates,
-            max_tokens=1024,
-            temperature=0.2
+        # Appel direct au modèle Gemini via le client officiel Google GenAI
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=contenus_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=consignes_systeme,
+                temperature=0.3,
+                max_output_tokens=1024,
+            )
         )
-        reponse_brute = completion.choices[0].message.content
+        
+        reponse_brute = response.text if response and response.text else "Je n'ai pas pu générer de réponse."
         return nettoyer_reponse(reponse_brute)
         
     except Exception as e:
-        return f"Erreur IA : {str(e)}"
+        return f"Erreur IA (Gemini) : {str(e)}"
