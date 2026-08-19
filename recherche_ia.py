@@ -9,7 +9,7 @@ from duckduckgo_search import DDGS
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def image_to_base64(image_file):
-    """Convertit et compresse l'image pour éviter de dépasser la limite de 8000 tokens"""
+    """Convertit et compresse l'image pour optimiser la taille de la requête"""
     try:
         if image_file is None: 
             return None
@@ -21,26 +21,22 @@ def image_to_base64(image_file):
         else:
             return None
             
-        # Compression automatique avec Pillow
         image = Image.open(io.BytesIO(data))
         
-        # Convertir en RGB si l'image a de la transparence (PNG)
         if image.mode in ("RGBA", "P"):
             image = image.convert("RGB")
             
-        # Redimensionnement maximal à 512x512 pixels pour réduire drastiquement le poids
         image.thumbnail((512, 512))
         
-        # Sauvegarde dans la mémoire tampon au lieu du disque
         buffered = io.BytesIO()
         image.save(buffered, format="JPEG", quality=75)
         
         return base64.b64encode(buffered.getvalue()).decode("utf-8")
-    except Exception as e:
+    except Exception:
         return None
 
 def nettoyer_reponse(texte):
-    """Nettoie les balises et les répétitions éventuelles"""
+    """Nettoie les balises et supprime les répétitions consécutives"""
     if not texte:
         return ""
     
@@ -61,7 +57,6 @@ def nettoyer_reponse(texte):
     return '\n'.join(lignes_propres).strip()
 
 def rechercher_sur_le_web(historique, image_file=None):
-    # On ne garde que les 3 derniers messages de l'historique pour économiser des tokens
     historique_reduit = historique[-3:] if len(historique) > 3 else historique
     
     derniere_requete = historique_reduit[-1]["content"] if historique_reduit else ""
@@ -77,9 +72,10 @@ def rechercher_sur_le_web(historique, image_file=None):
     message_systeme = {
         "role": "system", 
         "content": (
-            f"Tu es Leyla, l'IA de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
-            f"RÈGLE ABSOLUE POUR LA VOIX : N'utilise jamais de symboles de mise en forme (pas d'astérisques, pas de tirets de liste, pas de dièses, pas de puces). "
-            f"Écris uniquement des phrases en texte brut, rédigées de manière fluide et naturelle. "
+            f"Tu es Leyla, l'intelligence artificielle de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
+            f"RÈGLE ABSOLUE DE LANGUE : Parle exclusivement en français, sans jamais mélanger d'anglais ou d'autres langues. "
+            f"RÈGLE ABSOLUE POUR LA VOIX : N'utilise jamais aucun symbole de mise en forme (pas d'astérisques, pas de tirets, pas de dièses, pas de puces, pas de caractères spéciaux). "
+            f"Écris uniquement des phrases rédigées en texte brut parfaitement fluide et naturel. "
             f"Ne te répète jamais. Voici des infos web : {contexte_web}"
         )
     }
