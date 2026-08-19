@@ -1,6 +1,6 @@
 import streamlit as st
 import uuid
-from rechercher_ia import rechercher_sur_le_web
+from recherche_ia import rechercher_sur_le_web
 import db_manager
 import streamlit.components.v1 as components
 from utils_memoire import generer_resume
