@@ -1,6 +1,6 @@
 import streamlit as st
 import uuid
-from recherche_ia import rechercher_sur_le_web
+from rechercher_ia import rechercher_sur_le_web
 import db_manager
 import streamlit.components.v1 as components
 from utils_memoire import generer_resume
@@ -146,20 +146,18 @@ if len(messages) > 10:
 for message in messages:
     if message["role"] != "system":
         with st.chat_message(message["role"]): 
-            st.markdown(message["content"])
+            st.write(message["content"])
 
 # --- OPTIONS MULTIMÉDIA (SÉPARÉES) ---
 with st.expander("📁 Options d'envoi d'image", expanded=False):
     choix_source = st.radio("Source de l'image :", ["Aucune", "📁 Importer un fichier", "📷 Caméra"], horizontal=True)
-    image_finale = None
+    image_file = None
     if choix_source == "📁 Importer un fichier":
-        image_finale = st.file_uploader("Choisissez une image", type=["jpg", "jpeg", "png"])
+        image_file = st.file_uploader("Choisissez une image", type=["jpg", "jpeg", "png"])
     elif choix_source == "📷 Caméra":
-        image_finale = st.camera_input("Prenez une photo")
+        image_file = st.camera_input("Prenez une photo")
 
-# --- ZONE BASSE : TOUS LES CONTRÔLES RASSEMBLÉS EN LIGNE ---
-
-# 1. Enregistrement vocal discret
+# --- ZONE BASSE : CONTRÔLES VOCAUX ---
 audio_file = st.audio_input("🎙️ Enregistrer un message vocal")
 
 prompt_vocal = None
@@ -183,9 +181,8 @@ if audio_file:
         finally:
             if os.path.exists("temp_audio.wav"):
                 os.remove("temp_audio.wav")
-        image_finale = None
+        image_file = None
 
-# 2. Boutons Écouter, Stop et un espace alignés côte à côte juste au-dessus de la saisie
 col_play, col_stop, col_espace = st.columns([1, 1, 1])
 
 with col_play:
@@ -217,39 +214,37 @@ with col_stop:
     if st.button("⏹️ Stop", use_container_width=True, key="btn_stop_bas"):
         components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
 
-# 3. Zone de saisie manuelle (placée par Streamlit tout en bas)
+# --- ZONE DE SAISIE MANUELLE ---
 prompt_texte = st.chat_input(f"Que voulez-vous savoir, {user_name} ?")
 prompt = prompt_vocal if prompt_vocal else prompt_texte
 
 # --- TRAITEMENT DE LA REQUÊTE ---
 if prompt:
     contenu_u = prompt
-    if image_finale is not None:
+    if image_file is not None:
         contenu_u = f"[Image transmise] {prompt}"
 
     with st.chat_message("user"):
-        if image_finale is not None:
-            st.image(image_finale, width=300, caption="Photo transmise à Leyla")
-        st.markdown(prompt)
+        if image_file is not None:
+            st.image(image_file, width=300, caption="Photo transmise à Leyla")
+        st.write(prompt)
 
     db_manager.save_message(st.session_state.session_id, "user", contenu_u)
     messages_actuels = db_manager.get_history(st.session_state.session_id)
 
     with st.chat_message("assistant"):
-        with st.spinner("Leyla réfléchit et analyse..."):
-            if image_finale is not None:
-                reponse = rechercher_sur_le_web(messages_actuels, image_file=image_finale)
-            else:
-                reponse = rechercher_sur_le_web(messages_actuels)
+        with st.spinner("Leyla réfléchit..."):
+            reponse_leyla = rechercher_sur_le_web(messages_actuels, image_file=image_file)
+            
+            # Affichage direct, propre et sans markdown parasite
+            st.write(reponse_leyla)
 
-            st.markdown(reponse)
-
-            img_url = get_image_for_text(reponse)
+            img_url = get_image_for_text(reponse_leyla)
             if img_url: 
                 st.image(img_url, width=400, caption="Illustration automatique")
 
             if activer_voix:
-                texte_propre = re.sub(r'[\n\r]+', ' ', reponse).replace('"', '\\"').replace("'", "\\'")
+                texte_propre = re.sub(r'[\n\r]+', ' ', reponse_leyla).replace('"', '\\"').replace("'", "\\'")
                 components.html(
                     f"""
                     <script>
@@ -265,6 +260,6 @@ if prompt:
                     height=0,
                 )
 
-    db_manager.save_message(st.session_state.session_id, "assistant", reponse)
-    image_finale = None
+    db_manager.save_message(st.session_state.session_id, "assistant", reponse_leyla)
+    image_file = None
     st.rerun()
