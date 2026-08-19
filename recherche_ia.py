@@ -43,7 +43,7 @@ def nettoyer_reponse(texte):
     # 1. Supprime les balises de réflexion
     texte = re.sub(r'<think>.*?</think>', '', texte, flags=re.DOTALL).strip()
     
-    # 2. Nettoyage de sécurité contre les phrases en anglais courantes injectées par le modèle
+    # 2. Nettoyage de sécurité contre les mots en anglais courantes
     mots_anglais_interdits = [
         r'\bthe\b', r'\band\b', r'\byou\b', r'\bcan\b', r'\bimage\b', 
         r'\bvision\b', r'\bmodel\b', r'\bplease\b', r'\bnotice\b'
@@ -107,7 +107,7 @@ def rechercher_sur_le_web(historique, image_file=None):
 
     try:
         completion = client.chat.completions.create(
-            model="qwen/qwen3.6-27b",
+            model="llama-3.2-11b-vision-preview",
             messages=messages_formates,
             max_tokens=1024,
             temperature=0.2
