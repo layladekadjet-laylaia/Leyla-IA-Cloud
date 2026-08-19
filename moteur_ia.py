@@ -44,32 +44,54 @@ if 'session_id' not in st.session_state:
 
 # --- SIDEBAR ---
 with st.sidebar:
-    if st.button("➕ Nouvelle Discussion"): st.session_state.session_id = str(uuid.uuid4())[:8]; st.rerun()
+    if st.button("➕ Nouvelle Discussion"): 
+        st.session_state.session_id = str(uuid.uuid4())[:8]
+        st.rerun()
     activer_voix = st.checkbox("Réponse vocale", value=True)
     
     # Options multimédia
     st.markdown("---")
     choix_source = st.radio("Source image :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
     image_file = None
-    if choix_source == "📁 Fichier": image_file = st.file_uploader("Image", type=["jpg", "png"])
-    elif choix_source == "📷 Caméra": image_file = st.camera_input("Prendre une photo")
+    if choix_source == "📁 Fichier": 
+        image_file = st.file_uploader("Image", type=["jpg", "png"])
+    elif choix_source == "📷 Caméra": 
+        image_file = st.camera_input("Prendre une photo")
 
 # --- AFFICHAGE HISTORIQUE ---
 messages = db_manager.get_history(st.session_state.session_id)
 for m in messages:
     if m["role"] != "system":
-        with st.chat_message(m["role"]): st.write(m["content"])
+        with st.chat_message(m["role"]): 
+            st.write(m["content"])
 
-# --- CONTRÔLES AUDIO (PLAY/STOP) ---
-col_p, col_s = st.columns(2)
-with col_p:
-    if st.button("▶️ Play"):
+# --- CONTRÔLES AUDIO AVANCÉS (PLAY / PAUSE / STOP) ---
+col_play, col_pause, col_stop = st.columns(3)
+
+with col_play:
+    if st.button("▶️ Play / Reprendre"):
         msgs = db_manager.get_history(st.session_state.session_id)
         derniere = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant"), "")
         if derniere:
             t = re.sub(r'[\n\r]+', ' ', derniere).replace('"', '\\"')
-            components.html(f"<script>window.speechSynthesis.speak(new SpeechSynthesisUtterance('{t}'));</script>", height=0)
-with col_s:
+            components.html(f"""
+                <script>
+                    if (window.speechSynthesis.paused) {{
+                        window.speechSynthesis.resume();
+                    }} else {{
+                        window.speechSynthesis.cancel();
+                        var utterance = new SpeechSynthesisUtterance('{t}');
+                        utterance.lang = 'fr-FR';
+                        window.speechSynthesis.speak(utterance);
+                    }}
+                </script>
+            """, height=0)
+
+with col_pause:
+    if st.button("⏸️ Pause"):
+        components.html("<script>window.speechSynthesis.pause();</script>", height=0)
+
+with col_stop:
     if st.button("⏹️ Stop"):
         components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
 
@@ -77,7 +99,8 @@ with col_s:
 prompt = st.chat_input("Que voulez-vous savoir ?")
 if prompt:
     with st.chat_message("user"):
-        if image_file: st.image(image_file, width=200)
+        if image_file: 
+            st.image(image_file, width=200)
         st.write(prompt)
     
     db_manager.save_message(st.session_state.session_id, "user", prompt)
@@ -87,5 +110,5 @@ if prompt:
         db_manager.save_message(st.session_state.session_id, "assistant", reponse)
         if activer_voix:
             t = re.sub(r'[\n\r]+', ' ', reponse).replace('"', '\\"')
-            components.html(f"<script>window.speechSynthesis.speak(new SpeechSynthesisUtterance('{t}'));</script>", height=0)
+            components.html(f"<script>window.speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance('{t}'); u.lang = 'fr-FR'; window.speechSynthesis.speak(u);</script>", height=0)
     st.rerun()
