@@ -74,21 +74,23 @@ with col_play:
         derniere = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant"), "")
         if derniere:
             t = re.sub(r'[\n\r]+', ' ', derniere).replace('"', '\\"')
+            # On ajoute un reset complet avant de lancer
             components.html(f"""
                 <script>
+                    window.speechSynthesis.cancel(); 
                     if (window.speechSynthesis.paused) {{
                         window.speechSynthesis.resume();
                     }} else {{
-                        window.speechSynthesis.cancel();
-                        var utterance = new SpeechSynthesisUtterance('{t}');
-                        utterance.lang = 'fr-FR';
-                        window.speechSynthesis.speak(utterance);
+                        var u = new SpeechSynthesisUtterance('{t}');
+                        u.lang = 'fr-FR';
+                        window.speechSynthesis.speak(u);
                     }}
                 </script>
             """, height=0)
 
 with col_pause:
     if st.button("⏸️ Pause"):
+        # La pause ne nécessite pas d'interaction complexe, juste l'ordre
         components.html("<script>window.speechSynthesis.pause();</script>", height=0)
 
 # --- ZONE SAISIE ---
