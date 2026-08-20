@@ -24,7 +24,7 @@ img_base64 = get_base64_image("LOGO LAYLA.png")
 st.markdown(f"""
 <style>
     .stApp {{ background-color: #ffffff; }}
-    .stApp::before {{ content: ""; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; height: 300px; background-image: url("data:image/png;base64,{img_base64}"); background-repeat: no-repeat; opacity: 0.1; pointer-events: none; z-index: 0; }}
+    .stApp::before {{ content: ""; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; height: 300px; background-image: url("data:image/png;base64,{img_base64}"); background-repeat: no-repeat; opacity: 0.2; pointer-events: none; z-index: 0; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -41,105 +41,129 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
-if 'user_prompt' not in st.session_state:
-    st.session_state.user_prompt = ""
-
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
-        st.session_state.user_prompt = ""
         st.rerun()
     activer_voix = st.checkbox("Réponse vocale", value=True)
+    
+    # Options multimédia
+    st.markdown("---")
+    choix_source = st.radio("Source image :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
+    image_file = None
+    if choix_source == "📁 Fichier": 
+        image_file = st.file_uploader("Image", type=["jpg", "png"])
+    elif choix_source == "📷 Caméra": 
+        image_file = st.camera_input("Prendre une photo")
 
-# --- HISTORIQUE ---
-msgs_hist = db_manager.get_history(st.session_state.session_id)
-for m in msgs_hist:
+# --- AFFICHAGE HISTORIQUE ---
+messages = db_manager.get_history(st.session_state.session_id)
+for m in messages:
     if m["role"] != "system":
-        with st.chat_message(m["role"]): st.write(m["content"])
+        with st.chat_message(m["role"]): 
+            st.write(m["content"])
 
+# Récupération sécurisée du dernier message de l'assistant pour les scripts vocaux
+msgs_hist = db_manager.get_history(st.session_state.session_id)
 derniere_reponse = next((m["content"] for m in reversed(msgs_hist) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
 
-# --- BARRE AUDIO (PLAY / PAUSE) ---
-audio_html = f"""
-<div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px;">
-    <button onclick="playSpeech()" style="background-color: #f0f2f6; border: 1px solid #d6d6d6; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px;">▶️ Lire</button>
-    <button onclick="pauseSpeech()" style="background-color: #f0f2f6; border: 1px solid #d6d6d6; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px;">⏸️ Pause</button>
+# --- BARRE DE CONTRÔLE UNIQUE (MICRO, PLAY, PAUSE ALIGNÉS) ---
+toolbar_html = f"""
+<div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 20px 0;">
+    <!-- Bouton Micro -->
+    <button onclick="startListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
+    
+    <!-- Bouton Play -->
+    <button onclick="playSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">▶️</button>
+    
+    <!-- Bouton Pause -->
+    <button onclick="pauseSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">⏸️</button>
 </div>
+
 <script>
-function playSpeech() {{ 
+function startListening() {{
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {{
+        alert("Non supporté par ce navigateur.");
+        return;
+    }}
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = true; // Permet de voir le texte s'écrire en direct
+    
+    const micBtn = document.getElementById('mic-btn');
+    micBtn.style.backgroundColor = "#ffc107"; // Indique visuellement l'écoute (jaune)
+
+    recognition.onresult = function(event) {{
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {{
+            if (event.results[i].isFinal) {{
+                finalTranscript += event.results[i][0].transcript;
+            }} else {{
+                interimTranscript += event.results[i][0].transcript;
+            }}
+        }}
+        
+        const textTopping = finalTranscript || interimTranscript;
+        const inputField = window.parent.document.querySelector('input[type="text"]');
+        if (inputField) {{
+            inputField.value = textTopping;
+            inputField.dispatchEvent(new Event('input', {{ bubbles: true }}));
+        }}
+    }};
+    
+    recognition.onend = function() {{
+        micBtn.style.backgroundColor = "#ff4b4b"; // Remet la couleur rouge initiale
+    }};
+    
+    recognition.onerror = function() {{
+        micBtn.style.backgroundColor = "#ff4b4b";
+    }};
+
+    recognition.start();
+}}
+
+function playSpeech() {{
+    const text = "{derniere_reponse_clean}";
+    if (!text) return;
     window.parent.window.speechSynthesis.cancel();
-    var u = new SpeechSynthesisUtterance("{derniere_reponse_clean}");
+    var u = new SpeechSynthesisUtterance(text);
     u.lang = 'fr-FR';
     window.parent.window.speechSynthesis.speak(u);
 }}
-function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
+
+function pauseSpeech() {{
+    window.parent.window.speechSynthesis.cancel();
+}}
 </script>
 """
-components.html(audio_html, height=50)
+components.html(toolbar_html, height=70)
 
-# --- MODULE MICROPHONE ---
-mic_html = """
-<div style="display: flex; justify-content: center; margin-bottom: 10px;">
-    <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 24px; border-radius: 10px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤 Parler</button>
-</div>
-<script>
-let recognition = null;
-let isListening = false;
-
-function toggleListening() {
-    const micBtn = document.getElementById('mic-btn');
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert("Non supporté"); return; }
+# --- ZONE SAISIE ---
+prompt = st.chat_input("Que voulez-vous savoir ?")
+if prompt:
+    with st.chat_message("user"):
+        if image_file: 
+            st.image(image_file, width=200)
+        st.write(prompt)
     
-    if (isListening) { if (recognition) recognition.stop(); return; }
-
-    recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.interimResults = true;
-    recognition.continuous = true;
-
-    recognition.onstart = () => { isListening = true; micBtn.style.backgroundColor = "#ffc107"; micBtn.innerText = "🛑 En écoute..."; };
-    recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) transcript += event.results[i][0].transcript;
-        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-        if (inputs.length > 0) {
-            const target = inputs[inputs.length - 1];
-            target.value = transcript;
-            target.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    };
-    recognition.onend = () => { isListening = false; micBtn.style.backgroundColor = "#ff4b4b"; micBtn.innerText = "🎤 Parler"; };
-    recognition.start();
-}
-</script>
-"""
-components.html(mic_html, height=60)
-
-# --- ZONE DE SAISIE ET SOUMISSION SANS FORMULAIRE BLOQUANT ---
-# On utilise un champ lié à la session pour garder le texte en mémoire lors du clic
-def submit_callback():
-    st.session_state.user_prompt = st.session_state.widget_input
-
-prompt_saisi = st.text_input("Message...", value=st.session_state.user_prompt, key="widget_input", label_visibility="collapsed", placeholder="Écrivez ou utilisez le micro ci-dessus...")
-
-col1, col2 = st.columns([5, 1])
-with col2:
-    envoyer = st.button("Envoyer 📤", use_container_width=True)
-
-if envoyer and st.session_state.widget_input:
-    texte_final = st.session_state.widget_input
-    st.session_state.user_prompt = "" # Réinitialisation
-    
-    db_manager.save_message(st.session_state.session_id, "user", texte_final)
-    with st.chat_message("user"): st.write(texte_final)
-    
+    db_manager.save_message(st.session_state.session_id, "user", prompt)
     with st.chat_message("assistant"):
-        reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id))
+        reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=image_file)
         st.write(reponse)
         db_manager.save_message(st.session_state.session_id, "assistant", reponse)
         if activer_voix:
-            components.html(f"<script>window.parent.speechSynthesis.speak(new SpeechSynthesisUtterance('{reponse.replace(chr(10), ' ').replace("'", "\\'")}'));</script>", height=0)
+            t = re.sub(r'[\n\r]+', ' ', reponse).replace('"', '\\"')
+            components.html(f"""
+                <script>
+                    window.parent.window.speechSynthesis.cancel();
+                    var u = new SpeechSynthesisUtterance('{t}');
+                    u.lang = 'fr-FR';
+                    window.parent.window.speechSynthesis.speak(u);
+                </script>
+            """, height=0)
     st.rerun()
