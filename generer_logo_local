@@ -1,0 +1,25 @@
+def generer_logo_local(prompt_net):
+    """
+    Génère un logo professionnel avec le nom 'LEILA' en local.
+    """
+    try:
+        from PIL import Image, ImageDraw
+        
+        taille = 800
+        # Fond bleu nuit très sombre
+        img = Image.new("RGBA", (taille, taille), (15, 23, 42, 255))
+        draw = ImageDraw.Draw(img)
+        
+        # 1. Dessin d'un cercle élégant
+        draw.ellipse([100, 100, 700, 700], outline=(56, 189, 248), width=10)
+        
+        # 2. Dessin d'un rectangle décoratif central
+        draw.rectangle([200, 350, 600, 450], fill=(244, 63, 94))
+        
+        # 3. Ajout du texte "LEILA" (Simple et efficace en attendant une police TTF)
+        # On utilise une taille standard car les polices dépendent du système
+        draw.text((320, 380), "LEILA", fill="white")
+        
+        return img
+    except Exception as e:
+        return None
