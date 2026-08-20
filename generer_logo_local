@@ -1,29 +1,7 @@
 def generer_logo_local(prompt_net):
     """
-    Architecture hybride : Utilise Stable Diffusion si un GPU est disponible,
-    sinon génère un logo géométrique robuste via Pillow.
+    Génère un visuel propre et rapide sans surcharger la mémoire du serveur cloud.
     """
-    import torch
-    
-    # 1. Tentative avec Stable Diffusion si GPU NVIDIA détecté
-    if torch.cuda.is_available():
-        try:
-            from diffusers import StableDiffusionPipeline
-            
-            model_id = "runwayml/stable-diffusion-v1-5"
-            pipe = StableDiffusionPipeline.from_pretrained(
-                model_id, 
-                torch_dtype=torch.float16
-            )
-            pipe = pipe.to("cuda")
-            
-            prompt = f"Professional minimalist logo for: {prompt_net}, vector style, clean lines, flat design, high quality"
-            image = pipe(prompt, num_inference_steps=20).images[0]
-            return image
-        except Exception as e:
-            print(f"Erreur GPU, bascule sur mode géométrique : {e}")
-    
-    # 2. Mode secours : Dessin géométrique robuste (Pillow)
     try:
         from PIL import Image, ImageDraw
         
@@ -31,11 +9,11 @@ def generer_logo_local(prompt_net):
         img = Image.new("RGBA", (taille, taille), (15, 23, 42, 255))
         draw = ImageDraw.Draw(img)
         
-        # Formes géométriques élégantes
+        # Formes géométriques élégantes pour illustrer le logo
         draw.ellipse([200, 200, 600, 600], outline=(56, 189, 248), width=12)
         draw.rectangle([300, 370, 500, 430], fill=(244, 63, 94))
         
         return img
     except Exception as e:
-        print(f"Erreur totale : {e}")
+        print(f"Erreur : {e}")
         return None
