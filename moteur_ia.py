@@ -69,11 +69,11 @@ msgs_hist = db_manager.get_history(st.session_state.session_id)
 derniere_reponse = next((m["content"] for m in reversed(msgs_hist) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
 
-# --- BARRE DE CONTRÔLE AUDIO (PLAY / PAUSE SEULEMENT SUR LA LIGNE) ---
-audio_toolbar_html = f"""
-<div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 5px 0 10px 0;">
-    <button onclick="playSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">▶️</button>
-    <button onclick="pauseSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">⏸️</button>
+# --- BARRE DE CONTRÔLE AUDIO (PLAY / PAUSE SEULS) ---
+audio_controls_html = f"""
+<div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 5px 0;">
+    <button onclick="playSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">▶️</button>
+    <button onclick="pauseSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">⏸️</button>
 </div>
 
 <script>
@@ -91,13 +91,83 @@ function pauseSpeech() {{
 }}
 </script>
 """
-components.html(audio_toolbar_html, height=50)
+components.html(audio_controls_html, height=50)
 
-# --- ZONE DE SAISIE UNIFIÉE (CHAT INPUT NATIF STREAMLIT) ---
-# Le chat_input intègre déjà sa propre zone de texte et son bouton d'envoi unique.
-prompt = st.chat_input("Que voulez-vous savoir ? (Écrivez ou dictez avec le clavier de votre téléphone)")
+# --- MODULE DE DICTÉE VOCALE DIRECTE ET CHAMP DE SAISIE ---
+# On intègre le bouton micro directement à côté de la zone de saisie pour qu'ils ne fassent qu'un
+st.markdown("""
+<div id="mic-container" style="display: flex; gap: 10px; align-items: center; margin-bottom: -10px;">
+    <button type="button" onclick="toggleSpeechRecognition()" id="inline-mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 18px; height: 42px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" title="Activer le micro">🎤</button>
+</div>
 
-if prompt:
+<script>
+let recognitionInstance = null;
+let recordingActive = false;
+
+function toggleSpeechRecognition() {
+    const btn = document.getElementById('inline-mic-btn');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+        alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
+        return;
+    }
+
+    if (recordingActive) {
+        if (recognitionInstance) recognitionInstance.stop();
+        return;
+    }
+
+    recognitionInstance = new SpeechRecognition();
+    recognitionInstance.lang = 'fr-FR';
+    recognitionInstance.interimResults = true;
+    recognitionInstance.continuous = true;
+
+    recognitionInstance.onstart = function() {
+        recordingActive = true;
+        btn.style.backgroundColor = "#ffc107"; // Jaune = En écoute active
+    };
+
+    recognitionInstance.onresult = function(event) {
+        let currentTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            currentTranscript += event.results[i][0].transcript;
+        }
+
+        // Injection en direct dans le champ de saisie Streamlit
+        const doc = window.parent.document;
+        const textInputs = doc.querySelectorAll('input[type="text"]');
+        if (textInputs.length > 0) {
+            const activeInput = textInputs[textInputs.length - 1];
+            activeInput.value = currentTranscript;
+            activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    };
+
+    recognitionInstance.onend = function() {
+        recordingActive = false;
+        btn.style.backgroundColor = "#ff4b4b"; // Retour au rouge
+    };
+
+    recognitionInstance.onerror = function() {
+        recordingActive = false;
+        btn.style.backgroundColor = "#ff4b4b";
+    };
+
+    recognitionInstance.start();
+}
+</script>
+""", unsafe_allow_html=True)
+
+# Zone de saisie manuelle associée au formulaire d'envoi
+with st.form(key="unified_chat_form", clear_on_submit=True):
+    col_input, col_submit = st.columns([6, 1])
+    with col_input:
+        prompt = st.text_input("Que voulez-vous savoir ?", label_visibility="collapsed", placeholder="Parlez avec le micro ou écrivez ici...")
+    with col_submit:
+        submit_button = st.form_submit_button("📤")
+
+if submit_button and prompt:
     with st.chat_message("user"):
         if image_file: 
             st.image(image_file, width=200)
