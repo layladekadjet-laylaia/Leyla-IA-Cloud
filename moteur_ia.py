@@ -41,14 +41,14 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
-if 'transcription_vocale' not in st.session_state:
-    st.session_state.transcription_vocale = ""
+if 'user_input_text' not in st.session_state:
+    st.session_state.user_input_text = ""
 
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
-        st.session_state.transcription_vocale = ""
+        st.session_state.user_input_text = ""
         st.rerun()
     activer_voix = st.checkbox("Réponse vocale", value=True)
     
@@ -75,7 +75,7 @@ derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', 
 
 # --- BARRE DE CONTRÔLE UNIQUE (MICRO, PLAY, PAUSE ALIGNÉS) ---
 toolbar_html = f"""
-<div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 20px 0;">
+<div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 15px 0;">
     <!-- Bouton Micro -->
     <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
     
@@ -92,7 +92,6 @@ let isListening = false;
 
 function toggleListening() {{
     const micBtn = document.getElementById('mic-btn');
-    
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {{
         alert("Non supporté par ce navigateur.");
@@ -111,7 +110,7 @@ function toggleListening() {{
 
     recognition.onstart = function() {{
         isListening = true;
-        micBtn.style.backgroundColor = "#ffc107"; // Jaune = en écoute
+        micBtn.style.backgroundColor = "#ffc107"; // Jaune = écoute en cours
     }};
 
     recognition.onresult = function(event) {{
@@ -120,10 +119,9 @@ function toggleListening() {{
             transcript += event.results[i][0].transcript;
         }}
         
-        // Recherche de l'input Streamlit en remontant dans le DOM parent
+        // On cible l'input Streamlit standard généré en Python
         const doc = window.parent.document;
         const inputs = doc.querySelectorAll('input[type="text"]');
-        // On cible généralement le dernier input text qui correspond au chat_input
         if (inputs.length > 0) {{
             const targetInput = inputs[inputs.length - 1];
             targetInput.value = transcript;
@@ -133,7 +131,7 @@ function toggleListening() {{
 
     recognition.onend = function() {{
         isListening = false;
-        micBtn.style.backgroundColor = "#ff4b4b"; // Retour au rouge
+        micBtn.style.backgroundColor = "#ff4b4b";
     }};
 
     recognition.onerror = function() {{
@@ -160,9 +158,15 @@ function pauseSpeech() {{
 """
 components.html(toolbar_html, height=70)
 
-# --- ZONE SAISIE ---
-prompt = st.chat_input("Que voulez-vous savoir ?")
-if prompt:
+# --- ZONE DE SAISIE MANUELLE ET BOUTON D'ENVOI ---
+with st.form(key="chat_form", clear_on_submit=True):
+    col_input, col_submit = st.columns([5, 1])
+    with col_input:
+        prompt = st.text_input("Que voulez-vous savoir ?", label_visibility="collapsed", placeholder="Que voulez-vous savoir ?")
+    with col_submit:
+        submit_button = st.form_submit_button("Envoyer 📤")
+
+if submit_button and prompt:
     with st.chat_message("user"):
         if image_file: 
             st.image(image_file, width=200)
