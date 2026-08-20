@@ -41,7 +41,6 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
-# Variable d'état pour stocker le texte du message en cours
 if 'message_en_cours' not in st.session_state:
     st.session_state.message_en_cours = ""
 
@@ -88,15 +87,16 @@ function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 """
 components.html(audio_html, height=40)
 
-# --- ZONE DE CONTRÔLE VOCAL STABLE ---
+# --- CONTRÔLE VOCAL : STOP FAIT OFFICE D'ENVOI ---
 voice_html = """
 <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px;">
     <button onclick="startRec()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">🎤 Parler</button>
-    <button onclick="stopRec()" id="stop-btn" style="background-color: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;" disabled>⏹️ Stop</button>
+    <button onclick="stopAndSend()" id="stop-btn" style="background-color: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;" disabled>⏹️ Stop & Envoyer</button>
 </div>
 
 <script>
 let recognition = null;
+let fullText = "";
 
 function startRec() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -106,8 +106,8 @@ function startRec() {
     recognition.lang = 'fr-FR';
     recognition.interimResults = false;
     recognition.continuous = true;
+    fullText = "";
 
-    let fullText = "";
     const micBtn = document.getElementById('mic-btn');
     const stopBtn = document.getElementById('stop-btn');
 
@@ -135,8 +135,20 @@ function startRec() {
     recognition.start();
 }
 
-function stopRec() {
-    if (recognition) { recognition.stop(); }
+function stopAndSend() {
+    if (recognition) { 
+        recognition.stop(); 
+    }
+    
+    // Simulation d'un appui sur Entrée combiné au focus pour valider directement l'input Streamlit
+    setTimeout(() => {
+        const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+        if (chatInput && chatInput.value.trim() !== "") {
+            chatInput.focus();
+            chatInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }));
+        }
+    }, 200);
+    
     resetUI();
 }
 
@@ -150,10 +162,9 @@ function resetUI() {
 """
 components.html(voice_html, height=60)
 
-# --- ZONE DE SAISIE & BOUTON D'ENVOI DIRECT ---
+# --- ZONE DE SAISIE NATIVE ---
 prompt_saisi = st.chat_input("Écrivez ou utilisez le micro...")
 
-# On gère l'envoi que ce soit par le chat_input natif ou par une saisie
 if prompt_saisi:
     st.session_state.message_en_cours = prompt_saisi
 
