@@ -41,6 +41,9 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
+if 'vocal_text' not in st.session_state:
+    st.session_state.vocal_text = ""
+
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
@@ -84,28 +87,27 @@ function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 """
 components.html(audio_html, height=40)
 
-# --- BARRE DE CONTRÔLE VOCAL CORRIGÉE (Anti-duplication) ---
-voice_control_html = """
-<div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 5px;">
-    <button onclick="startListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">🎤 Parler</button>
-    <button onclick="stopAndSend()" id="stop-btn" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;" disabled>⏹️ Stop & Envoyer</button>
+# --- ZONE DE CONTRÔLE VOCAL ROBUSTE ---
+# On capture le texte dicté proprement sans doublons et on le synchronise
+voice_html = """
+<div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px;">
+    <button onclick="startRec()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">🎤 Parler</button>
+    <button onclick="stopRec()" id="stop-btn" style="background-color: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;" disabled>⏹️ Stop</button>
 </div>
 
 <script>
 let recognition = null;
 
-function startListening() {
+function startRec() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
-        return;
-    }
+    if (!SpeechRecognition) { alert("Non supporté"); return; }
     
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
-    recognition.interimResults = true;
+    recognition.interimResults = false; // On ne prend que les résultats finaux pour éliminer les doublons d'écho
     recognition.continuous = true;
 
+    let fullText = "";
     const micBtn = document.getElementById('mic-btn');
     const stopBtn = document.getElementById('stop-btn');
 
@@ -117,60 +119,39 @@ function startListening() {
     };
 
     recognition.onresult = function(event) {
-        // On reconstruit proprement le texte final sans boucler de manière erronée sur les index intermédiaires
-        let transcript = '';
-        for (let i = 0; i < event.results.length; ++i) {
-            transcript += event.results[i][0].transcript;
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                fullText += event.results[i][0].transcript + " ";
+            }
         }
-        
         const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
         if (chatInput) {
-            chatInput.value = transcript;
+            chatInput.value = fullText.trim();
             chatInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
     };
-    
-    recognition.onerror = function() {
-        resetUI();
-    };
 
+    recognition.onerror = function() { resetUI(); };
     recognition.start();
 }
 
-function stopAndSend() {
-    if (recognition) {
-        recognition.stop();
-    }
+function stopRec() {
+    if (recognition) { recognition.stop(); }
     resetUI();
-    
-    // Déclenchement propre de l'envoi via la touche Entrée simulée
-    setTimeout(() => {
-        const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-        if (chatInput) {
-            chatInput.focus();
-            chatInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }));
-        }
-    }, 300);
 }
 
 function resetUI() {
     const micBtn = document.getElementById('mic-btn');
     const stopBtn = document.getElementById('stop-btn');
-    if (micBtn) {
-        micBtn.style.backgroundColor = "#ff4b4b";
-        micBtn.innerText = "🎤 Parler";
-    }
-    if (stopBtn) {
-        stopBtn.style.backgroundColor = "#6c757d";
-        stopBtn.setAttribute('disabled', 'true');
-    }
+    if (micBtn) { micBtn.style.backgroundColor = "#ff4b4b"; micBtn.innerText = "🎤 Parler"; }
+    if (stopBtn) { stopBtn.style.backgroundColor = "#6c757d"; stopBtn.setAttribute('disabled', 'true'); }
 }
 </script>
 """
-components.html(voice_control_html, height=55)
+components.html(voice_html, height=60)
 
-# --- ZONE DE SAISIE NATIVE STREAMLIT ---
-prompt = st.chat_input("Écrivez ou utilisez le micro ci-dessus...")
+# --- ZONE DE SAISIE NATIVE ---
+prompt = st.chat_input("Écrivez ou utilisez le micro...")
 
 if prompt:
     with st.chat_message("user"):
