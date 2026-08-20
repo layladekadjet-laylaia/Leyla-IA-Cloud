@@ -76,7 +76,7 @@ def rechercher_sur_le_web(historique, image_file=None):
     contenus_prompt.append(historique_texte)
 
     try:
-        # Si on est en mode création, on utilise le modèle de génération d'image
+        # Si on est en mode création, on force le modèle multimodal avec sortie image
         if is_image_mode:
             response = client.models.generate_content(
                 model='gemini-2.5-flash-image',
@@ -89,15 +89,17 @@ def rechercher_sur_le_web(historique, image_file=None):
                 )
             )
             
-            # Recherche d'une image générée dans la réponse de l'API
             generated_image = None
             text_response = ""
-            for part in response.candidates[0].content.parts:
-                if part.text:
-                    text_response += part.text
-                elif part.inline_data:
-                    image_data = part.inline_data.data
-                    generated_image = Image.open(BytesIO(image_data))
+            
+            # Analyse des différentes parties de la réponse (texte + image binaire)
+            if response.candidates and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if part.text:
+                        text_response += part.text
+                    elif part.inline_data:
+                        image_data = part.inline_data.data
+                        generated_image = Image.open(BytesIO(image_data))
             
             return {
                 "texte": nettoyer_reponse(text_response) if text_response else "Voici votre création Mon Professeur.",
@@ -105,7 +107,7 @@ def rechercher_sur_le_web(historique, image_file=None):
             }
         
         else:
-            # Mode standard (texte/recherche)
+            # Mode standard (texte / recherche)
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=contenus_prompt,
