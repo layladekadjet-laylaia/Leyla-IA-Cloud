@@ -19,14 +19,10 @@ def nettoyer_reponse(texte):
 
 def generer_logo_local(prompt_net):
     """
-    Module réservé pour votre futur moteur local (ex: Flux.1 ou Stable Diffusion).
-    Pour l'instant, il sert de passerelle de secours si le cloud rencontre un souci.
+    Module de secours pour votre futur moteur local (ex: Flux.1 ou Stable Diffusion).
     """
     try:
-        # TODO: Intégrer ici votre pipeline torch/diffusers local lorsque vous l'installerez
-        # Exemple : pipe = StableDiffusionPipeline.from_pretrained(...)
-        
-        # En attendant, on retourne une image par défaut ou un message d'information
+        # TODO: Intégrer ici votre pipeline torch/diffusers local si besoin
         img_defaut = Image.new("RGB", (800, 800), (15, 23, 42))
         return img_defaut
     except Exception as e:
@@ -45,15 +41,14 @@ def rechercher_sur_le_web(historique, image_file=None):
     )
 
     try:
-        # SI MODE CRÉATION : Architecture Hybride Cloud / Local
+        # SI MODE CRÉATION : Génération d'image sans imposer de modèle obsolète
         if is_image_mode:
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
             
-            # Tentative prioritaire via le Cloud (Imagen)
             generated_image = None
             try:
+                # Utilisation de la méthode native sans spécifier de nom de modèle cassé
                 result = client.models.generate_images(
-                    model='imagen-3.0-generate-002',
                     prompt=f"Un logo professionnel, moderne et élégant pour : {prompt_net}",
                     config=types.GenerateImagesConfig(
                         number_of_images=1,
@@ -64,7 +59,7 @@ def rechercher_sur_le_web(historique, image_file=None):
                     image_bytes = result.generated_images[0].image.image_bytes
                     generated_image = Image.open(BytesIO(image_bytes))
             except Exception as cloud_error:
-                # Si le cloud échoue (ex: 404 ou autre), Leyla bascule automatiquement sur le mode local
+                # Bascule de secours vers le mode local en cas de pépin
                 generated_image = generer_logo_local(prompt_net)
             
             return {
