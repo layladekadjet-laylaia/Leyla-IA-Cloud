@@ -32,7 +32,6 @@ def rechercher_sur_le_web(historique, image_file=None):
     try:
         # SI MODE CRÉATION : On utilise Imagen 3
         if is_image_mode:
-            # On nettoie la requête pour ne garder que le sujet du logo
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
             
             result = client.models.generate_images(
@@ -54,7 +53,7 @@ def rechercher_sur_le_web(historique, image_file=None):
                 "image": generated_image
             }
         
-        # MODE STANDARD : Texte, Code et Recherche
+        # MODE STANDARD : Texte, Code et Recherche avec gemini-3.6-flash
         else:
             contenus_prompt = []
             if image_file is not None:
@@ -68,7 +67,7 @@ def rechercher_sur_le_web(historique, image_file=None):
             contenus_prompt.append(historique_texte)
 
             response = client.models.generate_content(
-                model='gemini-2.0-flash', # Utilisation d'un modèle plus performant pour le code
+                model='gemini-3.6-flash',
                 contents=contenus_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=consignes_systeme,
