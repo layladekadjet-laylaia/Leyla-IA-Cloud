@@ -41,10 +41,14 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
+if 'transcription_vocale' not in st.session_state:
+    st.session_state.transcription_vocale = ""
+
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
+        st.session_state.transcription_vocale = ""
         st.rerun()
     activer_voix = st.checkbox("Réponse vocale", value=True)
     
@@ -73,7 +77,7 @@ derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', 
 toolbar_html = f"""
 <div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 20px 0;">
     <!-- Bouton Micro -->
-    <button onclick="startListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
+    <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
     
     <!-- Bouton Play -->
     <button onclick="playSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">▶️</button>
@@ -83,44 +87,57 @@ toolbar_html = f"""
 </div>
 
 <script>
-function startListening() {{
+let recognition = null;
+let isListening = false;
+
+function toggleListening() {{
+    const micBtn = document.getElementById('mic-btn');
+    
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {{
         alert("Non supporté par ce navigateur.");
         return;
     }}
-    const recognition = new SpeechRecognition();
+
+    if (isListening) {{
+        if (recognition) recognition.stop();
+        return;
+    }}
+
+    recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
-    recognition.interimResults = true; // Permet de voir le texte s'écrire en direct
-    
-    const micBtn = document.getElementById('mic-btn');
-    micBtn.style.backgroundColor = "#ffc107"; // Indique visuellement l'écoute (jaune)
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onstart = function() {{
+        isListening = true;
+        micBtn.style.backgroundColor = "#ffc107"; // Jaune = en écoute
+    }};
 
     recognition.onresult = function(event) {{
-        let interimTranscript = '';
-        let finalTranscript = '';
-        
+        let transcript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {{
-            if (event.results[i].isFinal) {{
-                finalTranscript += event.results[i][0].transcript;
-            }} else {{
-                interimTranscript += event.results[i][0].transcript;
-            }}
+            transcript += event.results[i][0].transcript;
         }}
         
-        const textTopping = finalTranscript || interimTranscript;
-        const inputField = window.parent.document.querySelector('input[type="text"]');
-        if (inputField) {{
-            inputField.value = textTopping;
-            inputField.dispatchEvent(new Event('input', {{ bubbles: true }}));
+        // Recherche de l'input Streamlit en remontant dans le DOM parent
+        const doc = window.parent.document;
+        const inputs = doc.querySelectorAll('input[type="text"]');
+        // On cible généralement le dernier input text qui correspond au chat_input
+        if (inputs.length > 0) {{
+            const targetInput = inputs[inputs.length - 1];
+            targetInput.value = transcript;
+            targetInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
         }}
     }};
-    
+
     recognition.onend = function() {{
-        micBtn.style.backgroundColor = "#ff4b4b"; // Remet la couleur rouge initiale
+        isListening = false;
+        micBtn.style.backgroundColor = "#ff4b4b"; // Retour au rouge
     }};
-    
+
     recognition.onerror = function() {{
+        isListening = false;
         micBtn.style.backgroundColor = "#ff4b4b";
     }};
 
