@@ -49,14 +49,21 @@ with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
         st.rerun()
+        
     activer_voix = st.checkbox("Réponse vocale", value=True)
     
     st.markdown("---")
-    # Modification ici pour inclure les fichiers multimédias/vidéos
+    st.markdown("### 🎨 Studio Créatif (Nano Banana style)")
+    # Sélecteur pour orienter Leyla vers la création ou l'édition
+    mode_creation = st.selectbox(
+        "Mode de l'assistant :",
+        ["💬 Discussion & Recherche", "🖼️ Création d'Image / Logo", "🎬 Édition & Vidéo"]
+    )
+    
+    st.markdown("---")
     choix_source = st.radio("Source média :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
     media_file = None
     if choix_source == "📁 Fichier": 
-        # Ajout des formats vidéo courants (mp4, mov, avi, mkv) en plus des images
         media_file = st.file_uploader("Image ou Vidéo", type=["jpg", "jpeg", "png", "mp4", "mov", "avi", "mkv"])
     elif choix_source == "📷 Caméra": 
         media_file = st.camera_input("Prendre une photo")
@@ -187,9 +194,11 @@ if st.session_state.message_en_cours:
     texte_final = st.session_state.message_en_cours
     st.session_state.message_en_cours = "" # Reset
     
+    # On ajoute le mode actif au début du message ou dans le contexte pour guider l'IA
+    message_avec_contexte = f"[{mode_creation}] {texte_final}"
+    
     with st.chat_message("user"):
         if media_file:
-            # Vérifie si c'est une vidéo ou une image pour l'affichage correct dans le chat
             file_type = media_file.type
             if "video" in file_type:
                 st.video(media_file)
@@ -197,9 +206,8 @@ if st.session_state.message_en_cours:
                 st.image(media_file, width=200)
         st.write(texte_final)
     
-    db_manager.save_message(st.session_state.session_id, "user", texte_final)
+    db_manager.save_message(st.session_state.session_id, "user", message_avec_contexte)
     with st.chat_message("assistant"):
-        # Adaptation selon ce que prend en charge votre fonction de recherche (image ou fichier global)
         reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=media_file)
         st.write(reponse)
         db_manager.save_message(st.session_state.session_id, "assistant", reponse)
