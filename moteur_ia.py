@@ -87,7 +87,7 @@ function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 """
 components.html(audio_html, height=40)
 
-# --- CONTRÔLE VOCAL : STOP FAIT OFFICE D'ENVOI ---
+# --- CONTRÔLE VOCAL AVEC DÉCLENCHEMENT DU BOUTON NATIF ---
 voice_html = """
 <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px;">
     <button onclick="startRec()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">🎤 Parler</button>
@@ -140,14 +140,20 @@ function stopAndSend() {
         recognition.stop(); 
     }
     
-    // Simulation d'un appui sur Entrée combiné au focus pour valider directement l'input Streamlit
+    // Clique directement sur le vrai bouton d'envoi natif de Streamlit (la flèche)
     setTimeout(() => {
-        const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-        if (chatInput && chatInput.value.trim() !== "") {
-            chatInput.focus();
-            chatInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }));
+        const submitBtn = window.parent.document.querySelector('button[data-testid="stChatInputSubmitButton"]');
+        if (submitBtn) {
+            submitBtn.click();
+        } else {
+            // Solution de repli si le bouton n'est pas trouvé : simuler la touche Entrée
+            const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+            if (chatInput) {
+                chatInput.focus();
+                chatInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }));
+            }
         }
-    }, 200);
+    }, 250);
     
     resetUI();
 }
