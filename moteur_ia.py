@@ -41,10 +41,14 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
+if 'user_prompt' not in st.session_state:
+    st.session_state.user_prompt = ""
+
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
+        st.session_state.user_prompt = ""
         st.rerun()
     activer_voix = st.checkbox("Réponse vocale", value=True)
 
@@ -57,7 +61,7 @@ for m in msgs_hist:
 derniere_reponse = next((m["content"] for m in reversed(msgs_hist) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
 
-# --- BARRE AUDIO (PLAY / PAUSE SUR UNE LIGNE) ---
+# --- BARRE AUDIO (PLAY / PAUSE) ---
 audio_html = f"""
 <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px;">
     <button onclick="playSpeech()" style="background-color: #f0f2f6; border: 1px solid #d6d6d6; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px;">▶️ Lire</button>
@@ -75,7 +79,7 @@ function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 """
 components.html(audio_html, height=50)
 
-# --- MODULE MICROPHONE INTÉGRÉ ---
+# --- MODULE MICROPHONE ---
 mic_html = """
 <div style="display: flex; justify-content: center; margin-bottom: 10px;">
     <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 24px; border-radius: 10px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤 Parler</button>
@@ -114,14 +118,24 @@ function toggleListening() {
 """
 components.html(mic_html, height=60)
 
-# --- ZONE DE SAISIE ET FORMULAIRE ---
-with st.form(key="chat_form", clear_on_submit=True):
-    prompt = st.text_input("Message...", label_visibility="collapsed", placeholder="Écrivez ou utilisez le micro ci-dessus...")
-    submit = st.form_submit_button("Envoyer 📤")
+# --- ZONE DE SAISIE ET SOUMISSION SANS FORMULAIRE BLOQUANT ---
+# On utilise un champ lié à la session pour garder le texte en mémoire lors du clic
+def submit_callback():
+    st.session_state.user_prompt = st.session_state.widget_input
 
-if submit and prompt:
-    db_manager.save_message(st.session_state.session_id, "user", prompt)
-    with st.chat_message("user"): st.write(prompt)
+prompt_saisi = st.text_input("Message...", value=st.session_state.user_prompt, key="widget_input", label_visibility="collapsed", placeholder="Écrivez ou utilisez le micro ci-dessus...")
+
+col1, col2 = st.columns([5, 1])
+with col2:
+    envoyer = st.button("Envoyer 📤", use_container_width=True)
+
+if envoyer and st.session_state.widget_input:
+    texte_final = st.session_state.widget_input
+    st.session_state.user_prompt = "" # Réinitialisation
+    
+    db_manager.save_message(st.session_state.session_id, "user", texte_final)
+    with st.chat_message("user"): st.write(texte_final)
+    
     with st.chat_message("assistant"):
         reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id))
         st.write(reponse)
