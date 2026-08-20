@@ -6,7 +6,6 @@ import base64
 import streamlit.components.v1 as components
 import db_manager
 from recherche_ia import rechercher_sur_le_web
-from utils_memoire import generer_resume
 
 # --- INITIALISATION ---
 db_manager.init_db()
@@ -65,7 +64,48 @@ for m in messages:
         with st.chat_message(m["role"]): 
             st.write(m["content"])
 
-# --- CONTRÔLES AUDIO (PLAY/REPRENDRE & PAUSE) ---
+# --- BOUTON MICRO / RECONNAISSANCE VOCALE HTML ---
+st.markdown("### 🎙️ Parler à Leyla")
+st_audio_input_html = """
+<div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+    <button onclick="startListening()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🎤 Parler</button>
+    <span id="speech-status" style="font-style: italic; color: #555;">Cliquez pour dicter votre message...</span>
+</div>
+<script>
+function startListening() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
+        return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = false;
+    
+    document.getElementById('speech-status').innerText = "Écoute en cours... Parlez maintenant.";
+    
+    recognition.onresult = function(event) {
+        const speechToText = event.results[0][0].transcript;
+        document.getElementById('speech-status').innerText = "Texte capturé : " + speechToText;
+        // On envoie le texte dans l'input Streamlit via une simulation ou un stockage
+        const inputField = window.parent.document.querySelector('input[type="text"]');
+        if (inputField) {
+            inputField.value = speechToText;
+            inputField.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    };
+    
+    recognition.onerror = function(event) {
+        document.getElementById('speech-status').innerText = "Erreur de reconnaissance vocale.";
+    };
+    
+    recognition.start();
+}
+</script>
+"""
+components.html(st_audio_input_html, height=70)
+
+# --- CONTRÔLES AUDIO (PLAY/PAUSE) ---
 col_play, col_pause = st.columns(2)
 
 with col_play:
@@ -74,24 +114,18 @@ with col_play:
         derniere = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant"), "")
         if derniere:
             t = re.sub(r'[\n\r]+', ' ', derniere).replace('"', '\\"')
-            # On ajoute un reset complet avant de lancer
             components.html(f"""
                 <script>
-                    window.speechSynthesis.cancel(); 
-                    if (window.speechSynthesis.paused) {{
-                        window.speechSynthesis.resume();
-                    }} else {{
-                        var u = new SpeechSynthesisUtterance('{t}');
-                        u.lang = 'fr-FR';
-                        window.speechSynthesis.speak(u);
-                    }}
+                    window.parent.window.speechSynthesis.cancel(); 
+                    var u = new SpeechSynthesisUtterance('{t}');
+                    u.lang = 'fr-FR';
+                    window.parent.window.speechSynthesis.speak(u);
                 </script>
             """, height=0)
 
 with col_pause:
     if st.button("⏸️ Pause"):
-        # La pause ne nécessite pas d'interaction complexe, juste l'ordre
-        components.html("<script>window.speechSynthesis.pause();</script>", height=0)
+        components.html("<script>window.parent.window.speechSynthesis.pause();</script>", height=0)
 
 # --- ZONE SAISIE ---
 prompt = st.chat_input("Que voulez-vous savoir ?")
@@ -110,10 +144,10 @@ if prompt:
             t = re.sub(r'[\n\r]+', ' ', reponse).replace('"', '\\"')
             components.html(f"""
                 <script>
-                    window.speechSynthesis.cancel();
+                    window.parent.window.speechSynthesis.cancel();
                     var u = new SpeechSynthesisUtterance('{t}');
                     u.lang = 'fr-FR';
-                    window.speechSynthesis.speak(u);
+                    window.parent.window.speechSynthesis.speak(u);
                 </script>
             """, height=0)
     st.rerun()
