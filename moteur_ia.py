@@ -41,9 +41,6 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
-if 'input_text' not in st.session_state:
-    st.session_state.input_text = ""
-
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
@@ -87,70 +84,108 @@ function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 """
 components.html(audio_html, height=40)
 
-# --- ZONE DE SAISIE & BOUTON MICRO / CARRÉ ---
-# On utilise un conteneur propre pour la saisie textuelle et vocale
-col_input, col_mic, col_stop = st.columns([6, 1, 1])
-
-with col_input:
-    # Champ texte classique lié au session_state
-    prompt_saisi = st.text_input("Message...", value=st.session_state.input_text, label_visibility="collapsed", placeholder="Écrivez ou utilisez le micro...")
-
-# Callback pour mettre à jour l'état si l'utilisateur tape au clavier
-st.session_state.input_text = prompt_saisi
-
-# Script JavaScript injecté pour la reconnaissance vocale qui stocke directement dans un input dédié ou interagit proprement
-voice_js = """
-<div style="display: flex; gap: 5px; justify-content: center;">
-    <button onclick="startRec()" style="background-color: #ff4b4b; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 16px;" title="Parler">🎤</button>
-    <button onclick="stopRec()" style="background-color: #6c757d; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 16px;" title="Arrêter">⏹️</button>
+# --- BARRE DE CONTRÔLE VOCAL INTEGREE (Micro + Carré Stop/Envoi) ---
+# On utilise directement st.chat_input pour une gestion native fluide, couplée au HTML/JS du micro
+voice_control_html = """
+<div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 5px;">
+    <button onclick="startListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">🎤 Parler</button>
+    <button onclick="stopAndSend()" id="stop-btn" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;" disabled>⏹️ Stop & Envoyer</button>
 </div>
+
 <script>
 let recognition = null;
-function startRec() {
+let finalTranscript = '';
+
+function startListening() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert("Non supporté"); return; }
+    if (!SpeechRecognition) {
+        alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
+        return;
+    }
+    
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.interimResults = true;
     recognition.continuous = true;
-    
-    recognition.onresult = (event) => {
-        let transcript = '';
+    finalTranscript = '';
+
+    const micBtn = document.getElementById('mic-btn');
+    const stopBtn = document.getElementById('stop-btn');
+
+    recognition.onstart = function() {
+        micBtn.style.backgroundColor = "#ffc107";
+        micBtn.innerText = "👂 Écoute...";
+        stopBtn.style.backgroundColor = "#ff4b4b";
+        stopBtn.removeAttribute('disabled');
+    };
+
+    recognition.onresult = function(event) {
+        let interimTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-            transcript += event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript;
+            } else {
+                interimTranscript += event.results[i][0].transcript;
+            }
         }
-        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-        if (inputs.length > 0) {
-            const target = inputs[0]; // Cible le premier input texte principal
-            target.value = transcript;
-            target.dispatchevent ? target.dispatchevent(new Event('input', { bubbles: true })) : target.fireEvent('oninput');
+        
+        const currentText = finalTranscript || interimTranscript;
+        const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+        if (chatInput) {
+            chatInput.value = currentText;
+            chatInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
     };
+    
+    recognition.onerror = function() {
+        resetUI();
+    };
+
     recognition.start();
 }
-function stopRec() {
-    if (recognition) { recognition.stop(); }
+
+function stopAndSend() {
+    if (recognition) {
+        recognition.stop();
+    }
+    resetUI();
+    
+    // Simulation d'un appui sur Entrée pour valider et envoyer directement le message dans Streamlit
+    setTimeout(() => {
+        const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+        if (chatInput) {
+            chatInput.focus();
+            chatInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }));
+        }
+    }, 300);
+}
+
+function resetUI() {
+    const micBtn = document.getElementById('mic-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    if (micBtn) {
+        micBtn.style.backgroundColor = "#ff4b4b";
+        micBtn.innerText = "🎤 Parler";
+    }
+    if (stopBtn) {
+        stopBtn.style.backgroundColor = "#6c757d";
+        stopBtn.setAttribute('disabled', 'true');
+    }
 }
 </script>
 """
+components.html(voice_control_html, height=55)
 
-with col_mic:
-    components.html(voice_js, height=50)
+# --- ZONE DE SAISIE NATIVE STREAMLIT ---
+prompt = st.chat_input("Écrivez ou utilisez le micro ci-dessus...")
 
-with col_stop:
-    envoyer = st.button("Envoyer 📤", use_container_width=True)
-
-# Traitement de l'envoi
-if envoyer and st.session_state.input_text:
-    texte_final = st.session_state.input_text
-    st.session_state.input_text = "" # Reset
-    
-    db_manager.save_message(st.session_state.session_id, "user", texte_final)
+if prompt:
     with st.chat_message("user"):
         if image_file: 
             st.image(image_file, width=200)
-        st.write(texte_final)
+        st.write(prompt)
     
+    db_manager.save_message(st.session_state.session_id, "user", prompt)
     with st.chat_message("assistant"):
         reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=image_file)
         st.write(reponse)
