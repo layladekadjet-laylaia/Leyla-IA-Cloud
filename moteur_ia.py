@@ -52,12 +52,14 @@ with st.sidebar:
     activer_voix = st.checkbox("Réponse vocale", value=True)
     
     st.markdown("---")
-    choix_source = st.radio("Source image :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
-    image_file = None
+    # Modification ici pour inclure les fichiers multimédias/vidéos
+    choix_source = st.radio("Source média :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
+    media_file = None
     if choix_source == "📁 Fichier": 
-        image_file = st.file_uploader("Image", type=["jpg", "png"])
+        # Ajout des formats vidéo courants (mp4, mov, avi, mkv) en plus des images
+        media_file = st.file_uploader("Image ou Vidéo", type=["jpg", "jpeg", "png", "mp4", "mov", "avi", "mkv"])
     elif choix_source == "📷 Caméra": 
-        image_file = st.camera_input("Prendre une photo")
+        media_file = st.camera_input("Prendre une photo")
 
 # --- HISTORIQUE ---
 messages = db_manager.get_history(st.session_state.session_id)
@@ -134,7 +136,6 @@ function startRec() {
 function updateChatInput(text) {
     const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
     if (chatInput) {
-        // Technique React / Streamlit pour forcer la mise à jour de l'état interne
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.parent.HTMLTextAreaElement.prototype, "value").set;
         nativeInputValueSetter.call(chatInput, text);
         
@@ -148,10 +149,8 @@ function stopAndSend() {
         recognition.stop(); 
     }
     
-    // S'assure que le texte final est bien injecté
     updateChatInput(fullText.trim());
 
-    // Clique sur le bouton d'envoi natif après un court délai pour laisser Streamlit l'activer
     setTimeout(() => {
         const submitBtn = window.parent.document.querySelector('button[data-testid="stChatInputSubmitButton"]');
         if (submitBtn) {
@@ -178,7 +177,6 @@ function resetUI() {
 """
 components.html(voice_html, height=60)
 
-
 # --- ZONE DE SAISIE NATIVE ---
 prompt_saisi = st.chat_input("Écrivez ou utilisez le micro...")
 
@@ -190,13 +188,19 @@ if st.session_state.message_en_cours:
     st.session_state.message_en_cours = "" # Reset
     
     with st.chat_message("user"):
-        if image_file: 
-            st.image(image_file, width=200)
+        if media_file:
+            # Vérifie si c'est une vidéo ou une image pour l'affichage correct dans le chat
+            file_type = media_file.type
+            if "video" in file_type:
+                st.video(media_file)
+            else:
+                st.image(media_file, width=200)
         st.write(texte_final)
     
     db_manager.save_message(st.session_state.session_id, "user", texte_final)
     with st.chat_message("assistant"):
-        reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=image_file)
+        # Adaptation selon ce que prend en charge votre fonction de recherche (image ou fichier global)
+        reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=media_file)
         st.write(reponse)
         db_manager.save_message(st.session_state.session_id, "assistant", reponse)
         if activer_voix:
