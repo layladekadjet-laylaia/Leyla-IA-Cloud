@@ -41,8 +41,9 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
-if 'vocal_text' not in st.session_state:
-    st.session_state.vocal_text = ""
+# Variable d'état pour stocker le texte du message en cours
+if 'message_en_cours' not in st.session_state:
+    st.session_state.message_en_cours = ""
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -87,8 +88,7 @@ function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 """
 components.html(audio_html, height=40)
 
-# --- ZONE DE CONTRÔLE VOCAL ROBUSTE ---
-# On capture le texte dicté proprement sans doublons et on le synchronise
+# --- ZONE DE CONTRÔLE VOCAL STABLE ---
 voice_html = """
 <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px;">
     <button onclick="startRec()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">🎤 Parler</button>
@@ -104,7 +104,7 @@ function startRec() {
     
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
-    recognition.interimResults = false; // On ne prend que les résultats finaux pour éliminer les doublons d'écho
+    recognition.interimResults = false;
     recognition.continuous = true;
 
     let fullText = "";
@@ -150,16 +150,23 @@ function resetUI() {
 """
 components.html(voice_html, height=60)
 
-# --- ZONE DE SAISIE NATIVE ---
-prompt = st.chat_input("Écrivez ou utilisez le micro...")
+# --- ZONE DE SAISIE & BOUTON D'ENVOI DIRECT ---
+prompt_saisi = st.chat_input("Écrivez ou utilisez le micro...")
 
-if prompt:
+# On gère l'envoi que ce soit par le chat_input natif ou par une saisie
+if prompt_saisi:
+    st.session_state.message_en_cours = prompt_saisi
+
+if st.session_state.message_en_cours:
+    texte_final = st.session_state.message_en_cours
+    st.session_state.message_en_cours = "" # Reset
+    
     with st.chat_message("user"):
         if image_file: 
             st.image(image_file, width=200)
-        st.write(prompt)
+        st.write(texte_final)
     
-    db_manager.save_message(st.session_state.session_id, "user", prompt)
+    db_manager.save_message(st.session_state.session_id, "user", texte_final)
     with st.chat_message("assistant"):
         reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=image_file)
         st.write(reponse)
