@@ -1,27 +1,41 @@
 def generer_logo_local(prompt_net):
     """
-    Génère un logo artistique avec Stable Diffusion en local.
+    Architecture hybride : Utilise Stable Diffusion si un GPU est disponible,
+    sinon génère un logo géométrique robuste via Pillow.
     """
+    import torch
+    
+    # 1. Tentative avec Stable Diffusion si GPU NVIDIA détecté
+    if torch.cuda.is_available():
+        try:
+            from diffusers import StableDiffusionPipeline
+            
+            model_id = "runwayml/stable-diffusion-v1-5"
+            pipe = StableDiffusionPipeline.from_pretrained(
+                model_id, 
+                torch_dtype=torch.float16
+            )
+            pipe = pipe.to("cuda")
+            
+            prompt = f"Professional minimalist logo for: {prompt_net}, vector style, clean lines, flat design, high quality"
+            image = pipe(prompt, num_inference_steps=20).images[0]
+            return image
+        except Exception as e:
+            print(f"Erreur GPU, bascule sur mode géométrique : {e}")
+    
+    # 2. Mode secours : Dessin géométrique robuste (Pillow)
     try:
-        import torch
-        from diffusers import StableDiffusionPipeline
+        from PIL import Image, ImageDraw
         
-        # Chargement du modèle (v1.5 est le plus léger et rapide pour commencer)
-        model_id = "runwayml/stable-diffusion-v1-5"
-        pipe = StableDiffusionPipeline.from_pretrained(
-            model_id, 
-            torch_dtype=torch.float16
-        )
-        # On tente d'utiliser CUDA (NVIDIA), sinon on reste sur CPU
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        pipe = pipe.to(device)
+        taille = 800
+        img = Image.new("RGBA", (taille, taille), (15, 23, 42, 255))
+        draw = ImageDraw.Draw(img)
         
-        # Le prompt optimisé pour un logo
-        prompt = f"Professional minimalist logo for: {prompt_net}, vector style, clean lines, flat design, high quality"
+        # Formes géométriques élégantes
+        draw.ellipse([200, 200, 600, 600], outline=(56, 189, 248), width=12)
+        draw.rectangle([300, 370, 500, 430], fill=(244, 63, 94))
         
-        image = pipe(prompt, num_inference_steps=20).images[0]
-        return image
-        
+        return img
     except Exception as e:
-        print(f"Erreur génération locale : {e}")
+        print(f"Erreur totale : {e}")
         return None
