@@ -84,8 +84,7 @@ function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 """
 components.html(audio_html, height=40)
 
-# --- BARRE DE CONTRÔLE VOCAL INTEGREE (Micro + Carré Stop/Envoi) ---
-# On utilise directement st.chat_input pour une gestion native fluide, couplée au HTML/JS du micro
+# --- BARRE DE CONTRÔLE VOCAL CORRIGÉE (Anti-duplication) ---
 voice_control_html = """
 <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 5px;">
     <button onclick="startListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">🎤 Parler</button>
@@ -94,7 +93,6 @@ voice_control_html = """
 
 <script>
 let recognition = null;
-let finalTranscript = '';
 
 function startListening() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -107,7 +105,6 @@ function startListening() {
     recognition.lang = 'fr-FR';
     recognition.interimResults = true;
     recognition.continuous = true;
-    finalTranscript = '';
 
     const micBtn = document.getElementById('mic-btn');
     const stopBtn = document.getElementById('stop-btn');
@@ -120,19 +117,15 @@ function startListening() {
     };
 
     recognition.onresult = function(event) {
-        let interimTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript;
-            } else {
-                interimTranscript += event.results[i][0].transcript;
-            }
+        // On reconstruit proprement le texte final sans boucler de manière erronée sur les index intermédiaires
+        let transcript = '';
+        for (let i = 0; i < event.results.length; ++i) {
+            transcript += event.results[i][0].transcript;
         }
         
-        const currentText = finalTranscript || interimTranscript;
         const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
         if (chatInput) {
-            chatInput.value = currentText;
+            chatInput.value = transcript;
             chatInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
     };
@@ -150,7 +143,7 @@ function stopAndSend() {
     }
     resetUI();
     
-    // Simulation d'un appui sur Entrée pour valider et envoyer directement le message dans Streamlit
+    // Déclenchement propre de l'envoi via la touche Entrée simulée
     setTimeout(() => {
         const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
         if (chatInput) {
