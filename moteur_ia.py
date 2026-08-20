@@ -208,11 +208,22 @@ if st.session_state.message_en_cours:
     
     db_manager.save_message(st.session_state.session_id, "user", message_avec_contexte)
     with st.chat_message("assistant"):
-        reponse = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=media_file)
-        st.write(reponse)
-        db_manager.save_message(st.session_state.session_id, "assistant", reponse)
+        # La fonction renvoie maintenant un dictionnaire {"texte": ..., "image": ...}
+        resultat_ia = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=media_file)
+        
+        reponse_texte = resultat_ia["texte"]
+        reponse_image = resultat_ia["image"]
+        
+        st.write(reponse_texte)
+        
+        # Si Leyla a généré une image/logo, on l'affiche directement dans l'interface !
+        if reponse_image is not None:
+            st.image(reponse_image, caption="Création par Leyla IA", use_container_width=True)
+            
+        db_manager.save_message(st.session_state.session_id, "assistant", reponse_texte)
+        
         if activer_voix:
-            t = re.sub(r'[\n\r]+', ' ', reponse).replace('"', '\\"')
+            t = re.sub(r'[\n\r]+', ' ', reponse_texte).replace('"', '\\"')
             components.html(f"""
                 <script>
                     window.parent.window.speechSynthesis.cancel();
