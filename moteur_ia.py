@@ -69,16 +69,11 @@ msgs_hist = db_manager.get_history(st.session_state.session_id)
 derniere_reponse = next((m["content"] for m in reversed(msgs_hist) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
 
-# --- BARRE DE CONTRÔLE UNIQUE (MICRO, PLAY, PAUSE ALIGNÉS) ---
+# --- BARRE DE CONTRÔLE UNIQUE (MICRO, PLAY, PAUSE ALIGNÉS + ENVOI AUTO) ---
 toolbar_html = f"""
 <div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 20px 0;">
-    <!-- Bouton Micro -->
     <button onclick="startListening()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
-    
-    <!-- Bouton Play -->
     <button onclick="playSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">▶️</button>
-    
-    <!-- Bouton Pause -->
     <button onclick="pauseSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">⏸️</button>
 </div>
 
@@ -86,18 +81,30 @@ toolbar_html = f"""
 function startListening() {{
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {{
-        alert("Non supporté par ce navigateur.");
+        alert("Reconnaissance vocale non supportée.");
         return;
     }}
     const recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
-    recognition.interimResults = false;
+    
     recognition.onresult = function(event) {{
         const speechToText = event.results[0][0].transcript;
         const inputField = window.parent.document.querySelector('input[type="text"]');
+        
         if (inputField) {{
+            // Insérer le texte
             inputField.value = speechToText;
             inputField.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            
+            // Simuler l'appui sur "Entrée" pour envoyer
+            const enterEvent = new KeyboardEvent('keydown', {{
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true
+            }});
+            inputField.dispatchEvent(enterEvent);
         }}
     }};
     recognition.start();
@@ -118,6 +125,7 @@ function pauseSpeech() {{
 </script>
 """
 components.html(toolbar_html, height=70)
+
 
 # --- ZONE SAISIE ---
 prompt = st.chat_input("Que voulez-vous savoir ?")
