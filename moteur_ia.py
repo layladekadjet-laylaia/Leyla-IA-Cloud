@@ -124,15 +124,23 @@ function startRec() {
                 fullText += event.results[i][0].transcript + " ";
             }
         }
-        const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-        if (chatInput) {
-            chatInput.value = fullText.trim();
-            chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+        updateChatInput(fullText.trim());
     };
 
     recognition.onerror = function() { resetUI(); };
     recognition.start();
+}
+
+function updateChatInput(text) {
+    const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+    if (chatInput) {
+        // Technique React / Streamlit pour forcer la mise à jour de l'état interne
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.parent.HTMLTextAreaElement.prototype, "value").set;
+        nativeInputValueSetter.call(chatInput, text);
+        
+        chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+        chatInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 }
 
 function stopAndSend() {
@@ -140,20 +148,22 @@ function stopAndSend() {
         recognition.stop(); 
     }
     
-    // Clique directement sur le vrai bouton d'envoi natif de Streamlit (la flèche)
+    // S'assure que le texte final est bien injecté
+    updateChatInput(fullText.trim());
+
+    // Clique sur le bouton d'envoi natif après un court délai pour laisser Streamlit l'activer
     setTimeout(() => {
         const submitBtn = window.parent.document.querySelector('button[data-testid="stChatInputSubmitButton"]');
         if (submitBtn) {
             submitBtn.click();
         } else {
-            // Solution de repli si le bouton n'est pas trouvé : simuler la touche Entrée
             const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
             if (chatInput) {
                 chatInput.focus();
                 chatInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' }));
             }
         }
-    }, 250);
+    }, 300);
     
     resetUI();
 }
@@ -167,6 +177,7 @@ function resetUI() {
 </script>
 """
 components.html(voice_html, height=60)
+
 
 # --- ZONE DE SAISIE NATIVE ---
 prompt_saisi = st.chat_input("Écrivez ou utilisez le micro...")
