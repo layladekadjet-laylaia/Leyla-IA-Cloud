@@ -64,52 +64,39 @@ for m in messages:
         with st.chat_message(m["role"]): 
             st.write(m["content"])
 
-# --- BOUTON MICRO / RECONNAISSANCE VOCALE HTML ---
-st.markdown("### 🎙️ Parler à Leyla")
-st_audio_input_html = """
-<div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
-    <button onclick="startListening()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🎤 Parler</button>
-    <span id="speech-status" style="font-style: italic; color: #555;">Cliquez pour dicter votre message...</span>
-</div>
-<script>
-function startListening() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
-        return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.interimResults = false;
-    
-    document.getElementById('speech-status').innerText = "Écoute en cours... Parlez maintenant.";
-    
-    recognition.onresult = function(event) {
-        const speechToText = event.results[0][0].transcript;
-        document.getElementById('speech-status').innerText = "Texte capturé : " + speechToText;
-        // On envoie le texte dans l'input Streamlit via une simulation ou un stockage
-        const inputField = window.parent.document.querySelector('input[type="text"]');
-        if (inputField) {
-            inputField.value = speechToText;
-            inputField.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    };
-    
-    recognition.onerror = function(event) {
-        document.getElementById('speech-status').innerText = "Erreur de reconnaissance vocale.";
-    };
-    
-    recognition.start();
-}
-</script>
-"""
-components.html(st_audio_input_html, height=70)
+# --- CONTRÔLES UNIFIÉS SUR UNE SEULE LIGNE (MICRO, PLAY, PAUSE) ---
+col_mic, col_play, col_pause = st.columns(3)
 
-# --- CONTRÔLES AUDIO (PLAY/PAUSE) ---
-col_play, col_pause = st.columns(2)
+with col_mic:
+    components.html("""
+    <div style="text-align: center;">
+        <button onclick="startListening()" style="background-color: #ff4b4b; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 18px;">🎤</button>
+    </div>
+    <script>
+    function startListening() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Non supporté par ce navigateur.");
+            return;
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'fr-FR';
+        recognition.interimResults = false;
+        recognition.onresult = function(event) {
+            const speechToText = event.results[0][0].transcript;
+            const inputField = window.parent.document.querySelector('input[type="text"]');
+            if (inputField) {
+                inputField.value = speechToText;
+                inputField.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        };
+        recognition.start();
+    }
+    </script>
+    """, height=50)
 
 with col_play:
-    if st.button("▶️ Play / Reprendre"):
+    if st.button("▶️"):
         msgs = db_manager.get_history(st.session_state.session_id)
         derniere = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant"), "")
         if derniere:
@@ -117,14 +104,18 @@ with col_play:
             components.html(f"""
                 <script>
                     window.parent.window.speechSynthesis.cancel(); 
-                    var u = new SpeechSynthesisUtterance('{t}');
-                    u.lang = 'fr-FR';
-                    window.parent.window.speechSynthesis.speak(u);
+                    if (window.parent.window.speechSynthesis.paused) {{
+                        window.parent.window.speechSynthesis.resume();
+                    }} else {{
+                        var u = new SpeechSynthesisUtterance('{t}');
+                        u.lang = 'fr-FR';
+                        window.parent.window.speechSynthesis.speak(u);
+                    }}
                 </script>
             """, height=0)
 
 with col_pause:
-    if st.button("⏸️ Pause"):
+    if st.button("⏸️"):
         components.html("<script>window.parent.window.speechSynthesis.pause();</script>", height=0)
 
 # --- ZONE SAISIE ---
