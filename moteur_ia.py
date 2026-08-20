@@ -20,7 +20,7 @@ def get_base64_image(image_path):
 
 img_base64 = get_base64_image("LOGO LAYLA.png")
 
-# --- CSS (Design épuré) ---
+# --- CSS ---
 st.markdown(f"""
 <style>
     .stApp {{ background-color: #ffffff; }}
@@ -57,45 +57,13 @@ for m in msgs_hist:
 derniere_reponse = next((m["content"] for m in reversed(msgs_hist) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
 
-# --- BARRE D'OUTILS UNIFIÉE (MICRO, PLAY, PAUSE SUR UNE LIGNE) ---
-toolbar_html = f"""
-<div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 20px;">
-    <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 18px;">🎤</button>
-    <button onclick="playSpeech()" style="background-color: #f0f2f6; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 18px;">▶️</button>
-    <button onclick="pauseSpeech()" style="background-color: #f0f2f6; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 18px;">⏸️</button>
+# --- BARRE AUDIO (PLAY / PAUSE SUR UNE LIGNE) ---
+audio_html = f"""
+<div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px;">
+    <button onclick="playSpeech()" style="background-color: #f0f2f6; border: 1px solid #d6d6d6; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px;">▶️ Lire</button>
+    <button onclick="pauseSpeech()" style="background-color: #f0f2f6; border: 1px solid #d6d6d6; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 16px;">⏸️ Pause</button>
 </div>
-
 <script>
-let recognition = null;
-let isListening = false;
-
-function toggleListening() {{
-    const micBtn = document.getElementById('mic-btn');
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {{ alert("Non supporté"); return; }}
-    
-    if (isListening) {{ if (recognition) recognition.stop(); return; }}
-
-    recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.interimResults = true;
-    recognition.continuous = true;
-
-    recognition.onstart = () => {{ isListening = true; micBtn.style.backgroundColor = "#ffc107"; }};
-    recognition.onresult = (event) => {{
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) transcript += event.results[i][0].transcript;
-        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-        if (inputs.length > 0) {{
-            const target = inputs[inputs.length - 1];
-            target.value = transcript;
-            target.dispatchEvent(new Event('input', {{ bubbles: true }}));
-        }}
-    }};
-    recognition.onend = () => {{ isListening = false; micBtn.style.backgroundColor = "#ff4b4b"; }};
-    recognition.start();
-}}
-
 function playSpeech() {{ 
     window.parent.window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance("{derniere_reponse_clean}");
@@ -105,11 +73,50 @@ function playSpeech() {{
 function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 </script>
 """
-components.html(toolbar_html, height=70)
+components.html(audio_html, height=50)
 
-# --- ZONE DE SAISIE (Formulaire propre) ---
+# --- MODULE MICROPHONE INTÉGRÉ ---
+mic_html = """
+<div style="display: flex; justify-content: center; margin-bottom: 10px;">
+    <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 24px; border-radius: 10px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤 Parler</button>
+</div>
+<script>
+let recognition = null;
+let isListening = false;
+
+function toggleListening() {
+    const micBtn = document.getElementById('mic-btn');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { alert("Non supporté"); return; }
+    
+    if (isListening) { if (recognition) recognition.stop(); return; }
+
+    recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onstart = () => { isListening = true; micBtn.style.backgroundColor = "#ffc107"; micBtn.innerText = "🛑 En écoute..."; };
+    recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) transcript += event.results[i][0].transcript;
+        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+        if (inputs.length > 0) {
+            const target = inputs[inputs.length - 1];
+            target.value = transcript;
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    };
+    recognition.onend = () => { isListening = false; micBtn.style.backgroundColor = "#ff4b4b"; micBtn.innerText = "🎤 Parler"; };
+    recognition.start();
+}
+</script>
+"""
+components.html(mic_html, height=60)
+
+# --- ZONE DE SAISIE ET FORMULAIRE ---
 with st.form(key="chat_form", clear_on_submit=True):
-    prompt = st.text_input("Parlez avec le micro ou écrivez ici...", label_visibility="collapsed")
+    prompt = st.text_input("Message...", label_visibility="collapsed", placeholder="Écrivez ou utilisez le micro ci-dessus...")
     submit = st.form_submit_button("Envoyer 📤")
 
 if submit and prompt:
