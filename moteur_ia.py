@@ -41,9 +41,6 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
-if 'voice_prompt' not in st.session_state:
-    st.session_state.voice_prompt = ""
-
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
@@ -72,10 +69,10 @@ msgs_hist = db_manager.get_history(st.session_state.session_id)
 derniere_reponse = next((m["content"] for m in reversed(msgs_hist) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
 
-# --- BARRE DE CONTRÔLE UNIQUE (MICRO "TALKIE-WALKIE", PLAY, PAUSE) ---
+# --- BARRE DE CONTRÔLE (MICRO / CARRÉ D'ARRÊT, PLAY, PAUSE) ---
 toolbar_html = f"""
 <div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 20px 0;">
-    <!-- Bouton Micro Talkie-Walkie -->
+    <!-- Bouton Dynamique Micro / Carré -->
     <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
     
     <!-- Bouton Play -->
@@ -100,12 +97,12 @@ function toggleListening() {{
     const micBtn = document.getElementById('mic-btn');
 
     if (isListening) {{
-        // Deuxième clic : On arrête l'écoute
+        // Deuxième clic sur le carré : On arrête et on valide l'envoi
         recognition.stop();
         return;
     }}
 
-    // Premier clic : On démarre l'écoute
+    // Premier clic sur le micro : On démarre l'écoute
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.interimResults = true;
@@ -114,7 +111,8 @@ function toggleListening() {{
 
     recognition.onstart = function() {{
         isListening = true;
-        micBtn.style.backgroundColor = "#ffc107"; // Jaune = Leyla écoute
+        micBtn.innerHTML = "⏹️"; // Devient un carré d'arrêt
+        micBtn.style.backgroundColor = "#ffc107"; // Jaune / Actif
     }};
 
     recognition.onresult = function(event) {{
@@ -137,21 +135,22 @@ function toggleListening() {{
     
     recognition.onend = function() {{
         isListening = false;
+        micBtn.innerHTML = "🎤"; // Remet l'icône micro
         micBtn.style.backgroundColor = "#ff4b4b"; // Retour au rouge
         
-        // Simulation d'un appui sur la touche "Entrée" ou soumission automatique
+        // Déclenchement automatique de l'envoi dès qu'on clique sur le carré
         setTimeout(() => {{
             const inputs = window.parent.document.querySelectorAll('input[type="text"]');
             if (inputs.length > 0) {{
                 const targetInput = inputs[inputs.length - 1];
-                // Déclenche l'envoi en simulant un événement clavier 'Enter'
                 targetInput.dispatchEvent(new KeyboardEvent('keydown', {{bubbles: true, cancelable: true, keyCode: 13, key: 'Enter'}}));
             }}
-        }}, 300);
+        }}, 200);
     }};
     
     recognition.onerror = function() {{
         isListening = false;
+        micBtn.innerHTML = "🎤";
         micBtn.style.backgroundColor = "#ff4b4b";
     }};
 
@@ -174,7 +173,7 @@ function pauseSpeech() {{
 """
 components.html(toolbar_html, height=70)
 
-# --- ZONE SAISIE CLASSIQUE (Capturée automatiquement par le micro ou clavier) ---
+# --- ZONE SAISIE ---
 prompt = st.chat_input("Que voulez-vous savoir ?")
 if prompt:
     with st.chat_message("user"):
