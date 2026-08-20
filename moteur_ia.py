@@ -41,6 +41,9 @@ if not user_name:
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())[:8]
 
+if 'voice_prompt' not in st.session_state:
+    st.session_state.voice_prompt = ""
+
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
@@ -69,11 +72,11 @@ msgs_hist = db_manager.get_history(st.session_state.session_id)
 derniere_reponse = next((m["content"] for m in reversed(msgs_hist) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
 
-# --- BARRE DE CONTRÔLE UNIQUE (MICRO, PLAY, PAUSE ALIGNÉS) ---
+# --- BARRE DE CONTRÔLE UNIQUE (MICRO "TALKIE-WALKIE", PLAY, PAUSE) ---
 toolbar_html = f"""
 <div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 20px 0;">
-    <!-- Bouton Micro -->
-    <button onclick="startListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
+    <!-- Bouton Micro Talkie-Walkie -->
+    <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
     
     <!-- Bouton Play -->
     <button onclick="playSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">▶️</button>
@@ -83,23 +86,39 @@ toolbar_html = f"""
 </div>
 
 <script>
-function startListening() {{
+let recognition = null;
+let isListening = false;
+let finalTranscript = '';
+
+function toggleListening() {{
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {{
         alert("Non supporté par ce navigateur.");
         return;
     }}
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.interimResults = true; // Permet de voir le texte s'écrire en direct
     
     const micBtn = document.getElementById('mic-btn');
-    micBtn.style.backgroundColor = "#ffc107"; // Indique visuellement l'écoute (jaune)
+
+    if (isListening) {{
+        // Deuxième clic : On arrête l'écoute
+        recognition.stop();
+        return;
+    }}
+
+    // Premier clic : On démarre l'écoute
+    recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    finalTranscript = '';
+
+    recognition.onstart = function() {{
+        isListening = true;
+        micBtn.style.backgroundColor = "#ffc107"; // Jaune = Leyla écoute
+    }};
 
     recognition.onresult = function(event) {{
         let interimTranscript = '';
-        let finalTranscript = '';
-        
         for (let i = event.resultIndex; i < event.results.length; ++i) {{
             if (event.results[i].isFinal) {{
                 finalTranscript += event.results[i][0].transcript;
@@ -108,19 +127,31 @@ function startListening() {{
             }}
         }}
         
-        const textTopping = finalTranscript || interimTranscript;
+        const currentText = finalTranscript || interimTranscript;
         const inputField = window.parent.document.querySelector('input[type="text"]');
         if (inputField) {{
-            inputField.value = textTopping;
+            inputField.value = currentText;
             inputField.dispatchEvent(new Event('input', {{ bubbles: true }}));
         }}
     }};
     
     recognition.onend = function() {{
-        micBtn.style.backgroundColor = "#ff4b4b"; // Remet la couleur rouge initiale
+        isListening = false;
+        micBtn.style.backgroundColor = "#ff4b4b"; // Retour au rouge
+        
+        // Simulation d'un appui sur la touche "Entrée" ou soumission automatique
+        setTimeout(() => {{
+            const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+            if (inputs.length > 0) {{
+                const targetInput = inputs[inputs.length - 1];
+                // Déclenche l'envoi en simulant un événement clavier 'Enter'
+                targetInput.dispatchEvent(new KeyboardEvent('keydown', {{bubbles: true, cancelable: true, keyCode: 13, key: 'Enter'}}));
+            }}
+        }}, 300);
     }};
     
     recognition.onerror = function() {{
+        isListening = false;
         micBtn.style.backgroundColor = "#ff4b4b";
     }};
 
@@ -143,7 +174,7 @@ function pauseSpeech() {{
 """
 components.html(toolbar_html, height=70)
 
-# --- ZONE SAISIE ---
+# --- ZONE SAISIE CLASSIQUE (Capturée automatiquement par le micro ou clavier) ---
 prompt = st.chat_input("Que voulez-vous savoir ?")
 if prompt:
     with st.chat_message("user"):
