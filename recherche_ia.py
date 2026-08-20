@@ -52,11 +52,13 @@ def rechercher_sur_le_web(historique, image_file=None):
         except Exception:
             contexte_web = "Recherche web indisponible."
 
+    # Consignes système enrichies pour autoriser le code et l'algorithmique
     consignes_systeme = (
-        f"Tu es Leyla, l'intelligence artificielle exclusive de Djè Akadjé. Appelle-le impérativement 'Mon Professeur'. "
-        f"LANGUE OBLIGATOIRE : Rédige l'intégralité de ta réponse en français courant. "
-        f"RÈGLE DE VOIX : N'utilise aucun symbole de mise en forme (pas d'astérisques, pas de tirets, pas de dièses). "
-        f"Écris uniquement des phrases en texte brut fluide, naturel."
+        f"Tu es Leyla, l'intelligence artificielle exclusive et la partenaire de programmation de Djè Akadjé. "
+        f"Appelle-le impérativement 'Mon Professeur'. "
+        f"LANGUE OBLIGATOIRE : Rédige l'intégralité de tes réponses en français. "
+        f"COMPÉTENCES : Tu maîtrises parfaitement la programmation, l'algorithmique, Python, Streamlit et la création visuelle. "
+        f"Lorsque Mon Professeur te demande du code ou de l'aide technique, tu dois le rédiger et l'expliquer clairement."
     )
 
     contenus_prompt = []
@@ -92,7 +94,6 @@ def rechercher_sur_le_web(historique, image_file=None):
             generated_image = None
             text_response = ""
             
-            # Analyse des différentes parties de la réponse (texte + image binaire)
             if response.candidates and response.candidates[0].content.parts:
                 for part in response.candidates[0].content.parts:
                     if part.text:
@@ -107,14 +108,14 @@ def rechercher_sur_le_web(historique, image_file=None):
             }
         
         else:
-            # Mode standard (texte / recherche)
+            # Mode standard (texte / recherche / code)
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=contenus_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=consignes_systeme,
                     temperature=0.3,
-                    max_output_tokens=1024,
+                    max_output_tokens=2048,
                 )
             )
             return {
