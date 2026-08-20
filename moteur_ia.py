@@ -69,11 +69,14 @@ msgs_hist = db_manager.get_history(st.session_state.session_id)
 derniere_reponse = next((m["content"] for m in reversed(msgs_hist) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
 
-# --- BARRE DE CONTRÔLE (MICRO / CARRÉ D'ARRÊT, PLAY, PAUSE) ---
+# --- BARRE DE CONTRÔLE VOCAL STYLE INTERFACE MODERNE ---
 toolbar_html = f"""
 <div style="display: flex; justify-content: center; gap: 15px; align-items: center; margin: 10px 0 20px 0;">
-    <!-- Bouton Dynamique Micro / Carré -->
-    <button onclick="toggleListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤</button>
+    <!-- Bouton Micro pour démarrer -->
+    <button onclick="startListening()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🎤 Parler</button>
+    
+    <!-- Bouton Carré d'arrêt / Envoi -->
+    <button onclick="stopAndSend()" id="stop-btn" style="background-color: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" disabled>⏹️ Arrêter & Envoyer</button>
     
     <!-- Bouton Play -->
     <button onclick="playSpeech()" style="background-color: #f0f2f6; color: #31333F; border: 1px solid #d6d6d6; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">▶️</button>
@@ -84,35 +87,29 @@ toolbar_html = f"""
 
 <script>
 let recognition = null;
-let isListening = false;
 let finalTranscript = '';
 
-function toggleListening() {{
+function startListening() {{
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {{
         alert("Non supporté par ce navigateur.");
         return;
     }}
     
-    const micBtn = document.getElementById('mic-btn');
-
-    if (isListening) {{
-        // Deuxième clic sur le carré : On arrête et on valide l'envoi
-        recognition.stop();
-        return;
-    }}
-
-    // Premier clic sur le micro : On démarre l'écoute
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.interimResults = true;
     recognition.continuous = true;
     finalTranscript = '';
 
+    const micBtn = document.getElementById('mic-btn');
+    const stopBtn = document.getElementById('stop-btn');
+
     recognition.onstart = function() {{
-        isListening = true;
-        micBtn.innerHTML = "⏹️"; // Devient un carré d'arrêt
-        micBtn.style.backgroundColor = "#ffc107"; // Jaune / Actif
+        micBtn.style.backgroundColor = "#ffc107";
+        micBtn.innerText = "👂 Écoute...";
+        stopBtn.style.backgroundColor = "#ff4b4b"; // Devient actif (rouge vif)
+        stopBtn.removeAttribute('disabled');
     }};
 
     recognition.onresult = function(event) {{
@@ -133,28 +130,40 @@ function toggleListening() {{
         }}
     }};
     
-    recognition.onend = function() {{
-        isListening = false;
-        micBtn.innerHTML = "🎤"; // Remet l'icône micro
-        micBtn.style.backgroundColor = "#ff4b4b"; // Retour au rouge
-        
-        // Déclenchement automatique de l'envoi dès qu'on clique sur le carré
-        setTimeout(() => {{
-            const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-            if (inputs.length > 0) {{
-                const targetInput = inputs[inputs.length - 1];
-                targetInput.dispatchEvent(new KeyboardEvent('keydown', {{bubbles: true, cancelable: true, keyCode: 13, key: 'Enter'}}));
-            }}
-        }}, 200);
-    }};
-    
     recognition.onerror = function() {{
-        isListening = false;
-        micBtn.innerHTML = "🎤";
-        micBtn.style.backgroundColor = "#ff4b4b";
+        resetButtons();
     }};
 
     recognition.start();
+}}
+
+function stopAndSend() {{
+    if (recognition) {{
+        recognition.stop();
+    }}
+    resetButtons();
+    
+    // Déclenchement automatique de l'envoi vers Leyla
+    setTimeout(() => {{
+        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+        if (inputs.length > 0) {{
+            const targetInput = inputs[inputs.length - 1];
+            targetInput.dispatchEvent(new KeyboardEvent('keydown', {{bubbles: true, cancelable: true, keyCode: 13, key: 'Enter'}}));
+        }}
+    }}, 200);
+}}
+
+function resetButtons() {{
+    const micBtn = document.getElementById('mic-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    if (micBtn) {{
+        micBtn.style.backgroundColor = "#ff4b4b";
+        micBtn.innerText = "🎤 Parler";
+    }}
+    if (stopBtn) {{
+        stopBtn.style.backgroundColor = "#6c757d";
+        stopBtn.setAttribute('disabled', 'true');
+    }}
 }}
 
 function playSpeech() {{
