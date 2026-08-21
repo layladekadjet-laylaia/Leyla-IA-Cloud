@@ -1,6 +1,7 @@
 import os
 import re
 import io
+import uuid
 from PIL import Image, ImageDraw, ImageFont
 from google import genai
 from google.genai import types
@@ -9,6 +10,10 @@ from google.genai import types
 api_key = "AQ.Ab8RN6JbqEcZXxikzFtPnxwUeqBobUqVMhxhtgvXRE7nE9fmLg"
 os.environ["GOOGLE_API_KEY"] = api_key
 client = genai.Client(api_key=api_key)
+
+# Dossier de sauvegarde locale des images
+DOSSIER_IMAGES = "images_generees"
+os.makedirs(DOSSIER_IMAGES, exist_ok=True)
 
 def nettoyer_reponse(texte):
     if not texte:
@@ -66,7 +71,6 @@ def rechercher_sur_le_web(historique, image_file=None):
         f"LANGUE OBLIGATOIRE : Rédige l'intégralité de tes réponses en français."
     )
 
-    # Détection élargie des mots-clés visuels
     mots_cles_visuels = [
         "génère", "crée", "dessine", "logo", "montre-moi", 
         "illustration", "photo", "image", "fais-moi voir", "donne-moi un logo"
@@ -77,19 +81,16 @@ def rechercher_sur_le_web(historique, image_file=None):
     try:
         contenus_prompt = []
         
-        # Contexte textuel
         historique_texte = ""
         for msg in historique_reduit:
             role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
             historique_texte += f"{role_label} : {msg['content']}\n"
         contenus_prompt.append(historique_texte)
 
-        # Fichier image joint si existant
         if image_file is not None:
             pil_img = Image.open(image_file)
             contenus_prompt.append(pil_img)
 
-        # SI MODE IMAGE / CRÉATION
         if is_image_mode:
             if image_file is not None:
                 contenus_prompt.append(
@@ -102,7 +103,6 @@ def rechercher_sur_le_web(historique, image_file=None):
                     f"pour répondre à cette demande : '{derniere_requete}'. Ne te limite pas à du texte, produis un visuel graphique de haute qualité."
                 )
 
-            # Appel au modèle multimodal avec un poids fort sur la génération d'image
             response = client.models.generate_content(
                 model="gemini-2.5-flash-image",
                 contents=contenus_prompt,
@@ -116,7 +116,6 @@ def rechercher_sur_le_web(historique, image_file=None):
             generated_image_bytes = None
             texte_resultat = ""
             
-            # Analyse minutieuse des parties de la réponse
             if response.candidates and response.candidates[0].content.parts:
                 for part in response.candidates[0].content.parts:
                     if part.inline_data is not None:
@@ -124,19 +123,23 @@ def rechercher_sur_le_web(historique, image_file=None):
                     elif part.text is not None:
                         texte_resultat += part.text
 
-            # Si le modèle a répondu uniquement par du texte malgré la demande, on s'assure d'avoir un texte propre
             if not texte_resultat:
                 texte_resultat = "Voici la création demandée, Mon Professeur !"
 
+            image_path_str = None
             if generated_image_bytes:
                 generated_image_bytes = ajouter_signature_leyla(generated_image_bytes)
+                # Sauvegarde physique de l'image avec un nom unique
+                nom_fichier = f"img_{uuid.uuid4().hex[:8]}.jpg"
+                image_path_str = os.path.join(DOSSIER_IMAGES, nom_fichier)
+                with open(image_path_str, "wb") as f:
+                    f.write(generated_image_bytes)
             
             return {
                 "texte": nettoyer_reponse(texte_resultat),
-                "image": generated_image_bytes
+                "image_path": image_path_str  # On retourne le chemin au lieu des bytes bruts
             }
 
-        # MODE DISCUSSION & RECHERCHE SIMPLE
         else:
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
@@ -148,7 +151,7 @@ def rechercher_sur_le_web(historique, image_file=None):
             )
             return {
                 "texte": nettoyer_reponse(response.text),
-                "image": None
+                "image_path": None
             }
             
     except Exception as e:
@@ -163,5 +166,5 @@ def rechercher_sur_le_web(historique, image_file=None):
             
         return {
             "texte": message_douceur,
-            "image": None
+            "image_path": None
         }
