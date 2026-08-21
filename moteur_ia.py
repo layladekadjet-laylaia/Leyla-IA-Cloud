@@ -54,7 +54,6 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### 🎨 Studio Créatif (Nano Banana style)")
-    # Sélecteur pour orienter Leyla vers la création ou l'édition
     mode_creation = st.selectbox(
         "Mode de l'assistant :",
         ["💬 Discussion & Recherche", "🖼️ Création d'Image / Logo", "🎬 Édition & Vidéo"]
@@ -74,6 +73,7 @@ for m in messages:
     if m["role"] != "system":
         with st.chat_message(m["role"]): 
             st.write(m["content"])
+            # Si le message stocké contient une balise de création, on peut s'assurer de l'affichage textuel propre
 
 derniere_reponse = next((m["content"] for m in reversed(messages) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
@@ -96,37 +96,31 @@ function pauseSpeech() {{ window.parent.window.speechSynthesis.cancel(); }}
 """
 components.html(audio_html, height=40)
 
-# --- CONTRÔLE VOCAL AVEC DÉCLENCHEMENT DU BOUTON NATIF ---
+# --- CONTRÔLE VOCAL ---
 voice_html = """
 <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px;">
     <button onclick="startRec()" id="mic-btn" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">🎤 Parler</button>
     <button onclick="stopAndSend()" id="stop-btn" style="background-color: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;" disabled>⏹️ Stop & Envoyer</button>
 </div>
-
 <script>
 let recognition = null;
 let fullText = "";
-
 function startRec() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) { alert("Non supporté"); return; }
-    
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.interimResults = false;
     recognition.continuous = true;
     fullText = "";
-
     const micBtn = document.getElementById('mic-btn');
     const stopBtn = document.getElementById('stop-btn');
-
     recognition.onstart = function() {
         micBtn.style.backgroundColor = "#ffc107";
         micBtn.innerText = "👂 Écoute...";
         stopBtn.style.backgroundColor = "#ff4b4b";
         stopBtn.removeAttribute('disabled');
     };
-
     recognition.onresult = function(event) {
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
@@ -135,29 +129,21 @@ function startRec() {
         }
         updateChatInput(fullText.trim());
     };
-
     recognition.onerror = function() { resetUI(); };
     recognition.start();
 }
-
 function updateChatInput(text) {
     const chatInput = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
     if (chatInput) {
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.parent.HTMLTextAreaElement.prototype, "value").set;
         nativeInputValueSetter.call(chatInput, text);
-        
         chatInput.dispatchEvent(new Event('input', { bubbles: true }));
         chatInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
 }
-
 function stopAndSend() {
-    if (recognition) { 
-        recognition.stop(); 
-    }
-    
+    if (recognition) { recognition.stop(); }
     updateChatInput(fullText.trim());
-
     setTimeout(() => {
         const submitBtn = window.parent.document.querySelector('button[data-testid="stChatInputSubmitButton"]');
         if (submitBtn) {
@@ -170,10 +156,8 @@ function stopAndSend() {
             }
         }
     }, 300);
-    
     resetUI();
 }
-
 function resetUI() {
     const micBtn = document.getElementById('mic-btn');
     const stopBtn = document.getElementById('stop-btn');
@@ -192,9 +176,8 @@ if prompt_saisi:
 
 if st.session_state.message_en_cours:
     texte_final = st.session_state.message_en_cours
-    st.session_state.message_en_cours = "" # Reset
+    st.session_state.message_en_cours = "" 
     
-    # On ajoute le mode actif au début du message ou dans le contexte pour guider l'IA
     message_avec_contexte = f"[{mode_creation}] {texte_final}"
     
     with st.chat_message("user"):
@@ -207,16 +190,18 @@ if st.session_state.message_en_cours:
         st.write(texte_final)
     
     db_manager.save_message(st.session_state.session_id, "user", message_avec_contexte)
+    
     with st.chat_message("assistant"):
-        # La fonction renvoie maintenant un dictionnaire {"texte": ..., "image": ...}
+        # Appel de la fonction de recherche/création
         resultat_ia = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=media_file)
         
         reponse_texte = resultat_ia["texte"]
         reponse_image = resultat_ia["image"]
         
+        # Affichage du texte de la réponse
         st.write(reponse_texte)
         
-        # Si Leyla a généré une image/logo, on l'affiche directement dans l'interface !
+        # Affichage immédiat de l'image si elle est générée
         if reponse_image is not None:
             st.image(reponse_image, caption="Création par Leyla IA", use_container_width=True)
             
