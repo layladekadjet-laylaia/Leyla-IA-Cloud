@@ -85,6 +85,7 @@ def rechercher_sur_le_web(historique, image_file=None):
     )
 
     try:
+        # MODE CRÉATION D'IMAGE
         if is_image_mode:
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
             contenus_prompt = []
@@ -101,6 +102,7 @@ def rechercher_sur_le_web(historique, image_file=None):
             else:
                 contenus_prompt.append(f"Génère une image de type logo professionnel ou illustration artistique représentant : {prompt_net}")
 
+            # Utilisation du modèle image
             response = client.models.generate_content(
                 model="gemini-2.5-flash-image",
                 contents=contenus_prompt,
@@ -121,24 +123,27 @@ def rechercher_sur_le_web(historique, image_file=None):
             # Ajout de la signature de Leyla si une image a bien été générée
             if generated_image_bytes:
                 generated_image_bytes = ajouter_signature_leyla(generated_image_bytes)
-
+            
+            # On retourne à la fois le texte et l'image. Le texte est préfixé.
             return {
                 "texte": f"Voici le résultat pour : '{prompt_net}', Mon Professeur. {nettoyer_reponse(texte_resultat)}",
                 "image": generated_image_bytes
             }
         
+        # MODE DISCUSSION STANDARD (SÉPARÉ)
         else:
             contenus_prompt = []
-            if image_file is not None:
-                pil_img = Image.open(image_file)
-                contenus_prompt.append(pil_img)
-            
+            # Si un fichier est fourni ici, c'est pour de l'analyse (non supporté pour l'instant pour la discussion simple)
+            # mais pour l'instant on ne met pas le fichier dans le prompt standard pour éviter les erreurs de type de contenu.
+
             historique_texte = ""
             for msg in historique_reduit:
                 role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
                 historique_texte += f"{role_label} : {msg['content']}\n"
             contenus_prompt.append(historique_texte)
 
+            # Utilisation du modèle de langage standard (gemini-3.6-flash)
+            # Le contexte et les consignes sont envoyés ici.
             response = client.models.generate_content(
                 model='gemini-3.6-flash',
                 contents=contenus_prompt,
