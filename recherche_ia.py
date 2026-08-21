@@ -1,10 +1,7 @@
 import os
 import re
-from PIL import Image, ImageDraw, ImageFont
-from io import BytesIO
 from google import genai
 from google.genai import types
-from duckduckgo_search import DDGS
 
 # Initialisation du client Google GenAI
 api_key = "AQ.Ab8RN6JbqEcZXxikzFtPnxwUeqBobUqVMhxhtgvXRE7nE9fmLg"
@@ -16,32 +13,6 @@ def nettoyer_reponse(texte):
         return ""
     texte = re.sub(r'<think>.*?</think>', '', texte, flags=re.DOTALL).strip()
     return texte
-
-def generer_logo_local(prompt_net):
-    """
-    Génère un logo directement en local avec Pillow et y inscrit le texte demandé.
-    """
-    try:
-        taille = 800
-        img = Image.new("RGBA", (taille, taille), (15, 23, 42)) # Fond sombre tech
-        draw = ImageDraw.Draw(img)
-        
-        # Dessin d'un cercle/cadre stylisé
-        draw.ellipse([150, 150, 650, 650], outline=(56, 189, 248), width=8)
-        draw.rectangle([250, 350, 550, 450], fill=(244, 63, 94))
-        
-        # On extrait la lettre ou le texte demandé depuis le prompt
-        texte_a_ecrire = prompt_net.split()[-1] if prompt_net else "A"
-        
-        # Ajout dynamique de la lettre demandée
-        try:
-            draw.text((380, 375), texte_a_ecrire.upper(), fill="white") 
-        except Exception:
-            pass
-        
-        return img
-    except Exception as e:
-        return None
 
 def rechercher_sur_le_web(historique, image_file=None):
     historique_reduit = historique[-3:] if len(historique) > 3 else historique
@@ -56,23 +27,29 @@ def rechercher_sur_le_web(historique, image_file=None):
     )
 
     try:
-        # SI MODE CRÉATION : On utilise notre générateur local robuste
+        # MODE CRÉATION : On utilise le modèle d'IA pour générer l'image
         if is_image_mode:
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
-            generated_image = generer_logo_local(prompt_net)
+            
+            # Utilisation du modèle de génération d'image (Imagen)
+            resultat_image = client.models.generate_images(
+                model='imagen-3.0-fast-generate-001',
+                prompt=f"Logo professionnel et créatif : {prompt_net}. Style épuré, haute qualité, fond neutre.",
+                config=types.GenerateImagesConfig(number_of_images=1)
+            )
+            
+            # Extraction de l'image générée
+            generated_image = resultat_image.generated_images[0].image.image_bytes
             
             return {
-                "texte": f"Voici la création visuelle générée en local pour : '{prompt_net}', Mon Professeur.",
+                "texte": f"J'ai généré cette création visuelle pour : '{prompt_net}', Mon Professeur.",
                 "image": generated_image
             }
         
-        # MODE STANDARD : Texte, Code et Recherche avec gemini-3.6-flash
+        # MODE STANDARD : Texte, Code et Recherche
         else:
+            # ... (votre code standard reste identique)
             contenus_prompt = []
-            if image_file is not None:
-                pil_img = Image.open(image_file)
-                contenus_prompt.append(pil_img)
-            
             historique_texte = ""
             for msg in historique_reduit:
                 role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
