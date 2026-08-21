@@ -27,28 +27,26 @@ def rechercher_sur_le_web(historique, image_file=None):
     )
 
     try:
-        # MODE CRÉATION : On utilise le modèle d'IA pour générer l'image
+        # MODE CRÉATION : Utilisation de l'IA (Imagen)
         if is_image_mode:
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
             
-            # Utilisation du modèle de génération d'image (Imagen)
             resultat_image = client.models.generate_images(
                 model='imagen-3.0-fast-generate-001',
-                prompt=f"Logo professionnel et créatif : {prompt_net}. Style épuré, haute qualité, fond neutre.",
+                prompt=f"Design graphique professionnel, créatif et haute résolution : {prompt_net}. Style artistique, moderne, haute qualité.",
                 config=types.GenerateImagesConfig(number_of_images=1)
             )
             
-            # Extraction de l'image générée
+            # Récupération des bytes de l'image générée
             generated_image = resultat_image.generated_images[0].image.image_bytes
             
             return {
-                "texte": f"J'ai généré cette création visuelle pour : '{prompt_net}', Mon Professeur.",
+                "texte": f"Voici votre création visuelle générée par l'IA pour : '{prompt_net}', Mon Professeur.",
                 "image": generated_image
             }
         
-        # MODE STANDARD : Texte, Code et Recherche
+        # MODE STANDARD
         else:
-            # ... (votre code standard reste identique)
             contenus_prompt = []
             historique_texte = ""
             for msg in historique_reduit:
