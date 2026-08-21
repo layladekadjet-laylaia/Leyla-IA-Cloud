@@ -205,7 +205,8 @@ if st.session_state.message_en_cours:
         resultat_ia = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=media_file)
         
         reponse_texte = resultat_ia["texte"]
-        reponse_image_path = resultat_ia["image_path"]
+        reponse_image_path = resultat_ia.get("image_path", None)
+
         
         # Affichage du texte
         st.write(reponse_texte)
