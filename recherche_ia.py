@@ -1,6 +1,5 @@
 import os
 import re
-import io
 from PIL import Image
 from google import genai
 from google.genai import types
@@ -13,7 +12,7 @@ client = genai.Client(api_key=api_key)
 def nettoyer_reponse(texte):
     if not texte:
         return ""
-    texte = re.sub(r'<think>.*?</think>', '', texte, flags=root.DOTALL if 'root' in globals() else re.DOTALL).strip()
+    texte = re.sub(r'<think>.*?</think>', '', texte, flags=re.DOTALL).strip()
     return texte
 
 def rechercher_sur_le_web(historique, image_file=None):
@@ -29,14 +28,22 @@ def rechercher_sur_le_web(historique, image_file=None):
     )
 
     try:
-        # MODE CRÉATION D'IMAGE
+        # MODE CRÉATION OU MODIFICATION D'IMAGE
         if is_image_mode:
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
             
-            # Utilisation du modèle Gemini Flash Image pour créer l'image
+            # Préparation du contenu (texte + éventuelle image fournie)
+            contenus_prompt = []
+            if image_file is not None:
+                pil_img = Image.open(image_file)
+                contenus_prompt.append(pil_img)
+                contenus_prompt.append(f"Modifie cette image selon la consigne suivante en conservant le sujet principal : {prompt_net}")
+            else:
+                contenus_prompt.append(f"Génère une image de type logo professionnel ou illustration artistique représentant : {prompt_net}")
+
             response = client.models.generate_content(
                 model="gemini-2.5-flash-image",
-                contents=f"Génère une image de type logo professionnel et artistique représentant : {prompt_net}",
+                contents=contenus_prompt,
                 config=types.GenerateContentConfig(
                     response_modalities=["TEXT", "IMAGE"]
                 )
@@ -52,7 +59,7 @@ def rechercher_sur_le_web(historique, image_file=None):
                     texte_resultat += part.text
 
             return {
-                "texte": f"Voici votre création visuelle pour : '{prompt_net}', Mon Professeur. {nettoyer_reponse(texte_resultat)}",
+                "texte": f"Voici le résultat pour : '{prompt_net}', Mon Professeur. {nettoyer_reponse(texte_resultat)}",
                 "image": generated_image_bytes
             }
         
