@@ -6,21 +6,6 @@ requests
 gTTS
 SpeechRecognition
 streamlit-tts
-Pillow
 fastapi
 uvicorn
 pydantic
-# --- PyTorch pour accélération GPU (NVIDIA CUDA 11.8) ---
-torch
-torchvision
-torchaudio
---index-url https://download.pytorch.org/whl/cu118
-
-# --- Bibliothèques de génération et Transformers ---
-diffusers
-transformers
-accelerate
-safetensors
-peft
-pillow
-duckduckgo-search
