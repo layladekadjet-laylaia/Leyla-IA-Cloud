@@ -44,7 +44,7 @@ if 'session_id' not in st.session_state:
 if 'message_en_cours' not in st.session_state:
     st.session_state.message_en_cours = ""
 
-# --- SIDEBAR (Épurée : Plus de sélecteur de mode) ---
+# --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
@@ -53,11 +53,14 @@ with st.sidebar:
     activer_voix = st.checkbox("Réponse vocale", value=True)
     
     st.markdown("---")
-    st.markdown("### 🎨 Studio Créatif Unifié")
-    st.markdown("<small>Tapez simplement ce que vous voulez (recherche, image, code...)</small>", unsafe_allow_html=True)
+    st.markdown("### 🎨 Studio Créatif (Nano Banana style)")
+    mode_creation = st.selectbox(
+        "Mode de l'assistant :",
+        ["💬 Discussion & Recherche", "🖼️ Création d'Image / Logo", "🎬 Édition & Vidéo"]
+    )
     
     st.markdown("---")
-    choix_source = st.radio("Source média (optionnelle) :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
+    choix_source = st.radio("Source média :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
     media_file = None
     if choix_source == "📁 Fichier": 
         media_file = st.file_uploader("Image ou Vidéo", type=["jpg", "jpeg", "png", "mp4", "mov", "avi", "mkv"])
@@ -174,6 +177,8 @@ if st.session_state.message_en_cours:
     texte_final = st.session_state.message_en_cours
     st.session_state.message_en_cours = "" 
     
+    message_avec_contexte = f"[{mode_creation}] {texte_final}"
+    
     with st.chat_message("user"):
         if media_file:
             file_type = media_file.type
@@ -183,10 +188,10 @@ if st.session_state.message_en_cours:
                 st.image(media_file, width=200)
         st.write(texte_final)
     
-    db_manager.save_message(st.session_state.session_id, "user", texte_final)
+    db_manager.save_message(st.session_state.session_id, "user", message_avec_contexte)
     
     with st.chat_message("assistant"):
-        # Appel du moteur unifié sans passer de mode textuel rigide
+        # Appel de la fonction de recherche/création
         resultat_ia = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=media_file)
         
         reponse_texte = resultat_ia["texte"]
@@ -195,7 +200,7 @@ if st.session_state.message_en_cours:
         # Affichage du texte de la réponse
         st.write(reponse_texte)
         
-        # Affichage de l'image si Leyla en a généré une
+        # Affichage de l'image UNIQUEMENT si elle vient d'être générée à cet instant précis
         if reponse_image is not None:
             st.image(reponse_image, caption="Création par Leyla IA", use_container_width=True)
             
