@@ -32,7 +32,6 @@ def generer_logo_local(prompt_net):
         
         # Ajout d'un texte visuel basé sur la requête pour qu'on voie le résultat
         try:
-            # Utilisation de la police par défaut de Pillow agrandie ou centrée
             draw.text((280, 390), "LEILA LOGO", fill="white")
         except Exception:
             pass
@@ -72,7 +71,8 @@ def rechercher_sur_le_web(historique, image_file=None):
                 contenus_prompt.append(pil_img)
             
             historique_texte = ""
-            for msg in historiqu_reduit if 'historique_reduit' in locals() else historique:
+            # CORRECTION DE LA TYPO ICI (historiqu_reduit -> historique_reduit)
+            for msg in historique_reduit:
                 role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
                 historique_texte += f"{role_label} : {msg['content']}\n"
             contenus_prompt.append(historique_texte)
