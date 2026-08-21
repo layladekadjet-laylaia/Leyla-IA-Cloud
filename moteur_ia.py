@@ -44,10 +44,15 @@ if 'session_id' not in st.session_state:
 if 'message_en_cours' not in st.session_state:
     st.session_state.message_en_cours = ""
 
+# --- PERSISTANCE DE LA DERNIÈRE IMAGE ---
+if 'derniere_image' not in st.session_state:
+    st.session_state.derniere_image = None
+
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
+        st.session_state.derniere_image = None
         st.rerun()
         
     activer_voix = st.checkbox("Réponse vocale", value=True)
@@ -73,7 +78,11 @@ for m in messages:
     if m["role"] != "system":
         with st.chat_message(m["role"]): 
             st.write(m["content"])
-            # Si le message stocké contient une balise de création, on peut s'assurer de l'affichage textuel propre
+
+# Affichage persistant de l'image de la session en cours si elle existe
+if st.session_state.derniere_image is not None:
+    with st.chat_message("assistant"):
+        st.image(st.session_state.derniere_image, caption="Création par Leyla IA", use_container_width=True)
 
 derniere_reponse = next((m["content"] for m in reversed(messages) if m["role"] == "assistant"), "")
 derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
@@ -201,8 +210,9 @@ if st.session_state.message_en_cours:
         # Affichage du texte de la réponse
         st.write(reponse_texte)
         
-        # Affichage immédiat de l'image si elle est générée
+        # Gestion et persistance immédiate de l'image générée
         if reponse_image is not None:
+            st.session_state.derniere_image = reponse_image
             st.image(reponse_image, caption="Création par Leyla IA", use_container_width=True)
             
         db_manager.save_message(st.session_state.session_id, "assistant", reponse_texte)
