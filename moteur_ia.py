@@ -47,9 +47,19 @@ if 'message_en_cours' not in st.session_state:
 # --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
+        # 1. On change l'ID de session
         st.session_state.session_id = str(uuid.uuid4())[:8]
+        
+        # 2. IMPORTANT : On nettoie aussi les éléments persistants de l'UI
+        # Cela force Streamlit à oublier la photo précédente et la saisie
+        if 'camera_input' in st.session_state:
+            del st.session_state['camera_input']
+        
+        # 3. On force le rafraîchissement propre
         st.rerun()
+        
     activer_voix = st.checkbox("Réponse vocale", value=True)
+    
     st.markdown("---")
     st.markdown("### 🎨 Studio Créatif")
     choix_source = st.radio("Source média :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
