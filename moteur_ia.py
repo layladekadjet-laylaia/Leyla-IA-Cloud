@@ -44,7 +44,7 @@ if 'session_id' not in st.session_state:
 if 'message_en_cours' not in st.session_state:
     st.session_state.message_en_cours = ""
 
-# --- SIDEBAR (Épurée : Plus de sélecteur de mode) ---
+# --- SIDEBAR ---
 with st.sidebar:
     if st.button("➕ Nouvelle Discussion"): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
@@ -64,15 +64,30 @@ with st.sidebar:
     elif choix_source == "📷 Caméra": 
         media_file = st.camera_input("Prendre une photo")
 
-# --- HISTORIQUE ---
+# --- HISTORIQUE (Avec persistance des images) ---
 messages = db_manager.get_history(st.session_state.session_id)
 for m in messages:
     if m["role"] != "system":
         with st.chat_message(m["role"]): 
-            st.write(m["content"])
+            content = m["content"]
+            # Vérifie si le message contient une balise d'image sauvegardée [IMAGE:chemin]
+            match_img = re.search(r'\[IMAGE:(.*?)\]', content)
+            if match_img:
+                img_path = match_img.group(1)
+                # On retire la balise du texte affiché à l'écran
+                clean_text = re.sub(r'\[IMAGE:.*?\]', '', content).strip()
+                if clean_text:
+                    st.write(clean_text)
+                if os.path.exists(img_path):
+                    st.image(img_path, caption="Création par Leyla IA", use_container_width=True)
+                else:
+                    st.info("[Image archivée introuvable localement]")
+            else:
+                st.write(content)
 
 derniere_reponse = next((m["content"] for m in reversed(messages) if m["role"] == "assistant"), "")
-derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse).replace('"', '\\"')
+derniere_reponse_clean = re.sub(r'\[IMAGE:.*?\]', '', derniere_reponse)
+derniere_reponse_clean = re.sub(r'[\n\r]+', ' ', derniere_reponse_clean).replace('"', '\\"')
 
 # --- BARRE AUDIO LECTURE ---
 audio_html = f"""
@@ -186,20 +201,22 @@ if st.session_state.message_en_cours:
     db_manager.save_message(st.session_state.session_id, "user", texte_final)
     
     with st.chat_message("assistant"):
-        # Appel du moteur unifié sans passer de mode textuel rigide
+        # Appel du moteur unifié
         resultat_ia = rechercher_sur_le_web(db_manager.get_history(st.session_state.session_id), image_file=media_file)
         
         reponse_texte = resultat_ia["texte"]
-        reponse_image = resultat_ia["image"]
+        reponse_image_path = resultat_ia["image_path"]
         
-        # Affichage du texte de la réponse
+        # Affichage du texte
         st.write(reponse_texte)
         
-        # Affichage de l'image si Leyla en a généré une
-        if reponse_image is not None:
-            st.image(reponse_image, caption="Création par Leyla IA", use_container_width=True)
+        # Préparation du contenu à enregistrer en base de données avec la balise image si elle existe
+        contenu_a_sauvegarder = reponse_texte
+        if reponse_image_path:
+            st.image(reponse_image_path, caption="Création par Leyla IA", use_container_width=True)
+            contenu_a_sauvegarder += f" [IMAGE:{reponse_image_path}]"
             
-        db_manager.save_message(st.session_state.session_id, "assistant", reponse_texte)
+        db_manager.save_message(st.session_state.session_id, "assistant", contenu_a_sauvegarder)
         
         if activer_voix:
             t = re.sub(r'[\n\r]+', ' ', reponse_texte).replace('"', '\\"')
