@@ -28,16 +28,23 @@ def rechercher_sur_le_web(historique, image_file=None):
     )
 
     try:
-        # MODE CRÉATION OU MODIFICATION D'IMAGE
         if is_image_mode:
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
-            
-            # Préparation du contenu (texte + éventuelle image fournie)
             contenus_prompt = []
+            
+            # CAS 1 : Vous envoyez une photo à modifier/détourer
             if image_file is not None:
                 pil_img = Image.open(image_file)
                 contenus_prompt.append(pil_img)
-                contenus_prompt.append(f"Modifie cette image selon la consigne suivante en conservant le sujet principal : {prompt_net}")
+                # On instruit explicitement le modèle de garder la personne et de changer l'arrière-plan
+                prompt_final = (
+                    f"Conserve la personne présente sur la photo originale de manière réaliste et intacte. "
+                    f"Modifie uniquement l'arrière-plan ou intègre-la dans le décor suivant : {prompt_net}. "
+                    f"Ne transforme pas la personne en logo, garde une image photographique et réaliste."
+                )
+                contenus_prompt.append(prompt_final)
+            
+            # CAS 2 : Création pure à partir de zéro (Logo, dessin, etc.)
             else:
                 contenus_prompt.append(f"Génère une image de type logo professionnel ou illustration artistique représentant : {prompt_net}")
 
@@ -63,7 +70,7 @@ def rechercher_sur_le_web(historique, image_file=None):
                 "image": generated_image_bytes
             }
         
-        # MODE STANDARD
+        # MODE STANDARD (Texte / Discussion / Code)
         else:
             contenus_prompt = []
             if image_file is not None:
