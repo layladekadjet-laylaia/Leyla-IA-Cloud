@@ -30,9 +30,12 @@ def generer_logo_local(prompt_net):
         draw.ellipse([150, 150, 650, 650], outline=(56, 189, 248), width=8)
         draw.rectangle([250, 350, 550, 450], fill=(244, 63, 94))
         
-        # Ajout d'un texte visuel basé sur la requête pour qu'on voie le résultat
+        # On extrait la lettre ou le texte demandé depuis le prompt
+        texte_a_ecrire = prompt_net.split()[-1] if prompt_net else "A"
+        
+        # Ajout dynamique de la lettre demandée
         try:
-            draw.text((280, 390), "LEILA LOGO", fill="white")
+            draw.text((380, 375), texte_a_ecrire.upper(), fill="white") 
         except Exception:
             pass
         
@@ -71,7 +74,6 @@ def rechercher_sur_le_web(historique, image_file=None):
                 contenus_prompt.append(pil_img)
             
             historique_texte = ""
-            # CORRECTION DE LA TYPO ICI (historiqu_reduit -> historique_reduit)
             for msg in historique_reduit:
                 role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
                 historique_texte += f"{role_label} : {msg['content']}\n"
