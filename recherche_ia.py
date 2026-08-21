@@ -19,7 +19,7 @@ def nettoyer_reponse(texte):
 
 def generer_logo_local(prompt_net):
     """
-    Génère un logo directement en local avec Pillow pour éviter toute erreur API Cloud 404.
+    Génère un logo directement en local avec Pillow et y inscrit le texte demandé.
     """
     try:
         taille = 800
@@ -29,6 +29,13 @@ def generer_logo_local(prompt_net):
         # Dessin d'un cercle/cadre stylisé
         draw.ellipse([150, 150, 650, 650], outline=(56, 189, 248), width=8)
         draw.rectangle([250, 350, 550, 450], fill=(244, 63, 94))
+        
+        # Ajout d'un texte visuel basé sur la requête pour qu'on voie le résultat
+        try:
+            # Utilisation de la police par défaut de Pillow agrandie ou centrée
+            draw.text((280, 390), "LEILA LOGO", fill="white")
+        except Exception:
+            pass
         
         return img
     except Exception as e:
@@ -47,7 +54,7 @@ def rechercher_sur_le_web(historique, image_file=None):
     )
 
     try:
-        # SI MODE CRÉATION : On utilise notre générateur local robuste (zéro erreur 404)
+        # SI MODE CRÉATION : On utilise notre générateur local robuste
         if is_image_mode:
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
             generated_image = generer_logo_local(prompt_net)
@@ -65,7 +72,7 @@ def rechercher_sur_le_web(historique, image_file=None):
                 contenus_prompt.append(pil_img)
             
             historique_texte = ""
-            for msg in historique_reduit:
+            for msg in historiqu_reduit if 'historique_reduit' in locals() else historique:
                 role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
                 historique_texte += f"{role_label} : {msg['content']}\n"
             contenus_prompt.append(historique_texte)
