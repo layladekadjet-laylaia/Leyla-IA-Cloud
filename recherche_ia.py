@@ -1,5 +1,7 @@
 import os
 import re
+import io
+from PIL import Image
 from google import genai
 from google.genai import types
 
@@ -11,7 +13,7 @@ client = genai.Client(api_key=api_key)
 def nettoyer_reponse(texte):
     if not texte:
         return ""
-    texte = re.sub(r'<think>.*?</think>', '', texte, flags=re.DOTALL).strip()
+    texte = re.sub(r'<think>.*?</think>', '', texte, flags=root.DOTALL if 'root' in globals() else re.DOTALL).strip()
     return texte
 
 def rechercher_sur_le_web(historique, image_file=None):
@@ -27,27 +29,40 @@ def rechercher_sur_le_web(historique, image_file=None):
     )
 
     try:
-        # MODE CRÉATION : Utilisation de l'IA (Imagen)
+        # MODE CRÉATION D'IMAGE
         if is_image_mode:
             prompt_net = re.sub(r'\[.*?\]', '', derniere_requete).strip()
             
-            resultat_image = client.models.generate_images(
-                model='imagen-3.0-fast-generate-001',
-                prompt=f"Design graphique professionnel, créatif et haute résolution : {prompt_net}. Style artistique, moderne, haute qualité.",
-                config=types.GenerateImagesConfig(number_of_images=1)
+            # Utilisation du modèle Gemini Flash Image pour créer l'image
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-image",
+                contents=f"Génère une image de type logo professionnel et artistique représentant : {prompt_net}",
+                config=types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"]
+                )
             )
             
-            # Récupération des bytes de l'image générée
-            generated_image = resultat_image.generated_images[0].image.image_bytes
+            generated_image_bytes = None
+            texte_resultat = ""
             
+            for part in response.candidates[0].content.parts:
+                if part.inline_data is not None:
+                    generated_image_bytes = part.inline_data.data
+                elif part.text is not None:
+                    texte_resultat += part.text
+
             return {
-                "texte": f"Voici votre création visuelle générée par l'IA pour : '{prompt_net}', Mon Professeur.",
-                "image": generated_image
+                "texte": f"Voici votre création visuelle pour : '{prompt_net}', Mon Professeur. {nettoyer_reponse(texte_resultat)}",
+                "image": generated_image_bytes
             }
         
         # MODE STANDARD
         else:
             contenus_prompt = []
+            if image_file is not None:
+                pil_img = Image.open(image_file)
+                contenus_prompt.append(pil_img)
+            
             historique_texte = ""
             for msg in historique_reduit:
                 role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
