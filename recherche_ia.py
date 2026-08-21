@@ -129,7 +129,6 @@ def rechercher_sur_le_web(historique, image_file=None):
             image_path_str = None
             if generated_image_bytes:
                 generated_image_bytes = ajouter_signature_leyla(generated_image_bytes)
-                # Sauvegarde physique de l'image avec un nom unique
                 nom_fichier = f"img_{uuid.uuid4().hex[:8]}.jpg"
                 image_path_str = os.path.join(DOSSIER_IMAGES, nom_fichier)
                 with open(image_path_str, "wb") as f:
@@ -137,7 +136,7 @@ def rechercher_sur_le_web(historique, image_file=None):
             
             return {
                 "texte": nettoyer_reponse(texte_resultat),
-                "image_path": image_path_str  # On retourne le chemin au lieu des bytes bruts
+                "image_path": image_path_str
             }
 
         else:
