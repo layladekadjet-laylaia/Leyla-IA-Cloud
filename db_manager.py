@@ -35,6 +35,16 @@ def init_db():
     conn.commit()
     conn.close()
 
+def get_all_sessions():
+    """Récupère la liste de toutes les sessions enregistrées"""
+    conn = sqlite3.connect("leyla_database.db") # Remplacez par le nom de votre fichier db
+    cursor = conn.cursor()
+    # Récupère les sessions uniques triées par ordre chronologique/récent
+    cursor.execute("SELECT DISTINCT session_id FROM messages ORDER BY rowid DESC")
+    sessions = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return sessions
+
 def get_all_sessions(device_id=None):
     """Récupère la liste de toutes les sessions distinctes pour cet appareil."""
     dev_id = device_id if device_id else DEVICE_ID
