@@ -46,20 +46,34 @@ if 'message_en_cours' not in st.session_state:
 
 # --- SIDEBAR ---
 with st.sidebar:
-    if st.button("➕ Nouvelle Discussion"): 
-        # 1. On change l'ID de session
+    if st.button("➕ Nouvelle Discussion", use_container_width=True): 
         st.session_state.session_id = str(uuid.uuid4())[:8]
-        
-        # 2. IMPORTANT : On nettoie aussi les éléments persistants de l'UI
-        # Cela force Streamlit à oublier la photo précédente et la saisie
         if 'camera_input' in st.session_state:
             del st.session_state['camera_input']
-        
-        # 3. On force le rafraîchissement propre
         st.rerun()
         
     activer_voix = st.checkbox("Réponse vocale", value=True)
     
+    st.markdown("---")
+    st.markdown("### 💬 Historique des Discussions")
+    
+    # On récupère toutes les sessions de la base de données
+    sessions_enregistrees = db_manager.get_all_sessions()
+    
+    # On affiche chaque session sous forme de bouton dans la sidebar
+    for s_id in sessions_enregistrees:
+        # Libellé du bouton (on peut personnaliser ici)
+        label_bouton = f"Discussion #{s_id}"
+        
+        # Si c'est la session active, on met une petite mise en valeur visuelle
+        if s_id == st.session_state.session_id:
+            if st.button(f"📌 {label_bouton}", key=f"sess_{s_id}", use_container_width=True):
+                pass # Déjà sur cette session
+        else:
+            if st.button(label_bouton, key=f"sess_{s_id}", use_container_width=True):
+                st.session_state.session_id = s_id
+                st.rerun()
+
     st.markdown("---")
     st.markdown("### 🎨 Studio Créatif")
     choix_source = st.radio("Source média :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True)
@@ -68,6 +82,7 @@ with st.sidebar:
         media_file = st.file_uploader("Fichier", type=["jpg", "jpeg", "png"])
     elif choix_source == "📷 Caméra": 
         media_file = st.camera_input("Photo")
+
 
 # --- HISTORIQUE ---
 messages = db_manager.get_history(st.session_state.session_id)
