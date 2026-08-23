@@ -152,7 +152,7 @@ def run_dashboard():
         else:
             try:
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-3.6-flash')
                 
                 # Conversion des données de la base en texte brut contextuel pour l'IA (Principe du RAG)
                 contexte_donnees = df_filtered.to_string(index=False) if not df_filtered.empty else "Aucune donnée enregistrée."
