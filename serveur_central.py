@@ -1,11 +1,13 @@
 import sqlite3
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
-import google.generativeai as genai
-pydantic_v1_compat = True  # Pour la compatibilité avec certains modules de pydantic
 from pydantic import BaseModel
 import streamlit as st
 import pandas as pd
+
+# IMPORTATION DU CERVEAU DE LEYLA (Le Satellite)
+# Assurez-vous que le nom de votre fichier correspond bien (ex: recherche_ia.py)
+from recherche_ia import rechercher_sur_le_web
 
 # ==========================================
 # 1. CONFIGURATION DE LA BASE DE DONNÉES (SQLITE)
@@ -18,7 +20,6 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Table des Coopératives et Sections
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS producteurs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,14 +81,14 @@ def synchroniser_donnees(donnees: DonnesTerrain):
         
         conn.commit()
         conn.close()
-        return {"status": "success", "message": f"Données de {donnees.nom_producteur} bien enregistrées et sécurisées sur le serveur central L.E.Y.L.A."}
+        return {"status": "success", "message": f"Données de {donnees.nom_producteur} bien enregistrées sur le serveur central L.E.Y.L.A."}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # ==========================================
-# 3. INTERFACE STREAMLIT (Dashboard & Assistant RAG Gemini)
+# 3. INTERFACE STREAMLIT (Dashboard & Appel au Satellite Leyla)
 # ==========================================
 
 def run_dashboard():
@@ -131,48 +132,44 @@ def run_dashboard():
     if not df_filtered.empty:
         st.dataframe(df_filtered, use_container_width=True)
     else:
-        st.info("Aucune donnée disponible pour le moment. En synchronisez depuis le mode terrain.")
+        st.info("Aucune donnée disponible pour le moment. En attente de synchronisation depuis les tablettes de terrain.")
 
     st.divider()
 
     # ==========================================
-    # 4. MODULE RAG / ASSISTANT IA GEMINI
+    # 4. UTILISATION DU "SATELLITE" (recherche_ia.py)
     # ==========================================
     st.subheader("🤖 Assistant IA L.E.Y.L.A. (Requêtes en Langage Naturel)")
     st.markdown("Posez vos questions sur les données centralisées (ex: *'Quel est l'état des parcelles pour la section Méagué ?'*).")
 
     user_query = st.text_input("Votre question à L.E.Y.L.A. :")
-    
-    # Récupération de la clé API (à configurer via les secrets Streamlit ou une variable d'environnement)
-    api_key = st.secrets.get("GEMINI_API_KEY", "VOTRE_CLE_API_ICI")
 
     if st.button("Interroger L.E.Y.L.A."):
         if not user_query:
             st.warning("Veuillez saisir une question.")
         else:
-            try:
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-3.6-flash')
-                
-                # Conversion des données de la base en texte brut contextuel pour l'IA (Principe du RAG)
-                contexte_donnees = df_filtered.to_string(index=False) if not df_filtered.empty else "Aucune donnée enregistrée."
-                
-                prompt_systeme = f"""
-                Tu es L.E.Y.L.A., l'intelligence artificielle du serveur central agricole.
-                Voici les données extraites de la base de données SQL du serveur central :
-                {contexte_donnees}
-                
-                Réponds à la question de l'utilisateur en te basant strictement sur ces données factuelles. 
-                Sois professionnel, clair et concis (destiné aux dirigeants ou au Conseil du Café-Cacao).
-                Question de l'utilisateur : {user_query}
-                """
-                
-                response = model.generate_content(prompt_systeme)
-                st.success("Réponse de L.E.Y.L.A. :")
-                st.write(response.text)
-                
-            except Exception as e:
-                st.error(f"Erreur lors de la communication avec l'API Gemini : {e}")
+            with st.spinner("Le satellite Leyla analyse les données en orbite..."):
+                try:
+                    # Préparation des données de la base sous forme de texte pour le contexte
+                    contexte_donnees = df_filtered.to_string(index=False) if not df_filtered.empty else "Aucune donnée enregistrée."
+                    
+                    # On structure l'historique que va recevoir le satellite (recherche_ia.py)
+                    prompt_complet = (
+                        f"Voici les données factuelles extraites de la base du serveur central agricole :\n"
+                        f"{contexte_donnees}\n\n"
+                        f"Question de l'administrateur / régulateur : {user_query}"
+                    )
+                    
+                    historique_fictif = [{"role": "user", "content": prompt_complet}]
+                    
+                    # Appel de la fonction de votre fichier recherche_ia.py
+                    reponse_satellite = rechercher_sur_le_web(historique_fictif)
+                    
+                    st.success("Réponse du Serveur Central L.E.Y.L.A. :")
+                    st.write(reponse_satellite.get("texte", ""))
+                    
+                except Exception as e:
+                    st.error(f"Erreur lors de la communication avec le satellite IA : {e}")
 
 if __name__ == "__main__":
     run_dashboard()
