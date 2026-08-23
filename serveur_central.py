@@ -3,11 +3,19 @@ from typing import Optional
 import streamlit as st
 import pandas as pd
 
-# Import sécurisé du satellite (si le fichier s'appelle recherche_ia.py)
+# ==========================================
+# 0. CONFIGURATION DE LA PAGE (DOIT ÊTRE EN TOUT PREMIER)
+# ==========================================
+st.set_page_config(
+    page_title="L.E.Y.L.A. - Serveur Central",
+    page_icon="🌐",
+    layout="wide"
+)
+
+# Import sécurisé du satellite
 try:
     from recherche_ia import rechercher_sur_le_web
 except ImportError:
-    # Fonction de secours si l'import échoue pour éviter le crash total de l'app
     def rechercher_sur_le_web(historique):
         return {"texte": "Module satellite indisponible temporairement, Mon Professeur."}
 
@@ -46,7 +54,6 @@ init_db()
 # ==========================================
 
 def run_dashboard():
-    st.set_page_config(page_title="L.E.Y.L.A. - Serveur Central", layout="wide")
     st.title("🌐 L.E.Y.L.A. - Tableau de Bord du Serveur Central")
     st.markdown("*Plateforme de centralisation, d'analyse RDUE et d'intelligence artificielle pour les Coopératives et le Régulateur.*")
 
