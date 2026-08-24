@@ -35,35 +35,32 @@ def init_supabase() -> Optional[Client]:
 
 supabase = init_supabase()
 
-def charger_donnees_module(module_choisi: str) -> pd.DataFrame:
-    """Récupère la table unique Supabase et filtre selon le module exécuté."""
+def charger_donnees_isolees(module_choisi: str) -> pd.DataFrame:
+    """Récupère la table unique Supabase et isole strictement les données du module."""
     if not supabase:
         return pd.DataFrame()
     try:
-        # On interroge toujours la vraie table unique où tout est enregistré
         response = supabase.table("producteurs_parcelles").select("*").execute()
         data = response.data
         if data:
             df_global = pd.DataFrame(data)
             
-            # Si la colonne de suivi des modules existe, on filtre les lignes
             if "module_execute" in df_global.columns:
-                # Normalisation pour correspondre aux libellés du selectbox
+                # Filtrage strict et étanche selon le module actif
                 if "Géolocalisation" in module_choisi:
-                    return df_global[df_global["module_execute"].str.contains("Géo", case=False, na=False)]
+                    return df_global[df_global["module_execute"].str.contains("Géo", case=False, na=False)].reset_index(drop=True)
                 elif "Diagnostic" in module_choisi:
-                    return df_global[df_global["module_execute"].str.contains("Diagnostic", case=False, na=False)]
+                    return df_global[df_global["module_execute"].str.contains("Diagnostic", case=False, na=False)].reset_index(drop=True)
                 elif "Rendement" in module_choisi:
-                    return df_global[df_global["module_execute"].str.contains("Rendement", case=False, na=False)]
+                    return df_global[df_global["module_execute"].str.contains("Rendement", case=False, na=False)].reset_index(drop=True)
                 elif "PDC" in module_choisi:
-                    return df_global[df_global["module_execute"].str.contains("PDC|Développement", case=False, na=False)]
+                    return df_global[df_global["module_execute"].str.contains("PDC|Développement", case=False, na=False)].reset_index(drop=True)
             
-            return df_global
+            return pd.DataFrame()
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Erreur lors de la récupération des données Supabase : {e}")
         return pd.DataFrame()
-
 
 # ==========================================
 # 2. INTERFACE DU SERVEUR CENTRAL
@@ -83,35 +80,25 @@ module_choisi = st.sidebar.selectbox(
     ]
 )
 
-# Mapping entre le choix de l'interface et les tables Supabase correspondantes
-# (Vous pourrez adapter les noms des tables selon vos créations sur Supabase)
-mapping_tables = {
-    "Géolocalisation & RDUE (Parcelles)": "producteurs_parcelles",
-    "Diagnostic Phytosanitaire": "diagnostic_parcelles",
-    "Estimation de Rendement": "estimations_rendement",
-    "Plan de Développement (PDC)": "pdc_cacaoyeres"
-}
+# Chargement strict des données du module sélectionné
+df_filtered = charger_donnees_isolees(module_choisi)
 
-table_active = mapping_tables[module_choisi]
+st.subheader(f"📊 Module actif : {module_choisi}")
 
-# Chargement des données de la table active
-df = charger_donnees_module(table_active)
-
-st.subheader(f"📊 Données en direct : {module_choisi}")
-st.markdown(f"*Source Supabase : table `{table_active}`*")
-
-if not df.empty:
-    st.dataframe(df, use_container_width=True)
-else:
-    st.info(f"Aucune donnée enregistrée pour le moment dans la table `{table_active}`. En attente de synchronisation depuis la tablette terrain.")
+# Affichage du tableau dans un bloc déroulant (expander) pour ne pas encombrer l'interface
+with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered)} enregistrement(s))", expanded=False):
+    if not df_filtered.empty:
+        st.dataframe(df_filtered, use_container_width=True)
+    else:
+        st.info(f"Aucune donnée enregistrée spécifiquement pour le module : {module_choisi}.")
 
 st.divider()
 
 # ==========================================
 # 3. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
-st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Dynamique)")
-st.markdown("Posez n'importe quelle question sur les données du module sélectionné (ex: *'Quelles sont les maladies dominantes ?'* ou *'Fais-moi un rapport de synthèse'*).")
+st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
+st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
 
 user_query = st.text_input("Votre requête pour le satellite :")
 
@@ -119,17 +106,17 @@ if st.button("Lancer l'analyse du satellite"):
     if not user_query:
         st.warning("Veuillez saisir une question ou une consigne.")
     else:
-        with st.spinner(f"Le satellite analyse les données du module {module_choisi}..."):
+        with st.spinner(f"Le satellite analyse exclusivement les données de {module_choisi}..."):
             try:
-                contexte_donnees = df.to_string(index=False) if not df.empty else "Aucune donnée disponible dans cette table."
+                contexte_donnees = df_filtered.to_string(index=False) if not df_filtered.empty else "Aucune donnée disponible pour ce module."
                 
                 prompt_complet = (
                     f"Tu es L.E.Y.L.A., l'intelligence artificielle centrale pour la gestion agricole.\n"
-                    f"Module analysé : {module_choisi}\n"
-                    f"Données brutes extraites de Supabase ({table_active}) :\n"
+                    f"Module en cours d'analyse : {module_choisi}\n"
+                    f"Données brutes exclusives à ce module :\n"
                     f"{contexte_donnees}\n\n"
                     f"Consigne / Question de l'administrateur : {user_query}\n\n"
-                    f"Fournis une analyse professionnelle, détaillée et structurée."
+                    f"Fournis une analyse professionnelle, claire et axée uniquement sur ce module."
                 )
                 
                 historique_fictif = [{"role": "user", "content": prompt_complet}]
