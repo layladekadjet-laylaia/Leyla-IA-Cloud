@@ -1,7 +1,7 @@
-import sqlite3
 from typing import Optional
 import streamlit as st
 import pandas as pd
+from supabase import create_client, Client
 
 # ==========================================
 # 0. CONFIGURATION DE LA PAGE STREAMLIT
@@ -20,33 +20,35 @@ except ImportError:
         return {"texte": "Module satellite indisponible temporairement, Mon Professeur."}
 
 # ==========================================
-# 1. CONFIGURATION DE LA BASE DE DONNÉES (SQLITE)
+# 1. CONNEXION À SUPABASE (CLOUD)
 # ==========================================
-DB_NAME = "leyla_serveur_central.db"
+@st.cache_resource
+def init_supabase() -> Optional[Client]:
+    """Initialise le client Supabase à partir des secrets Streamlit."""
+    try:
+        url = st.secrets["supabase"]["url"]
+        key = st.secrets["supabase"]["key"]
+        return create_client(url, key)
+    except Exception as e:
+        st.error(f"Erreur de configuration des secrets Supabase : {e}")
+        return None
 
-def init_db():
-    """Crée les tables relationnelles si elles n'existent pas."""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS producteurs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cooperative TEXT,
-            section TEXT,
-            technicien TEXT,
-            nom_producteur TEXT,
-            code_producteur TEXT,
-            superficie REAL,
-            age_cacaoyere INTEGER,
-            polygone_gps TEXT,
-            statut_rdue TEXT,
-            date_synchro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
+supabase = init_supabase()
 
-init_db()
+def charger_donnees_supabase() -> pd.DataFrame:
+    """Récupère toutes les données de la table Supabase."""
+    if not supabase:
+        return pd.DataFrame()
+    try:
+        # Interrogation de la table centrale des producteurs/parcelles
+        response = supabase.table("producteurs_parcelles").select("*").execute()
+        data = response.data
+        if data:
+            return pd.DataFrame(data)
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erreur lors de la récupération des données Supabase : {e}")
+        return pd.DataFrame()
 
 # ==========================================
 # 2. INTERFACE STREAMLIT DU SERVEUR CENTRAL
@@ -54,19 +56,13 @@ init_db()
 st.title("🌐 L.E.Y.L.A. - Tableau de Bord du Serveur Central")
 st.markdown("*Plateforme de centralisation, d'analyse RDUE et d'intelligence artificielle pour les Coopératives et le Régulateur.*")
 
-# Connexion à la base de données pour charger les données
-try:
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql_query("SELECT * FROM producteurs", conn)
-    conn.close()
-except Exception as e:
-    df = pd.DataFrame()
-    st.error(f"Erreur de lecture de la base de données : {e}")
+# Charger les données en direct de Supabase
+df = charger_donnees_supabase()
 
 # Barre latérale de filtrage hiérarchique
 st.sidebar.header("🔍 Filtres Hiérarchiques")
 if not df.empty and "cooperative" in df.columns:
-    coops = ["Toutes"] + list(df["cooperative"].unique())
+    coops = ["Toutes"] + list(df["cooperative"].dropna().unique())
     selected_coop = st.sidebar.selectbox("Sélectionner la Coopérative", coops)
 
     if selected_coop != "Toutes":
@@ -74,7 +70,7 @@ if not df.empty and "cooperative" in df.columns:
     else:
         df_filtered = df
 else:
-        df_filtered = df
+    df_filtered = df
 
 # Affichage des métriques principales
 col1, col2, col3 = st.columns(3)
@@ -90,11 +86,11 @@ with col3:
 st.divider()
 
 # Visualisation des données tabulaires
-st.subheader("📋 Registre Centralisé des Parcelles")
+st.subheader("📋 Registre Centralisé des Parcelles (Supabase)")
 if not df_filtered.empty:
     st.dataframe(df_filtered, use_container_width=True)
 else:
-    st.info("Aucune donnée disponible pour le moment. En attente de synchronisation.")
+    st.info("Aucune donnée disponible pour le moment dans Supabase. En attente de synchronisation terrain.")
 
 st.divider()
 
@@ -115,7 +111,7 @@ if st.button("Interroger L.E.Y.L.A."):
                 contexte_donnees = df_filtered.to_string(index=False) if not df_filtered.empty else "Aucune donnée enregistrée."
                 
                 prompt_complet = (
-                    f"Voici les données factuelles extraites de la base du serveur central agricole :\n"
+                    f"Voici les données factuelles extraites de la base Supabase du serveur central agricole :\n"
                     f"{contexte_donnees}\n\n"
                     f"Question de l'administrateur / régulateur : {user_query}"
                 )
