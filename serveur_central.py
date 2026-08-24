@@ -35,19 +35,35 @@ def init_supabase() -> Optional[Client]:
 
 supabase = init_supabase()
 
-def charger_donnees_module(nom_table: str) -> pd.DataFrame:
-    """Récupère dynamiquement les données d'une table Supabase selon le module."""
+def charger_donnees_module(module_choisi: str) -> pd.DataFrame:
+    """Récupère la table unique Supabase et filtre selon le module exécuté."""
     if not supabase:
         return pd.DataFrame()
     try:
-        response = supabase.table(nom_table).select("*").execute()
+        # On interroge toujours la vraie table unique où tout est enregistré
+        response = supabase.table("producteurs_parcelles").select("*").execute()
         data = response.data
         if data:
-            return pd.DataFrame(data)
+            df_global = pd.DataFrame(data)
+            
+            # Si la colonne de suivi des modules existe, on filtre les lignes
+            if "module_execute" in df_global.columns:
+                # Normalisation pour correspondre aux libellés du selectbox
+                if "Géolocalisation" in module_choisi:
+                    return df_global[df_global["module_execute"].str.contains("Géo", case=False, na=False)]
+                elif "Diagnostic" in module_choisi:
+                    return df_global[df_global["module_execute"].str.contains("Diagnostic", case=False, na=False)]
+                elif "Rendement" in module_choisi:
+                    return df_global[df_global["module_execute"].str.contains("Rendement", case=False, na=False)]
+                elif "PDC" in module_choisi:
+                    return df_global[df_global["module_execute"].str.contains("PDC|Développement", case=False, na=False)]
+            
+            return df_global
         return pd.DataFrame()
     except Exception as e:
-        # La table n'existe peut-être pas encore ou est vide, on renvoie un DataFrame vide sans bloquer
+        st.error(f"Erreur lors de la récupération des données Supabase : {e}")
         return pd.DataFrame()
+
 
 # ==========================================
 # 2. INTERFACE DU SERVEUR CENTRAL
