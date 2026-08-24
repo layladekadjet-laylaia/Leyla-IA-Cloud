@@ -1,5 +1,4 @@
 streamlit
-supabase
 google-genai
 pillow
 duckduckgo-search
