@@ -1,6 +1,7 @@
 from typing import Optional
 import streamlit as st
 import pandas as pd
+import json
 from supabase import create_client, Client
 
 # ==========================================
@@ -63,7 +64,69 @@ def charger_donnees_isolees(module_choisi: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 # ==========================================
-# 2. INTERFACE DU SERVEUR CENTRAL
+# 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
+# ==========================================
+def leila_analyse_pdc_metier(donnees_producteur: dict):
+    """
+    Module d'analyse automatique de Leïla basé sur les données
+    d'un PDC spécifique synchronisé depuis la tablette.
+    """
+    nom = donnees_producteur.get("nom_producteur", "Inconnu")
+    code = donnees_producteur.get("code_producteur", "N/A")
+    
+    # Extraire les objets JSON / dictionnaires enregistrés
+    reponses = donnees_producteur.get("reponses_pdc", {})
+    if isinstance(reponses, str):
+        try:
+            reponses = json.loads(reponses)
+        except Exception:
+            reponses = {}
+
+    st.markdown(f"### 🤖 Diagnostic de Leïla pour le PDC de **{nom}** (Code: `{code}`)")
+    
+    # Extraction des indicateurs clés
+    score_sante = reponses.get("score_pression_sanitaire", 0)
+    solde_net = reponses.get("solde_net_estime", 0)
+    toposequence = reponses.get("toposequence", "Non spécifiée")
+    tendance = reponses.get("tendance_production_3ans_pct", 0)
+    part_cacao = reponses.get("part_revenu_cacao_pct", 100)
+
+    # 1. ÉVALUATION AGRONOMIQUE
+    st.markdown("**🌱 1. Situation Agronomique & Fitosanitaire**")
+    if score_sante <= 3:
+        st.success("• **Pression sanitaire faible :** Verger globalement sain et bien entretenu.")
+    elif score_sante <= 7:
+        st.warning("• **Pression sanitaire modérée :** Risques identifiés sur le verger (gourmands, ombrage ou attaques ponctuelles).")
+    else:
+        st.error("• **Pression sanitaire critique :** Actions phytosanitaires et taille d'urgence requises.")
+
+    if toposequence in ["Bas-fond", "Bas de versant"]:
+        st.warning(f"• **Risque Toposéquence ({toposequence}) :** Attention au risque de saturation en eau et d'asphyxie racinaire.")
+
+    # 2. ÉVALUATION ÉCONOMIQUE
+    st.markdown("**📊 2. Bilan Économique du Foyer**")
+    col_e1, col_e2, col_e3 = st.columns(3)
+    col_e1.metric("Solde Net Estimé", f"{solde_net:,.0f} FCFA")
+    col_e2.metric("Évolution Prod. (3 ans)", f"{tendance:+.1f}%")
+    col_e3.metric("Part Revenu Cacao", f"{part_cacao:.1f}%")
+
+    # 3. RECOMMANDATIONS
+    st.markdown("**💡 3. Orientation & Plan d'Action Recommandé**")
+    recommandations = []
+    if score_sante > 5:
+        recommandations.append("Prioriser un chantier d'égourmandage et d'assainissement de la crown.")
+    if solde_net > 200000:
+        recommandations.append("Capacité de financement présente : Planifier un plan de fertilisation raisonnée.")
+    else:
+        recommandations.append("Marge financière faible : Orienter le producteur vers le compostage et les intrants subventionnés.")
+    if part_cacao > 85:
+        recommandations.append("Proposer une diversification agricole (intégration de cultures vivrières/arbres d'ombrage à valeur).")
+
+    for i, rec in enumerate(recommandations, 1):
+        st.write(f"**{i}.** {rec}")
+
+# ==========================================
+# 3. INTERFACE DU SERVEUR CENTRAL
 # ==========================================
 st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
 st.markdown("*Plateforme unifiée d'analyse multi-modules et d'intelligence artificielle pour les Coopératives.*")
@@ -85,7 +148,7 @@ df_filtered = charger_donnees_isolees(module_choisi)
 
 st.subheader(f"📊 Module actif : {module_choisi}")
 
-# Affichage du tableau dans un bloc déroulant (expander) pour ne pas encombrer l'interface
+# Affichage du tableau dans un bloc déroulant
 with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered)} enregistrement(s))", expanded=False):
     if not df_filtered.empty:
         st.dataframe(df_filtered, use_container_width=True)
@@ -95,7 +158,28 @@ with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered
 st.divider()
 
 # ==========================================
-# 3. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
+# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR
+# ==========================================
+if "PDC" in module_choisi:
+    st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
+    
+    if not df_filtered.empty:
+        # Extrait la liste des producteurs synchronisés
+        col_nom = "nom_producteur" if "nom_producteur" in df_filtered.columns else df_filtered.columns[0]
+        liste_producteurs = df_filtered[col_nom].unique().tolist()
+        
+        producteur_selectionne = st.selectbox("Sélectionner un producteur synchronisé :", liste_producteurs)
+        
+        if st.button("Analyser le PDC avec Leïla 🤖", type="primary"):
+            ligne_prod = df_filtered[df_filtered[col_nom] == producteur_selectionne].iloc[0].to_dict()
+            leila_analyse_pdc_metier(ligne_prod)
+    else:
+        st.warning("Aucun PDC synchronisé disponible dans la base pour le moment.")
+
+    st.divider()
+
+# ==========================================
+# 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
 st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
 st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
