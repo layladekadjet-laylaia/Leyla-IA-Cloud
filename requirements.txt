@@ -3,9 +3,6 @@ google-genai
 pillow
 duckduckgo-search
 requests
-gTTS
-SpeechRecognition
-streamlit-tts
 fastapi
 uvicorn
 pydantic
