@@ -78,19 +78,18 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
     if not supabase:
         return pd.DataFrame()
     try:
-        query = supabase.table("producteurs_parcelles").select("*")
-        
-        # Filtre de confidentialité par coopérative (Sauf pour le Super-Admin AGRIFORCE)
-        if code_structure_filtre != "ALL":
-            query = query.eq("code_cooperative", code_structure_filtre)
-            
-        response = query.execute()
+        # Récupération globale pour éviter l'erreur de colonne manquante
+        response = supabase.table("producteurs_parcelles").select("*").execute()
         data = response.data
         if data:
             df_global = pd.DataFrame(data)
             
+            # 1. Filtre par coopérative (si la colonne existe dans vos données)
+            if code_structure_filtre != "ALL" and "code_cooperative" in df_global.columns:
+                df_global = df_global[df_global["code_cooperative"] == code_structure_filtre]
+            
+            # 2. Filtrage strict par module actif
             if "module_execute" in df_global.columns:
-                # Filtrage strict et étanche selon le module actif
                 if "Géolocalisation" in module_choisi:
                     return df_global[df_global["module_execute"].str.contains("Géo", case=False, na=False)].reset_index(drop=True)
                 elif "Diagnostic" in module_choisi:
@@ -100,11 +99,12 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
                 elif "PDC" in module_choisi:
                     return df_global[df_global["module_execute"].str.contains("PDC|Développement", case=False, na=False)].reset_index(drop=True)
             
-            return df_global
+            return df_global.reset_index(drop=True)
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Erreur lors de la récupération des données Supabase : {e}")
         return pd.DataFrame()
+
 
 # ==========================================
 # 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
