@@ -109,64 +109,99 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
 # ==========================================
 # 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
 # ==========================================
-def leila_analyse_pdc_metier(donnees_producteur: dict):
-    """
-    Module d'analyse automatique de Leïla basé sur les données
-    d'un PDC spécifique synchronisé depuis la tablette.
-    """
-    nom = donnees_producteur.get("nom_producteur", "Inconnu")
-    code = donnees_producteur.get("code_producteur", "N/A")
-    
-    # Extraire les objets JSON / dictionnaires enregistrés
-    reponses = donnees_producteur.get("reponses_pdc", {})
-    if isinstance(reponses, str):
+import json
+import streamlit as st
+
+def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
+    """Décompresse et normalise les 15 étapes du PDC enregistrées depuis la tablette."""
+    raw_pdc = donnees_producteur.get("reponses_pdc", {})
+    if isinstance(raw_pdc, str):
         try:
-            reponses = json.loads(reponses)
+            raw_pdc = json.loads(raw_pdc)
         except Exception:
-            reponses = {}
+            raw_pdc = {}
 
-    st.markdown(f"### 🤖 Diagnostic de Leïla pour le PDC de **{nom}** (Code: `{code}`)")
+    def get_field(key_name, step_name=None, default=None):
+        if key_name in raw_pdc:
+            return raw_pdc[key_name]
+        if step_name and isinstance(raw_pdc.get(step_name), dict):
+            return raw_pdc[step_name].get(key_name, default)
+        return default
+
+    return {
+        "foyer": get_field("taille_foyer", "etape_1_foyer", 1),
+        "superficie": get_field("superficie_totale_ha", "etape_2_foncier", 0.0),
+        "statut_foncier": get_field("statut_foncier", "etape_2_foncier", "Inconnu"),
+        "sante_verger": get_field("score_pression_sanitaire", "etape_4_sante_verger", 0),
+        "age_verger": get_field("age_moyen_verger_ans", "etape_4_sante_verger", 0),
+        "maladies": get_field("maladies_presentes", "etape_5_pathologies", []),
+        "toposequence": get_field("toposequence", "etape_6_toposequence", "Plateau"),
+        "materiel": get_field("etat_materiel", "etape_8_equipements", "Moyen"),
+        "eau_proche": get_field("point_eau_proche", "etape_9_eau", False),
+        "rev_cacao": get_field("revenu_annuel_cacao", "etape_10_revenus_cacao", 0.0),
+        "rev_hors_cacao": get_field("revenu_annuel_hors_cacao", "etape_11_autres_revenus", 0.0),
+        "chg_ferme": get_field("charges_exploitation_annuelles", "etape_12_charges_ferme", 0.0),
+        "chg_foyer": get_field("charges_foyer_annuelles", "etape_13_charges_foyer", 0.0),
+        "credit_demande": get_field("montant_credit_demande", "etape_15_besoins_financement", 0.0)
+    }
+
+
+def leila_analyse_pdc_metier(donnees_producteur: dict):
+    """Moteur d'Analyse Intégrale Leïla basique sur les 15 étapes transmises."""
+    if not isinstance(donnees_producteur, dict):
+        st.error("⚠️ Données invalides pour l'analyse.")
+        return
+
+    # 1. Extraction propre des 15 étapes
+    p = extraire_etapes_pdc(donnees_producteur)
     
-    # Extraction des indicateurs clés
-    score_sante = reponses.get("score_pression_sanitaire", 0)
-    solde_net = reponses.get("solde_net_estime", 0)
-    toposequence = reponses.get("toposequence", "Non spécifiée")
-    tendance = reponses.get("tendance_production_3ans_pct", 0)
-    part_cacao = reponses.get("part_revenu_cacao_pct", 100)
+    nom = donnees_producteur.get("nom_producteur", "Producteur Inconnu")
+    code = donnees_producteur.get("code_producteur", "N/A")
 
-    # 1. ÉVALUATION AGRONOMIQUE
-    st.markdown("**🌱 1. Situation Agronomique & Fitosanitaire**")
-    if score_sante <= 3:
-        st.success("• **Pression sanitaire faible :** Verger globalement sain et bien entretenu.")
-    elif score_sante <= 7:
-        st.warning("• **Pression sanitaire modérée :** Risques identifiés sur le verger (gourmands, ombrage ou attaques ponctuelles).")
+    st.markdown(f"### 🤖 Diagnostic L.E.Y.L.A. pour **{nom}** (`{code}`)")
+    st.markdown("---")
+
+    # 2. Bilan Financier
+    rev_tot = p["rev_cacao"] + p["rev_hors_cacao"]
+    chg_tot = p["chg_ferme"] + p["chg_foyer"]
+    solde = rev_tot - chg_tot
+    part_cacao = (p["rev_cacao"] / rev_tot * 100) if rev_tot > 0 else 100
+
+    st.markdown("**💰 Bilan Financier du Foyer (FCFA)**")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Revenu Total", f"{rev_tot:,.0f} F")
+    c2.metric("Charges Totales", f"{chg_tot:,.0f} F")
+    c3.metric("Solde Net Disponible", f"{solde:,.0f} F")
+    c4.metric("Part Cacao", f"{part_cacao:.0f}%")
+
+    # 3. Évaluation Agronomique & Sanitaire
+    st.markdown("**🌱 Diagnostic Parcelle & Pression Fitosanitaire**")
+    if p["sante_verger"] > 6:
+        st.error(f"• **Pression Sanitaire Critique ({p['sante_verger']}/10)** : Action corrective immédiate requise.")
     else:
-        st.error("• **Pression sanitaire critique :** Actions phytosanitaires et taille d'urgence requises.")
+        st.success(f"• **Pression Sanitaire Maîtrisée ({p['sante_verger']}/10)**.")
 
-    if toposequence in ["Bas-fond", "Bas de versant"]:
-        st.warning(f"• **Risque Toposéquence ({toposequence}) :** Attention au risque de saturation en eau et d'asphyxie racinaire.")
+    if p["toposequence"] in ["Bas-fond", "Bas de versant"] and "Pourriture brune" in p["maladies"]:
+        st.error("🔥 **Risque Majeur Phytophthora :** Zone humide + Pourriture brune active. Drainer et traiter.")
 
-    # 2. ÉVALUATION ÉCONOMIQUE
-    st.markdown("**📊 2. Bilan Économique du Foyer**")
-    col_e1, col_e2, col_e3 = st.columns(3)
-    col_e1.metric("Solde Net Estimé", f"{solde_net:,.0f} FCFA")
-    col_e2.metric("Évolution Prod. (3 ans)", f"{tendance:+.1f}%")
-    col_e3.metric("Part Revenu Cacao", f"{part_cacao:.1f}%")
+    # 4. Plan d'action stratégique
+    st.markdown("**💡 Feuille de Route Opérationnelle Recommandée**")
+    plan = []
 
-    # 3. RECOMMANDATIONS
-    st.markdown("**💡 3. Orientation & Plan d'Action Recommandé**")
-    recommandations = []
-    if score_sante > 5:
-        recommandations.append("Prioriser un chantier d'égourmandage et d'assainissement de la crown.")
-    if solde_net > 200000:
-        recommandations.append("Capacité de financement présente : Planifier un plan de fertilisation raisonnée.")
+    if solde < 100000:
+        plan.append("Orienter vers des intrants subventionnés et formations au compostage (marge financière faible).")
     else:
-        recommandations.append("Marge financière faible : Orienter le producteur vers le compostage et les intrants subventionnés.")
-    if part_cacao > 85:
-        recommandations.append("Proposer une diversification agricole (intégration de cultures vivrières/arbres d'ombrage à valeur).")
+        plan.append("Capacité financière suffisante : Valider le plan de fertilisation raisonnée.")
 
-    for i, rec in enumerate(recommandations, 1):
-        st.write(f"**{i}.** {rec}")
+    if p["age_verger"] >= 25:
+        plan.append("Verger âgé : Programmer un plan de régénération progressive ou de recépage.")
+
+    if p["materiel"] in ["Vétuste", "Inexistant"]:
+        plan.append("Dotation prioritaire en petit matériel de taille (scies/podo-coupes).")
+
+    for idx, action in enumerate(plan, 1):
+        st.info(f"**Action {idx} :** {action}")
+
 
 # ==========================================
 # 3. INTERFACE DU SERVEUR CENTRAL
