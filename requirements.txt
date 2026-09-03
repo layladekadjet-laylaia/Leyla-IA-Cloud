@@ -1,8 +1,7 @@
 streamlit>=1.30.0
 pandas
 requests
-httpx==0.27.2
-supabase==2.4.0
-google-generativeai==0.8.3
+supabase>=2.4.0
+google-generativeai>=0.8.0
 pillow
 duckduckgo-search
