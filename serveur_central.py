@@ -260,7 +260,7 @@ with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered
 st.divider()
 
 # ==========================================
-# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR (AVEC RÉINITIALISATION)
+# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR
 # ==========================================
 if "PDC" in module_choisi:
     col_titre, col_reset = st.columns([2.5, 1.5])
@@ -269,7 +269,6 @@ if "PDC" in module_choisi:
         st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
         
     with col_reset:
-        # Bouton 1 : Réinitialise l'affichage local et le cache Streamlit
         if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True):
             st.cache_resource.clear()
             if "pdc_producteur_select" in st.session_state:
@@ -277,7 +276,6 @@ if "PDC" in module_choisi:
             st.success("Interface réinitialisée !")
             st.rerun()
 
-        # Bouton 2 : Purge complète dans Supabase (Super-Admin AGRIFORCE uniquement)
         if structure_courante.get("type") == "ADMIN":
             with st.expander("⚠️ Zone Dangereuse (Admin)"):
                 if st.button("🚨 Purger les PDC sur Supabase", type="secondary", use_container_width=True):
@@ -296,12 +294,15 @@ if "PDC" in module_choisi:
         if not df_pdc.empty:
             def construire_libelle(row):
                 nom_str = str(row[col_nom]).strip()
-                code_str = f" | Code: {row[col_code]}" if col_code and pd.notna(row[col_code]) else ""
+                code_str = f" | Code: {row[col_code]}" if col_code and pd.notna(row[col_code]) and str(row[col_code]).strip() != "" else ""
                 id_str = f" | ID #{row[col_id]}" if col_id and pd.notna(row[col_id]) else ""
                 return f"{nom_str}{code_str}{id_str}"
 
             df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
-            liste_producteurs = df_pdc["cle_unique"].tolist()
+            
+            # Ajout d'une option neutre en début de liste
+            OPTION_DEFAUT = "--- Sélectionner un producteur ---"
+            liste_producteurs = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
 
             selection_cle = st.selectbox(
                 "Sélectionner la fiche d'un producteur :", 
@@ -310,14 +311,18 @@ if "PDC" in module_choisi:
             )
             
             if st.button("Analyser le PDC avec Leïla 🤖", type="primary"):
-                ligne_selectionnee = df_pdc[df_pdc["cle_unique"] == selection_cle].iloc[0].to_dict()
-                leila_analyse_pdc_metier(ligne_selectionnee)
+                if selection_cle == OPTION_DEFAUT:
+                    st.warning("Veuillez sélectionner un producteur valide dans la liste.")
+                else:
+                    ligne_selectionnee = df_pdc[df_pdc["cle_unique"] == selection_cle].iloc[0].to_dict()
+                    leila_analyse_pdc_metier(ligne_selectionnee)
         else:
             st.warning("Aucun nom de producteur valide trouvé dans les enregistrements.")
     else:
         st.warning("Aucun PDC synchronisé disponible dans la base pour le moment.")
 
     st.divider()
+
 
 # ==========================================
 # 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
