@@ -102,7 +102,6 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
                 else:
                     df_mod = df_global
                 
-                # S'il y me manque du filtre par module, renvoie tout pour ne pas bloquer
                 return df_mod.reset_index(drop=True) if not df_mod.empty else df_global.reset_index(drop=True)
             
             return df_global.reset_index(drop=True)
@@ -111,6 +110,16 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
         st.error(f"Erreur lors de la récupération des données Supabase : {e}")
         return pd.DataFrame()
 
+def reinitialiser_table_pdc_supabase():
+    """Supprime tous les enregistrements du module PDC dans Supabase."""
+    if supabase:
+        try:
+            supabase.table("producteurs_parcelles").delete().ilike("module_execute", "%PDC%").execute()
+            st.cache_resource.clear()
+            st.success("Toutes les données PDC ont été réinitialisées dans Supabase.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Erreur lors de la réinitialisation dans Supabase : {e}")
 
 # ==========================================
 # 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
@@ -151,7 +160,6 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
         "chg_foyer": get_field("charges_foyer_annuelles", "etape_13_charges_foyer", 0.0),
         "credit_demande": get_field("montant_credit_demande", "etape_15_besoins_financement", 0.0)
     }
-
 
 def leila_analyse_pdc_metier(donnees_producteur: dict):
     """Moteur d'Analyse Intégrale Leïla basique sur les 15 étapes transmises."""
@@ -205,7 +213,6 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     for idx, action in enumerate(plan, 1):
         st.info(f"**Action {idx} :** {action}")
 
-
 # ==========================================
 # 3. INTERFACE DU SERVEUR CENTRAL
 # ==========================================
@@ -253,11 +260,29 @@ with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered
 st.divider()
 
 # ==========================================
-# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR (CORRIGÉ)
+# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR (AVEC RÉINITIALISATION)
 # ==========================================
 if "PDC" in module_choisi:
-    st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
+    col_titre, col_reset = st.columns([2.5, 1.5])
     
+    with col_titre:
+        st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
+        
+    with col_reset:
+        # Bouton 1 : Réinitialise l'affichage local et le cache Streamlit
+        if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True):
+            st.cache_resource.clear()
+            if "pdc_producteur_select" in st.session_state:
+                del st.session_state["pdc_producteur_select"]
+            st.success("Interface réinitialisée !")
+            st.rerun()
+
+        # Bouton 2 : Purge complète dans Supabase (Super-Admin AGRIFORCE uniquement)
+        if structure_courante.get("type") == "ADMIN":
+            with st.expander("⚠️ Zone Dangereuse (Admin)"):
+                if st.button("🚨 Purger les PDC sur Supabase", type="secondary", use_container_width=True):
+                    reinitialiser_table_pdc_supabase()
+
     if not df_filtered.empty:
         df_pdc = df_filtered.copy()
         
@@ -265,11 +290,10 @@ if "PDC" in module_choisi:
         col_code = "code_producteur" if "code_producteur" in df_pdc.columns else None
         col_id = "id" if "id" in df_pdc.columns else None
 
-        # Nettoyage strict des noms
+        # Nettoyage des noms
         df_pdc = df_pdc[df_pdc[col_nom].notna() & (df_pdc[col_nom].astype(str).str.strip() != "")].copy()
         
         if not df_pdc.empty:
-            # Construction d'un identifiant unique comprenant le Nom, Code et l'ID de la ligne
             def construire_libelle(row):
                 nom_str = str(row[col_nom]).strip()
                 code_str = f" | Code: {row[col_code]}" if col_code and pd.notna(row[col_code]) else ""
@@ -279,10 +303,13 @@ if "PDC" in module_choisi:
             df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
             liste_producteurs = df_pdc["cle_unique"].tolist()
 
-            selection_cle = st.selectbox("Sélectionner la fiche d'un producteur :", liste_producteurs)
+            selection_cle = st.selectbox(
+                "Sélectionner la fiche d'un producteur :", 
+                liste_producteurs,
+                key="pdc_producteur_select"
+            )
             
             if st.button("Analyser le PDC avec Leïla 🤖", type="primary"):
-                # Extraction directe par la clé unique générée
                 ligne_selectionnee = df_pdc[df_pdc["cle_unique"] == selection_cle].iloc[0].to_dict()
                 leila_analyse_pdc_metier(ligne_selectionnee)
         else:
