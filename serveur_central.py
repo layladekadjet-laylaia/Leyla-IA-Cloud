@@ -111,15 +111,26 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
         return pd.DataFrame()
 
 def reinitialiser_table_pdc_supabase():
-    """Supprime tous les enregistrements du module PDC dans Supabase."""
+    """Efface directement tous les enregistrements de la table Supabase."""
     if supabase:
         try:
-            supabase.table("producteurs_parcelles").delete().ilike("module_execute", "%PDC%").execute()
+            # Suppression directe sans condition restrictive sur le nom du module
+            supabase.table("producteurs_parcelles").delete().neq("id", -1).execute()
+            
+            # Nettoyage explicite du cache Streamlit
+            st.cache_data.clear()
             st.cache_resource.clear()
-            st.success("Toutes les données PDC ont été réinitialisées dans Supabase.")
+            
+            # Nettoyage des variables de session
+            for key in ["liste_pdc_memo", "pdc_select_box", "pdc_selection_cle"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+                    
+            st.success("Toutes les données de la base Supabase ont été réinitialisées avec succès !")
             st.rerun()
         except Exception as e:
-            st.error(f"Erreur lors de la réinitialisation dans Supabase : {e}")
+            st.error(f"Erreur lors de la réinitialisation Supabase : {e}")
+
 
 # ==========================================
 # 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
@@ -260,7 +271,7 @@ with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered
 st.divider()
 
 # ==========================================
-# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR (VERSION FORMULAIRE STABLE)
+# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR
 # ==========================================
 if "PDC" in module_choisi:
     col_titre, col_reset = st.columns([2.5, 1.5])
@@ -270,9 +281,8 @@ if "PDC" in module_choisi:
         
     with col_reset:
         if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True):
+            st.cache_data.clear()
             st.cache_resource.clear()
-            if "liste_pdc_memo" in st.session_state:
-                del st.session_state["liste_pdc_memo"]
             if "pdc_select_box" in st.session_state:
                 del st.session_state["pdc_select_box"]
             st.success("Interface réinitialisée !")
@@ -283,14 +293,17 @@ if "PDC" in module_choisi:
                 if st.button("🚨 Purger les PDC sur Supabase", type="secondary", use_container_width=True):
                     reinitialiser_table_pdc_supabase()
 
-    if not df_filtered.empty:
+    # Si la base est vide après la purge, l'interface se vide instantanément
+    if df_filtered.empty:
+        st.info("ℹ️ Aucun enregistrement PDC disponible. La base de données est propre.")
+    else:
         df_pdc = df_filtered.copy()
         
         col_nom = "nom_producteur" if "nom_producteur" in df_pdc.columns else df_pdc.columns[0]
         col_code = "code_producteur" if "code_producteur" in df_pdc.columns else None
         col_id = "id" if "id" in df_pdc.columns else None
 
-        # Nettoyage des noms
+        # Filtrage des lignes valides
         df_pdc = df_pdc[df_pdc[col_nom].notna() & (df_pdc[col_nom].astype(str).str.strip() != "")].copy()
         
         if not df_pdc.empty:
@@ -303,11 +316,8 @@ if "PDC" in module_choisi:
             df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
             
             OPTION_DEFAUT = "--- Sélectionner un producteur ---"
-            
-            # Mémorisation des options pour éviter que Streamlit réinitialise la liste en cours de route
             options_disponibles = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
 
-            # Utilisation d'un Formulaire pour bloquer le rerun intempestif sur mobile
             with st.form("form_selection_pdc"):
                 choix_utilisateur = st.selectbox(
                     "Sélectionner la fiche d'un producteur :",
@@ -325,10 +335,9 @@ if "PDC" in module_choisi:
                     leila_analyse_pdc_metier(ligne_selectionnee)
         else:
             st.warning("Aucun nom de producteur valide trouvé dans les enregistrements.")
-    else:
-        st.warning("Aucun PDC synchronisé disponible dans la base pour le moment.")
 
     st.divider()
+
 
 
 # ==========================================
