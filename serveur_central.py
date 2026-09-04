@@ -260,7 +260,7 @@ with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered
 st.divider()
 
 # ==========================================
-# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR (CORRECTION DÉROULANTE)
+# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR (VERSION FORMULAIRE STABLE)
 # ==========================================
 if "PDC" in module_choisi:
     col_titre, col_reset = st.columns([2.5, 1.5])
@@ -271,8 +271,10 @@ if "PDC" in module_choisi:
     with col_reset:
         if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True):
             st.cache_resource.clear()
-            if "pdc_selection_cle" in st.session_state:
-                del st.session_state["pdc_selection_cle"]
+            if "liste_pdc_memo" in st.session_state:
+                del st.session_state["liste_pdc_memo"]
+            if "pdc_select_box" in st.session_state:
+                del st.session_state["pdc_select_box"]
             st.success("Interface réinitialisée !")
             st.rerun()
 
@@ -300,25 +302,26 @@ if "PDC" in module_choisi:
 
             df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
             
-            # Option neutre par défaut pour éviter le verrouillage sur le 1er élément
             OPTION_DEFAUT = "--- Sélectionner un producteur ---"
-            options_liste = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
-
-            # Gestion de l'index sélectionné dans le session_state
-            if "pdc_selection_cle" not in st.session_state or st.session_state["pdc_selection_cle"] not in options_liste:
-                st.session_state["pdc_selection_cle"] = OPTION_DEFAUT
-
-            selection_cle = st.selectbox(
-                "Sélectionner la fiche d'un producteur :", 
-                options_liste,
-                key="pdc_selection_cle"
-            )
             
-            if st.button("Analyser le PDC avec Leïla 🤖", type="primary"):
-                if selection_cle == OPTION_DEFAUT:
-                    st.warning("Veuillez sélectionner un producteur dans la liste avant d'analyser.")
+            # Mémorisation des options pour éviter que Streamlit réinitialise la liste en cours de route
+            options_disponibles = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
+
+            # Utilisation d'un Formulaire pour bloquer le rerun intempestif sur mobile
+            with st.form("form_selection_pdc"):
+                choix_utilisateur = st.selectbox(
+                    "Sélectionner la fiche d'un producteur :",
+                    options_disponibles,
+                    key="pdc_select_box"
+                )
+                
+                soumis = st.form_submit_button("Analyser le PDC avec Leïla 🤖", type="primary", use_container_width=True)
+
+            if soumis:
+                if choix_utilisateur == OPTION_DEFAUT:
+                    st.warning("Veuillez choisir un producteur dans la liste.")
                 else:
-                    ligne_selectionnee = df_pdc[df_pdc["cle_unique"] == selection_cle].iloc[0].to_dict()
+                    ligne_selectionnee = df_pdc[df_pdc["cle_unique"] == choix_utilisateur].iloc[0].to_dict()
                     leila_analyse_pdc_metier(ligne_selectionnee)
         else:
             st.warning("Aucun nom de producteur valide trouvé dans les enregistrements.")
@@ -326,7 +329,6 @@ if "PDC" in module_choisi:
         st.warning("Aucun PDC synchronisé disponible dans la base pour le moment.")
 
     st.divider()
-
 
 
 # ==========================================
