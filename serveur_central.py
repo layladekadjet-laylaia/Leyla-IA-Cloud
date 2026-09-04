@@ -269,19 +269,37 @@ if "PDC" in module_choisi:
     st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
     
     if not df_filtered.empty:
-        # Extrait la liste des producteurs synchronisés
+        # 1. Identification de la colonne nom et code
         col_nom = "nom_producteur" if "nom_producteur" in df_filtered.columns else df_filtered.columns[0]
-        liste_producteurs = df_filtered[col_nom].unique().tolist()
+        col_code = "code_producteur" if "code_producteur" in df_filtered.columns else None
         
-        producteur_selectionne = st.selectbox("Sélectionner un producteur synchronisé :", liste_producteurs)
+        # 2. Nettoyage : Filtrer les enregistrements sans nom
+        df_pdc_valides = df_filtered[df_filtered[col_nom].notna() & (df_filtered[col_nom] != "")].copy()
         
-        if st.button("Analyser le PDC avec Leïla 🤖", type="primary"):
-            ligne_prod = df_filtered[df_filtered[col_nom] == producteur_selectionne].iloc[0].to_dict()
-            leila_analyse_pdc_metier(ligne_prod)
+        if not df_pdc_valides.empty:
+            # Création d'un libellé unique "Nom (Code)" pour éviter les confusions
+            if col_code:
+                df_pdc_valides["libelle_affichage"] = df_pdc_valides[col_nom].astype(str) + " (" + df_pdc_valides[col_code].astype(str) + ")"
+            else:
+                df_pdc_valides["libelle_affichage"] = df_pdc_valides[col_nom].astype(str)
+
+            liste_choix = df_pdc_valides["libelle_affichage"].unique().tolist()
+            
+            producteur_selectionne = st.selectbox("Sélectionner un producteur synchronisé :", liste_choix)
+            
+            if st.button("Analyser le PDC avec Leïla 🤖", type="primary"):
+                # Prend la DERNIÈRE version synchronisée (.iloc[-1]) correspondante au choix
+                ligne_prod = df_pdc_valides[df_pdc_valides["libelle_affichage"] == producteur_selectionne].iloc[-1].to_dict()
+                
+                # Exécute l'analyse avec les données exactes
+                leila_analyse_pdc_metier(ligne_prod)
+        else:
+            st.warning("Aucun nom de producteur valide trouvé dans les enregistrements PDC.")
     else:
         st.warning("Aucun PDC synchronisé disponible dans la base pour le moment.")
 
     st.divider()
+
 
 # ==========================================
 # 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
