@@ -74,30 +74,36 @@ def init_supabase() -> Optional[Client]:
 supabase = init_supabase()
 
 def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> pd.DataFrame:
-    """Récupère la table unique Supabase et isole strictement les données selon la coopérative et le module."""
+    """Récupère la table unique Supabase et isole les données selon la coopérative et le module."""
     if not supabase:
         return pd.DataFrame()
     try:
-        # Récupération globale pour éviter l'erreur de colonne manquante
         response = supabase.table("producteurs_parcelles").select("*").execute()
         data = response.data
         if data:
             df_global = pd.DataFrame(data)
             
-            # 1. Filtre par coopérative (si la colonne existe dans vos données)
+            # 1. Filtre par coopérative
             if code_structure_filtre != "ALL" and "code_cooperative" in df_global.columns:
                 df_global = df_global[df_global["code_cooperative"] == code_structure_filtre]
             
-            # 2. Filtrage strict par module actif
+            # 2. Filtrage souple par module actif (évite le blocage si le texte varie légèrement)
             if "module_execute" in df_global.columns:
+                df_global["module_execute"] = df_global["module_execute"].fillna("").astype(str)
+                
                 if "Géolocalisation" in module_choisi:
-                    return df_global[df_global["module_execute"].str.contains("Géo", case=False, na=False)].reset_index(drop=True)
+                    df_mod = df_global[df_global["module_execute"].str.contains("Géo|Parcelle", case=False, na=False)]
                 elif "Diagnostic" in module_choisi:
-                    return df_global[df_global["module_execute"].str.contains("Diagnostic", case=False, na=False)].reset_index(drop=True)
+                    df_mod = df_global[df_global["module_execute"].str.contains("Diagnostic|Phyto", case=False, na=False)]
                 elif "Rendement" in module_choisi:
-                    return df_global[df_global["module_execute"].str.contains("Rendement", case=False, na=False)].reset_index(drop=True)
+                    df_mod = df_global[df_global["module_execute"].str.contains("Rendement", case=False, na=False)]
                 elif "PDC" in module_choisi:
-                    return df_global[df_global["module_execute"].str.contains("PDC|Développement", case=False, na=False)].reset_index(drop=True)
+                    df_mod = df_global[df_global["module_execute"].str.contains("PDC|Développement|Plan", case=False, na=False)]
+                else:
+                    df_mod = df_global
+                
+                # S'il y me manque du filtre par module, renvoie tout pour ne pas bloquer
+                return df_mod.reset_index(drop=True) if not df_mod.empty else df_global.reset_index(drop=True)
             
             return df_global.reset_index(drop=True)
         return pd.DataFrame()
@@ -109,15 +115,10 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
 # ==========================================
 # 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
 # ==========================================
-import json
-import streamlit as st
-
 def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
     """Décompresse et normalise les 15 étapes du PDC enregistrées depuis la tablette."""
-    # 1. Récupérer le JSON transmis via observations_diagnostic ou reponses_pdc
     raw_pdc = donnees_producteur.get("observations_diagnostic") or donnees_producteur.get("reponses_pdc", {})
     
-    # 2. Si le champ est sous forme de texte JSON, le convertir en dictionnaire Python
     if isinstance(raw_pdc, str):
         try:
             raw_pdc = json.loads(raw_pdc)
@@ -126,7 +127,6 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
     elif not isinstance(raw_pdc, dict):
         raw_pdc = {}
 
-    # Fonction utilitaire pour extraire la valeur peu importe sa structure
     def get_field(key_name, step_name=None, default=None):
         if key_name in raw_pdc and raw_pdc[key_name] is not None:
             return raw_pdc[key_name]
@@ -153,14 +153,12 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
     }
 
 
-
 def leila_analyse_pdc_metier(donnees_producteur: dict):
     """Moteur d'Analyse Intégrale Leïla basique sur les 15 étapes transmises."""
     if not isinstance(donnees_producteur, dict):
         st.error("⚠️ Données invalides pour l'analyse.")
         return
 
-    # 1. Extraction propre des 15 étapes
     p = extraire_etapes_pdc(donnees_producteur)
     
     nom = donnees_producteur.get("nom_producteur", "Producteur Inconnu")
@@ -169,7 +167,6 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     st.markdown(f"### 🤖 Diagnostic L.E.Y.L.A. pour **{nom}** (`{code}`)")
     st.markdown("---")
 
-    # 2. Bilan Financier
     rev_tot = p["rev_cacao"] + p["rev_hors_cacao"]
     chg_tot = p["chg_ferme"] + p["chg_foyer"]
     solde = rev_tot - chg_tot
@@ -182,7 +179,6 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     c3.metric("Solde Net Disponible", f"{solde:,.0f} F")
     c4.metric("Part Cacao", f"{part_cacao:.0f}%")
 
-    # 3. Évaluation Agronomique & Sanitaire
     st.markdown("**🌱 Diagnostic Parcelle & Pression Fitosanitaire**")
     if p["sante_verger"] > 6:
         st.error(f"• **Pression Sanitaire Critique ({p['sante_verger']}/10)** : Action corrective immédiate requise.")
@@ -192,7 +188,6 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     if p["toposequence"] in ["Bas-fond", "Bas de versant"] and "Pourriture brune" in p["maladies"]:
         st.error("🔥 **Risque Majeur Phytophthora :** Zone humide + Pourriture brune active. Drainer et traiter.")
 
-    # 4. Plan d'action stratégique
     st.markdown("**💡 Feuille de Route Opérationnelle Recommandée**")
     plan = []
 
@@ -217,7 +212,6 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
 st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
 st.markdown(f"*Espace de travail connecté : **{structure_courante['nom']}***")
 
-# Barre latérale : Informations structure et Déconnexion
 st.sidebar.title(f"🏢 {structure_courante['nom']}")
 if st.sidebar.button("🚪 Changer de structure / Déconnexion"):
     st.session_state["structure_active"] = None
@@ -225,7 +219,6 @@ if st.sidebar.button("🚪 Changer de structure / Déconnexion"):
 
 st.sidebar.divider()
 
-# Gestion du filtrage pour le Cabinet AGRIFORCE
 code_filtre_db = structure_courante["code_db"]
 if structure_courante["type"] == "ADMIN":
     st.sidebar.header("👁️ Super-Vision AGRIFORCE")
@@ -236,7 +229,6 @@ if structure_courante["type"] == "ADMIN":
     if choix_coop_admin != "Toutes les coopératives":
         code_filtre_db = choix_coop_admin
 
-# Sélection du module dans la barre latérale
 st.sidebar.header("🎛️ Sélection du Module")
 module_choisi = st.sidebar.selectbox(
     "Choisir le domaine d'analyse",
@@ -248,12 +240,10 @@ module_choisi = st.sidebar.selectbox(
     ]
 )
 
-# Chargement strict des données du module sélectionné et filtrées par la structure
 df_filtered = charger_donnees_isolees(module_choisi, code_filtre_db)
 
 st.subheader(f"📊 Module actif : {module_choisi}")
 
-# Affichage du tableau dans un bloc déroulant
 with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered)} enregistrement(s))", expanded=False):
     if not df_filtered.empty:
         st.dataframe(df_filtered, use_container_width=True)
@@ -263,43 +253,44 @@ with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered
 st.divider()
 
 # ==========================================
-# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR
+# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR (CORRIGÉ)
 # ==========================================
 if "PDC" in module_choisi:
     st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
     
     if not df_filtered.empty:
-        # 1. Identification de la colonne nom et code
-        col_nom = "nom_producteur" if "nom_producteur" in df_filtered.columns else df_filtered.columns[0]
-        col_code = "code_producteur" if "code_producteur" in df_filtered.columns else None
+        df_pdc = df_filtered.copy()
         
-        # 2. Nettoyage : Filtrer les enregistrements sans nom
-        df_pdc_valides = df_filtered[df_filtered[col_nom].notna() & (df_filtered[col_nom] != "")].copy()
-        
-        if not df_pdc_valides.empty:
-            # Création d'un libellé unique "Nom (Code)" pour éviter les confusions
-            if col_code:
-                df_pdc_valides["libelle_affichage"] = df_pdc_valides[col_nom].astype(str) + " (" + df_pdc_valides[col_code].astype(str) + ")"
-            else:
-                df_pdc_valides["libelle_affichage"] = df_pdc_valides[col_nom].astype(str)
+        col_nom = "nom_producteur" if "nom_producteur" in df_pdc.columns else df_pdc.columns[0]
+        col_code = "code_producteur" if "code_producteur" in df_pdc.columns else None
+        col_id = "id" if "id" in df_pdc.columns else None
 
-            liste_choix = df_pdc_valides["libelle_affichage"].unique().tolist()
-            
-            producteur_selectionne = st.selectbox("Sélectionner un producteur synchronisé :", liste_choix)
+        # Nettoyage strict des noms
+        df_pdc = df_pdc[df_pdc[col_nom].notna() & (df_pdc[col_nom].astype(str).str.strip() != "")].copy()
+        
+        if not df_pdc.empty:
+            # Construction d'un identifiant unique comprenant le Nom, Code et l'ID de la ligne
+            def construire_libelle(row):
+                nom_str = str(row[col_nom]).strip()
+                code_str = f" | Code: {row[col_code]}" if col_code and pd.notna(row[col_code]) else ""
+                id_str = f" | ID #{row[col_id]}" if col_id and pd.notna(row[col_id]) else ""
+                return f"{nom_str}{code_str}{id_str}"
+
+            df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
+            liste_producteurs = df_pdc["cle_unique"].tolist()
+
+            selection_cle = st.selectbox("Sélectionner la fiche d'un producteur :", liste_producteurs)
             
             if st.button("Analyser le PDC avec Leïla 🤖", type="primary"):
-                # Prend la DERNIÈRE version synchronisée (.iloc[-1]) correspondante au choix
-                ligne_prod = df_pdc_valides[df_pdc_valides["libelle_affichage"] == producteur_selectionne].iloc[-1].to_dict()
-                
-                # Exécute l'analyse avec les données exactes
-                leila_analyse_pdc_metier(ligne_prod)
+                # Extraction directe par la clé unique générée
+                ligne_selectionnee = df_pdc[df_pdc["cle_unique"] == selection_cle].iloc[0].to_dict()
+                leila_analyse_pdc_metier(ligne_selectionnee)
         else:
-            st.warning("Aucun nom de producteur valide trouvé dans les enregistrements PDC.")
+            st.warning("Aucun nom de producteur valide trouvé dans les enregistrements.")
     else:
         st.warning("Aucun PDC synchronisé disponible dans la base pour le moment.")
 
     st.divider()
-
 
 # ==========================================
 # 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
