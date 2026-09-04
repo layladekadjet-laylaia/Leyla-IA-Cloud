@@ -114,18 +114,25 @@ import streamlit as st
 
 def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
     """Décompresse et normalise les 15 étapes du PDC enregistrées depuis la tablette."""
-    raw_pdc = donnees_producteur.get("reponses_pdc", {})
+    # 1. Récupérer le JSON transmis via observations_diagnostic ou reponses_pdc
+    raw_pdc = donnees_producteur.get("observations_diagnostic") or donnees_producteur.get("reponses_pdc", {})
+    
+    # 2. Si le champ est sous forme de texte JSON, le convertir en dictionnaire Python
     if isinstance(raw_pdc, str):
         try:
             raw_pdc = json.loads(raw_pdc)
         except Exception:
             raw_pdc = {}
+    elif not isinstance(raw_pdc, dict):
+        raw_pdc = {}
 
+    # Fonction utilitaire pour extraire la valeur peu importe sa structure
     def get_field(key_name, step_name=None, default=None):
-        if key_name in raw_pdc:
+        if key_name in raw_pdc and raw_pdc[key_name] is not None:
             return raw_pdc[key_name]
         if step_name and isinstance(raw_pdc.get(step_name), dict):
-            return raw_pdc[step_name].get(key_name, default)
+            val = raw_pdc[step_name].get(key_name)
+            return val if val is not None else default
         return default
 
     return {
@@ -144,6 +151,7 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
         "chg_foyer": get_field("charges_foyer_annuelles", "etape_13_charges_foyer", 0.0),
         "credit_demande": get_field("montant_credit_demande", "etape_15_besoins_financement", 0.0)
     }
+
 
 
 def leila_analyse_pdc_metier(donnees_producteur: dict):
