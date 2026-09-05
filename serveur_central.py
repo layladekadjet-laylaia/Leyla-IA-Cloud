@@ -132,53 +132,94 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
 # ==========================================
 # 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
 # ==========================================
+
 def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
-    """Décompresse et normalise les 15 étapes du PDC enregistrées depuis la tablette."""
-    raw_pdc = donnees_producteur.get("observations_diagnostic") or donnees_producteur.get("reponses_pdc", {})
+    """Extraction robuste et récursive des données PDC peu importe le format de stockage."""
+    raw_pdc = {}
     
-    if isinstance(raw_pdc, str):
+    # 1. Récupération de la source de données principale
+    source = (
+        donnees_producteur.get("observations_diagnostic") or 
+        donnees_producteur.get("reponses_pdc") or 
+        donnees_producteur.get("donnees_module") or 
+        donnees_producteur.get("reponses") or 
+        {}
+    )
+    
+    # Décodage si c'est une chaîne JSON
+    if isinstance(source, str):
         try:
-            raw_pdc = json.loads(raw_pdc)
+            raw_pdc = json.loads(source)
         except Exception:
             raw_pdc = {}
-    elif not isinstance(raw_pdc, dict):
-        raw_pdc = {}
+    elif isinstance(source, dict):
+        raw_pdc = source
 
-    def get_field(key_name, step_name=None, default=None):
-        if key_name in raw_pdc and raw_pdc[key_name] is not None:
-            return raw_pdc[key_name]
-        if step_name and isinstance(raw_pdc.get(step_name), dict):
-            val = raw_pdc[step_name].get(key_name)
-            return val if val is not None else default
+    # Si les clés sont au premier niveau du dictionnaire global
+    if not raw_pdc:
+        raw_pdc = donnees_producteur
+
+    # 2. Fonction utilitaire de recherche insensible à la casse et profonde
+    def chercher_valeur(cles_possibles, default=None):
+        # Recherche directe au premier niveau
+        for key, val in raw_pdc.items():
+            if val is not None and str(val).strip() != "":
+                if any(k.lower() in key.lower() for k in cles_possibles):
+                    return val
+                
+        # Recherche dans les sous-étapes (ex: etape_1_foyer)
+        for sub_k, sub_v in raw_pdc.items():
+            if isinstance(sub_v, dict):
+                for k, v in sub_v.items():
+                    if v is not None and str(v).strip() != "":
+                        if any(kp.lower() in k.lower() for kp in cles_possibles):
+                            return v
         return default
 
+    def to_float(val, default=0.0):
+        try:
+            if val is None: return default
+            # Nettoyage des espaces et symboles monétaires
+            clean_val = str(val).replace("FCFA", "").replace("F", "").replace(" ", "").replace(",", ".").strip()
+            return float(clean_val)
+        except Exception:
+            return default
+
+    def to_int(val, default=0):
+        try:
+            return int(to_float(val, default))
+        except Exception:
+            return default
+
+    # Extraction sécurisée avec alias multiples pour chaque champ
     return {
-        "foyer": get_field("taille_foyer", "etape_1_foyer", 1),
-        "superficie": get_field("superficie_totale_ha", "etape_2_foncier", 0.0),
-        "statut_foncier": get_field("statut_foncier", "etape_2_foncier", "Inconnu"),
-        "sante_verger": get_field("score_pression_sanitaire", "etape_4_sante_verger", 0),
-        "age_verger": get_field("age_moyen_verger_ans", "etape_4_sante_verger", 0),
-        "maladies": get_field("maladies_presentes", "etape_5_pathologies", []),
-        "toposequence": get_field("toposequence", "etape_6_toposequence", "Plateau"),
-        "materiel": get_field("etat_materiel", "etape_8_equipements", "Moyen"),
-        "eau_proche": get_field("point_eau_proche", "etape_9_eau", False),
-        "rev_cacao": get_field("revenu_annuel_cacao", "etape_10_revenus_cacao", 0.0),
-        "rev_hors_cacao": get_field("revenu_annuel_hors_cacao", "etape_11_autres_revenus", 0.0),
-        "chg_ferme": get_field("charges_exploitation_annuelles", "etape_12_charges_ferme", 0.0),
-        "chg_foyer": get_field("charges_foyer_annuelles", "etape_13_charges_foyer", 0.0),
-        "credit_demande": get_field("montant_credit_demande", "etape_15_besoins_financement", 0.0)
+        "foyer": to_int(chercher_valeur(["foyer", "taille_foyer", "membres"], 1)),
+        "superficie": to_float(chercher_valeur(["superficie", "surface", "ha"], 0.0)),
+        "statut_foncier": str(chercher_valeur(["statut_foncier", "foncier", "propriete"], "Inconnu")),
+        "sante_verger": to_int(chercher_valeur(["sante", "score_pression", "pression_sanitaire", "pathologie"], 0)),
+        "age_verger": to_int(chercher_valeur(["age", "age_moyen", "age_verger"], 0)),
+        "maladies": chercher_valeur(["maladies", "maladies_presentes", "symptomes"], []),
+        "toposequence": str(chercher_valeur(["toposequence", "relief", "relief_parcelle"], "Plateau")),
+        "materiel": str(chercher_valeur(["materiel", "etat_materiel", "equipement"], "Moyen")),
+        "eau_proche": bool(chercher_valeur(["eau", "point_eau", "source_eau"], False)),
+        "rev_cacao": to_float(chercher_valeur(["rev_cacao", "revenu_annuel_cacao", "revenu_cacao"], 0.0)),
+        "rev_hors_cacao": to_float(chercher_valeur(["rev_hors_cacao", "revenu_annuel_hors_cacao", "autres_revenus"], 0.0)),
+        "chg_ferme": to_float(chercher_valeur(["chg_ferme", "charges_exploitation", "charges_ferme"], 0.0)),
+        "chg_foyer": to_float(chercher_valeur(["chg_foyer", "charges_foyer", "depenses_foyer"], 0.0)),
+        "credit_demande": to_float(chercher_valeur(["credit", "montant_credit", "besoin_financement"], 0.0))
     }
 
 def leila_analyse_pdc_metier(donnees_producteur: dict):
-    """Moteur d'Analyse Intégrale Leïla basique sur les 15 étapes transmises."""
+    """Moteur d'Analyse Intégrale Leïla avec affichage Markdown propre."""
     if not isinstance(donnees_producteur, dict):
         st.error("⚠️ Données invalides pour l'analyse.")
         return
 
     p = extraire_etapes_pdc(donnees_producteur)
     
-    nom = donnees_producteur.get("nom_producteur", "Producteur Inconnu")
-    code = donnees_producteur.get("code_producteur", "N/A")
+    # Nettoyage des chaînes pour éviter le bug d'affichage Markdown
+    nom = str(donnees_producteur.get("nom_producteur") or donnees_producteur.get("producteur") or "Producteur Inconnu").strip()
+    code = str(donnees_producteur.get("code_producteur") or donnees_producteur.get("code_ccc") or "N/A").strip()
 
     st.markdown(f"### 🤖 Diagnostic L.E.Y.L.A. pour **{nom}** (`{code}`)")
     st.markdown("---")
@@ -186,40 +227,46 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     rev_tot = p["rev_cacao"] + p["rev_hors_cacao"]
     chg_tot = p["chg_ferme"] + p["chg_foyer"]
     solde = rev_tot - chg_tot
-    part_cacao = (p["rev_cacao"] / rev_tot * 100) if rev_tot > 0 else 100
+    part_cacao = (p["rev_cacao"] / rev_tot * 100) if rev_tot > 0 else 0.0
 
     st.markdown("**💰 Bilan Financier du Foyer (FCFA)**")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Revenu Total", f"{rev_tot:,.0f} F")
-    c2.metric("Charges Totales", f"{chg_tot:,.0f} F")
-    c3.metric("Solde Net Disponible", f"{solde:,.0f} F")
+    c1.metric("Revenu Total", f"{rev_tot:,.0f} F".replace(",", " "))
+    c2.metric("Charges Totales", f"{chg_tot:,.0f} F".replace(",", " "))
+    c3.metric("Solde Net Disponible", f"{solde:,.0f} F".replace(",", " "))
     c4.metric("Part Cacao", f"{part_cacao:.0f}%")
 
-    st.markdown("**🌱 Diagnostic Parcelle & Pression Fitosanitaire**")
+    st.markdown("**🌱 Diagnostic Parcelle & Pression Phytosanitaire**")
     if p["sante_verger"] > 6:
         st.error(f"• **Pression Sanitaire Critique ({p['sante_verger']}/10)** : Action corrective immédiate requise.")
+    elif p["sante_verger"] > 0:
+        st.warning(f"• **Pression Sanitaire Modérée ({p['sante_verger']}/10)** : Surveillance recommandée.")
     else:
-        st.success(f"• **Pression Sanitaire Maîtrisée ({p['sante_verger']}/10)**.")
+        st.success("• **Pression Sanitaire Maîtrisée (0/10)**.")
 
-    if p["toposequence"] in ["Bas-fond", "Bas de versant"] and "Pourriture brune" in p["maladies"]:
+    maladies_str = str(p["maladies"])
+    if p["toposequence"] in ["Bas-fond", "Bas de versant"] and ("Pourriture" in maladies_str or "Phytophthora" in maladies_str):
         st.error("🔥 **Risque Majeur Phytophthora :** Zone humide + Pourriture brune active. Drainer et traiter.")
 
     st.markdown("**💡 Feuille de Route Opérationnelle Recommandée**")
     plan = []
 
-    if solde < 100000:
+    if rev_tot > 0 and solde < 100000:
         plan.append("Orienter vers des intrants subventionnés et formations au compostage (marge financière faible).")
-    else:
+    elif rev_tot > 0:
         plan.append("Capacité financière suffisante : Valider le plan de fertilisation raisonnée.")
+    else:
+        plan.append("Données financières incomplètes : Réévaluer les revenus et charges lors du prochain passage.")
 
     if p["age_verger"] >= 25:
-        plan.append("Verger âgé : Programmer un plan de régénération progressive ou de recépage.")
+        plan.append("Verger âgé (>= 25 ans) : Programmer un plan de régénération progressive ou de recépage.")
 
     if p["materiel"] in ["Vétuste", "Inexistant"]:
         plan.append("Dotation prioritaire en petit matériel de taille (scies/podo-coupes).")
 
     for idx, action in enumerate(plan, 1):
         st.info(f"**Action {idx} :** {action}")
+
 
 # ==========================================
 # 3. INTERFACE DU SERVEUR CENTRAL
