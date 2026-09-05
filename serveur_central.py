@@ -74,62 +74,59 @@ def init_supabase() -> Optional[Client]:
 supabase = init_supabase()
 
 def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> pd.DataFrame:
-    """Récupère la table unique Supabase et isole les données selon la coopérative et le module."""
+    """Récupère la table unique Supabase et isole strictement les données selon la coopérative et le module."""
     if not supabase:
         return pd.DataFrame()
     try:
         response = supabase.table("producteurs_parcelles").select("*").execute()
         data = response.data
-        if data:
-            df_global = pd.DataFrame(data)
-            
-            # 1. Filtre par coopérative
-            if code_structure_filtre != "ALL" and "code_cooperative" in df_global.columns:
-                df_global = df_global[df_global["code_cooperative"] == code_structure_filtre]
-            
-            # 2. Filtrage souple par module actif (évite le blocage si le texte varie légèrement)
-            if "module_execute" in df_global.columns:
-                df_global["module_execute"] = df_global["module_execute"].fillna("").astype(str)
-                
-                if "Géolocalisation" in module_choisi:
-                    df_mod = df_global[df_global["module_execute"].str.contains("Géo|Parcelle", case=False, na=False)]
-                elif "Diagnostic" in module_choisi:
-                    df_mod = df_global[df_global["module_execute"].str.contains("Diagnostic|Phyto", case=False, na=False)]
-                elif "Rendement" in module_choisi:
-                    df_mod = df_global[df_global["module_execute"].str.contains("Rendement", case=False, na=False)]
-                elif "PDC" in module_choisi:
-                    df_mod = df_global[df_global["module_execute"].str.contains("PDC|Développement|Plan", case=False, na=False)]
-                else:
-                    df_mod = df_global
-                
-                return df_mod.reset_index(drop=True) if not df_mod.empty else df_global.reset_index(drop=True)
-            
-            return df_global.reset_index(drop=True)
-        return pd.DataFrame()
+        
+        if not data:
+            return pd.DataFrame()
+
+        df_global = pd.DataFrame(data)
+
+        # 1. Filtre strict par coopérative
+        if code_structure_filtre != "ALL":
+            col_coop = "code_cooperative" if "code_cooperative" in df_global.columns else "code_db"
+            if col_coop in df_global.columns:
+                df_global = df_global[df_global[col_coop] == code_structure_filtre]
+
+        if df_global.empty:
+            return pd.DataFrame()
+
+        # 2. Harmonisation et détection des colonnes de module
+        # On vérifie module_execute, module_type ou le champ interne dans observations_diagnostic/donnees_module
+        col_module = "module_execute" if "module_execute" in df_global.columns else "module_type"
+        
+        if col_module not in df_global.columns:
+            # Si la colonne n'existe pas encore, on évite d'exposer toutes les données
+            return pd.DataFrame()
+
+        df_global[col_module] = df_global[col_module].fillna("").astype(str)
+
+        # 3. Mappage strict des motifs par module
+        MOTIFS_MODULES = {
+            "Géolocalisation & RDUE (Parcelles)": "géo|parcelle|rdue|superficie",
+            "Diagnostic Phytosanitaire": "diagnostic|phyto|pathologie|sante",
+            "Estimation de Rendement": "rendement|estimation|recolte",
+            "Plan de Développement (PDC)": "pdc|développement|plan"
+        }
+
+        motif = MOTIFS_MODULES.get(module_choisi, "")
+
+        if motif:
+            df_mod = df_global[df_global[col_module].str.contains(motif, case=False, na=False)].copy()
+        else:
+            df_mod = pd.DataFrame()
+
+        # 4. RETOUR STRICT : On renvoie df_mod tel quel (s'il est vide, on renvoie un tableau vide, JAMAIS df_global)
+        return df_mod.reset_index(drop=True)
+
     except Exception as e:
         st.error(f"Erreur lors de la récupération des données Supabase : {e}")
         return pd.DataFrame()
 
-def reinitialiser_table_pdc_supabase():
-    """Efface directement tous les enregistrements de la table Supabase."""
-    if supabase:
-        try:
-            # Suppression directe sans condition restrictive sur le nom du module
-            supabase.table("producteurs_parcelles").delete().neq("id", -1).execute()
-            
-            # Nettoyage explicite du cache Streamlit
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            
-            # Nettoyage des variables de session
-            for key in ["liste_pdc_memo", "pdc_select_box", "pdc_selection_cle"]:
-                if key in st.session_state:
-                    del st.session_state[key]
-                    
-            st.success("Toutes les données de la base Supabase ont été réinitialisées avec succès !")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Erreur lors de la réinitialisation Supabase : {e}")
 
 
 # ==========================================
