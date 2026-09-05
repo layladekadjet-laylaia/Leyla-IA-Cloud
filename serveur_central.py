@@ -133,19 +133,23 @@ def charger_donnees_isolees(module_choisi: str, code_structure_filtre: str) -> p
 # 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
 # ==========================================
 
+import json
+import streamlit as st
+
+
 def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
-    """Extraction robuste et récursive des données PDC peu importe le format de stockage."""
+    """Extraction robuste et récursive des données PDC peu importe le format de stockage (session_state ou DB)."""
     raw_pdc = {}
-    
+
     # 1. Récupération de la source de données principale
     source = (
-        donnees_producteur.get("observations_diagnostic") or 
-        donnees_producteur.get("reponses_pdc") or 
-        donnees_producteur.get("donnees_module") or 
-        donnees_producteur.get("reponses") or 
-        {}
+        donnees_producteur.get("reponses_pdc")
+        or donnees_producteur.get("observations_diagnostic")
+        or donnees_producteur.get("donnees_module")
+        or donnees_producteur.get("reponses")
+        or {}
     )
-    
+
     # Décodage si c'est une chaîne JSON
     if isinstance(source, str):
         try:
@@ -155,32 +159,38 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
     elif isinstance(source, dict):
         raw_pdc = source
 
-    # Si les clés sont au premier niveau du dictionnaire global
     if not raw_pdc:
         raw_pdc = donnees_producteur
 
-    # 2. Fonction utilitaire de recherche insensible à la casse et profonde
+    # 2. Utilitaires de recherche et conversion sécurisés
     def chercher_valeur(cles_possibles, default=None):
-        # Recherche directe au premier niveau
         for key, val in raw_pdc.items():
             if val is not None and str(val).strip() != "":
                 if any(k.lower() in key.lower() for k in cles_possibles):
                     return val
-                
-        # Recherche dans les sous-étapes (ex: etape_1_foyer)
+
         for sub_k, sub_v in raw_pdc.items():
             if isinstance(sub_v, dict):
                 for k, v in sub_v.items():
                     if v is not None and str(v).strip() != "":
-                        if any(kp.lower() in k.lower() for kp in cles_possibles):
+                        if any(
+                            kp.lower() in k.lower() for kp in cles_possibles
+                        ):
                             return v
         return default
 
     def to_float(val, default=0.0):
         try:
-            if val is None: return default
-            # Nettoyage des espaces et symboles monétaires
-            clean_val = str(val).replace("FCFA", "").replace("F", "").replace(" ", "").replace(",", ".").strip()
+            if val is None:
+                return default
+            clean_val = (
+                str(val)
+                .replace("FCFA", "")
+                .replace("F", "")
+                .replace(" ", "")
+                .replace(",", ".")
+                .strip()
+            )
             return float(clean_val)
         except Exception:
             return default
@@ -191,81 +201,252 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
         except Exception:
             return default
 
-    # Extraction sécurisée avec alias multiples pour chaque champ
+    # Extraction des blocs complexes
+    desc_expl = raw_pdc.get("description_exploitation", {})
+    if not isinstance(desc_expl, dict):
+        desc_expl = {}
+
+    facteurs = raw_pdc.get("facteurs_succes", {})
+    if not isinstance(facteurs, dict):
+        facteurs = {}
+
+    # Extraction sécurisée couvrant les 14 étapes du PDC
     return {
-        "foyer": to_int(chercher_valeur(["foyer", "taille_foyer", "membres"], 1)),
-        "superficie": to_float(chercher_valeur(["superficie", "surface", "ha"], 0.0)),
-        "statut_foncier": str(chercher_valeur(["statut_foncier", "foncier", "propriete"], "Inconnu")),
-        "sante_verger": to_int(chercher_valeur(["sante", "score_pression", "pression_sanitaire", "pathologie"], 0)),
-        "age_verger": to_int(chercher_valeur(["age", "age_moyen", "age_verger"], 0)),
-        "maladies": chercher_valeur(["maladies", "maladies_presentes", "symptomes"], []),
-        "toposequence": str(chercher_valeur(["toposequence", "relief", "relief_parcelle"], "Plateau")),
-        "materiel": str(chercher_valeur(["materiel", "etat_materiel", "equipement"], "Moyen")),
-        "eau_proche": bool(chercher_valeur(["eau", "point_eau", "source_eau"], False)),
-        "rev_cacao": to_float(chercher_valeur(["rev_cacao", "revenu_annuel_cacao", "revenu_cacao"], 0.0)),
-        "rev_hors_cacao": to_float(chercher_valeur(["rev_hors_cacao", "revenu_annuel_hors_cacao", "autres_revenus"], 0.0)),
-        "chg_ferme": to_float(chercher_valeur(["chg_ferme", "charges_exploitation", "charges_ferme"], 0.0)),
-        "chg_foyer": to_float(chercher_valeur(["chg_foyer", "charges_foyer", "depenses_foyer"], 0.0)),
-        "credit_demande": to_float(chercher_valeur(["credit", "montant_credit", "besoin_financement"], 0.0))
+        # Identification & Localisation (Étapes 11)
+        "nom_producteur": str(
+            donnees_producteur.get("nom_producteur")
+            or raw_pdc.get("nom_prenoms_producteur")
+            or "Producteur Inconnu"
+        ).strip(),
+        "code_ccc": str(
+            donnees_producteur.get("code_producteur")
+            or raw_pdc.get("code_national_producteur")
+            or "CCC-N/A"
+        ).strip(),
+        "delegation": str(raw_pdc.get("delegation_regionale", "Non spécifiée")),
+        "departement": str(raw_pdc.get("departement", "Non spécifié")),
+        "village": str(raw_pdc.get("village", "Non spécifié")),
+        # Foncier & Exploitation (Étape 12)
+        "statut_foncier": str(
+            desc_expl.get(
+                "statut_foncier",
+                chercher_valeur(["statut_foncier", "foncier"], "Inconnu"),
+            )
+        ),
+        "superficie_totale": to_float(
+            desc_expl.get(
+                "superficie_totale",
+                chercher_valeur(["superficie_totale", "surf_totale"], 0.0),
+            )
+        ),
+        "superficie_cacao_prod": to_float(
+            desc_expl.get(
+                "superficie_cacao_productif",
+                chercher_valeur(["cacao_productif", "surf_cacao_prod"], 0.0),
+            )
+        ),
+        "superficie_cacao_jeune": to_float(
+            desc_expl.get(
+                "superficie_cacao_immature",
+                chercher_valeur(["cacao_immature", "surf_cacao_jeune"], 0.0),
+            )
+        ),
+        "age_moyen_verger": str(
+            desc_expl.get(
+                "age_moyen",
+                chercher_valeur(["age_moyen", "age_verger"], "Non précisé"),
+            )
+        ),
+        "relief_sol": desc_expl.get("relief_sol", []),
+        "contraintes_parcelle": desc_expl.get("contraintes", []),
+        "waypoint_gps": str(
+            desc_expl.get("waypoint_gps", "Coordonnées non saisies")
+        ),
+        "texte_synthese_auto": str(desc_expl.get("texte_synthese_auto", "")),
+        # Agroforesterie (Étape 12 & 13)
+        "nb_arbres_forestiers": to_int(
+            desc_expl.get(
+                "nb_arbres_forestiers",
+                chercher_valeur(["nb_arbres_forestiers", "arbres"], 0),
+            )
+        ),
+        "essences_arbres": desc_expl.get("essences_arbres", []),
+        "densite_ombrage": str(
+            desc_expl.get("densite_ombrage", "Non évaluée")
+        ),
+        "inventaire_arbres_detail": raw_pdc.get("inventaire_arbres", []),
+        # Bilan Socio-Économique & Ménage (Étapes 7 & 12)
+        "situation_epargne": raw_pdc.get("situation_epargne", []),
+        "situation_main_oeuvre": raw_pdc.get("situation_main_oeuvre", []),
+        "solde_net_estime": to_float(
+            chercher_valeur(
+                ["solde_net_estime", "solde_net", "solde"], 0.0
+            )
+        ),
+        "budget_annuel_total": to_float(
+            raw_pdc.get(
+                "budget_annuel_total",
+                raw_pdc.get(
+                    "budget_annee_1",
+                    chercher_valeur(["budget_annuel", "budget_annee_1"], 0.0),
+                ),
+            )
+        ),
+        "budget_total_5ans": to_float(
+            raw_pdc.get(
+                "budget_total_5ans",
+                raw_pdc.get(
+                    "budget_global_5ans",
+                    chercher_valeur(["budget_5ans", "total_5ans"], 0.0),
+                ),
+            )
+        ),
+        # Décision & Planification (Étapes 8, 9 & 14)
+        "decision_retenue": str(
+            raw_pdc.get(
+                "decision_retenue",
+                chercher_valeur(["decision_retenue", "decision"], "À déterminer"),
+            )
+        ),
+        "plan_quinquennal_detail": raw_pdc.get(
+            "plan_quinquennal_detail", raw_pdc.get("df_plan_action_5ans", [])
+        ),
+        "programme_annuel_detail": raw_pdc.get(
+            "programme_annuel_detail", raw_pdc.get("df_programme_annuel", [])
+        ),
+        "moyens_fiche8_details": raw_pdc.get("moyens_fiche8_details", []),
+        "cultures_et_revenus": raw_pdc.get("cultures_et_revenus", []),
+        "materiel_agricole": raw_pdc.get("materiel_agricole", []),
+        # Facteurs de Succès & Risques (Étape 14)
+        "facteurs_internes": facteurs.get("facteurs_internes", []),
+        "soutiens_attendus": facteurs.get("soutiens_attendus", []),
+        "risques_identifies": facteurs.get("risques_identifies", []),
+        "mesures_mitigation": str(
+            facteurs.get("mesures_mitigation", "Aucune mesure spécifiée")
+        ),
     }
 
+
 def leila_analyse_pdc_metier(donnees_producteur: dict):
-    """Moteur d'Analyse Intégrale Leïla avec affichage Markdown propre."""
+    """Moteur Decisionnel L.E.I.L.A. - Analyse Integrale du Plan de Developpement de Couverture (PDC)."""
     if not isinstance(donnees_producteur, dict):
-        st.error("⚠️ Données invalides pour l'analyse.")
+        st.error("⚠️ Données invalides pour l'analyse LEÏLA.")
         return
 
     p = extraire_etapes_pdc(donnees_producteur)
-    
-    # Nettoyage des chaînes pour éviter le bug d'affichage Markdown
-    nom = str(donnees_producteur.get("nom_producteur") or donnees_producteur.get("producteur") or "Producteur Inconnu").strip()
-    code = str(donnees_producteur.get("code_producteur") or donnees_producteur.get("code_ccc") or "N/A").strip()
 
-    st.markdown(f"### 🤖 Diagnostic L.E.Y.L.A. pour **{nom}** (`{code}`)")
+    st.markdown(
+        f"### 🤖 Diagnostic & Recommandations L.E.Ï.L.A. pour **{p['nom_producteur']}** (`{p['code_ccc']}`)"
+    )
+    st.caption(
+        f"📍 **Localisation :** Délégation {p['delegation']} | Dép. {p['departement']} | Village {p['village']}"
+    )
     st.markdown("---")
 
-    rev_tot = p["rev_cacao"] + p["rev_hors_cacao"]
-    chg_tot = p["chg_ferme"] + p["chg_foyer"]
-    solde = rev_tot - chg_tot
-    part_cacao = (p["rev_cacao"] / rev_tot * 100) if rev_tot > 0 else 0.0
+    # ---------------------------------------------------------
+    # 1. SYNTHÈSE AGRONOMIQUE & DÉCISION STRATÉGIQUE
+    # ---------------------------------------------------------
+    st.markdown("#### 🌳 1. Profil Agronomique & Orientation Stratégique")
+    col_a1, col_a2, col_a3, col_a4 = st.columns(4)
 
-    st.markdown("**💰 Bilan Financier du Foyer (FCFA)**")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Revenu Total", f"{rev_tot:,.0f} F".replace(",", " "))
-    c2.metric("Charges Totales", f"{chg_tot:,.0f} F".replace(",", " "))
-    c3.metric("Solde Net Disponible", f"{solde:,.0f} F".replace(",", " "))
-    c4.metric("Part Cacao", f"{part_cacao:.0f}%")
+    col_a1.metric("Surface Totale", f"{p['superficie_totale']:.1f} ha")
+    col_a2.metric("Cacao Productif", f"{p['superficie_cacao_prod']:.1f} ha")
+    col_a3.metric("Arbres Ombrage", f"{p['nb_arbres_forestiers']} pieds")
+    col_a4.metric("Décision Retenue", p["decision_retenue"])
 
-    st.markdown("**🌱 Diagnostic Parcelle & Pression Phytosanitaire**")
-    if p["sante_verger"] > 6:
-        st.error(f"• **Pression Sanitaire Critique ({p['sante_verger']}/10)** : Action corrective immédiate requise.")
-    elif p["sante_verger"] > 0:
-        st.warning(f"• **Pression Sanitaire Modérée ({p['sante_verger']}/10)** : Surveillance recommandée.")
+    # Alerte sur la décision stratégique
+    if p["decision_retenue"] == "Replantation":
+        st.error(
+            "🔴 **Décision : Replantation requise.** Le verger présente des facteurs de vétusté majeure ou de forte baisse de densité."
+        )
+    elif p["decision_retenue"] == "Reconversion":
+        st.warning(
+            "🟠 **Décision : Reconversion conseillée.** Contraintes édaphiques (cuirasse) ou pluviométriques critiques."
+        )
+    elif p["decision_retenue"] == "Réhabilitation":
+        st.success(
+            "🟢 **Décision : Réhabilitation.** Le verger possède un bon potentiel de relance via la taille et la fertilisation."
+        )
+
+    # ---------------------------------------------------------
+    # 2. CAPACITÉ FINANCIÈRE & FAISABILITÉ DU BUDGET
+    # ---------------------------------------------------------
+    st.markdown("#### 💳 2. Faisabilité Financière du PDC")
+    solde = p["solde_net_estime"]
+    budget_a1 = p["budget_annuel_total"]
+    budget_5ans = p["budget_total_5ans"]
+
+    col_f1, col_f2, col_f3 = st.columns(3)
+    col_f1.metric("Solde Net Annuel (N-1)", f"{solde:,.0f} FCFA".replace(",", " "))
+    col_f2.metric(
+        "Budget Requis (Année 1)", f"{budget_a1:,.0f} FCFA".replace(",", " ")
+    )
+    col_f3.metric(
+        "Budget Total (5 Ans)", f"{budget_5ans:,.0f} FCFA".replace(",", " ")
+    )
+
+    if solde < budget_a1:
+        st.error(
+            f"⚠️ **Déficit de Trésorerie Détecté :** Le solde net disponible ({solde:,.0f} FCFA) ne couvre pas le budget de l'Année 1 ({budget_a1:,.0f} FCFA). Un financement externe ou un appui de la coopérative est nécessaire."
+        )
     else:
-        st.success("• **Pression Sanitaire Maîtrisée (0/10)**.")
+        st.success(
+            "✅ **Capacité d'Autofinancement Vitesse Haute :** Le producteur dispose d'une marge financière suffisante pour amorcer l'Année 1."
+        )
 
-    maladies_str = str(p["maladies"])
-    if p["toposequence"] in ["Bas-fond", "Bas de versant"] and ("Pourriture" in maladies_str or "Phytophthora" in maladies_str):
-        st.error("🔥 **Risque Majeur Phytophthora :** Zone humide + Pourriture brune active. Drainer et traiter.")
+    # ---------------------------------------------------------
+    # 3. RECOMMANDATIONS TECHNIQUES & FEUILLE DE ROUTE LEÏLA
+    # ---------------------------------------------------------
+    st.markdown("#### 💡 Feuille de Route Opérationnelle Automatisée")
+    actions = []
 
-    st.markdown("**💡 Feuille de Route Opérationnelle Recommandée**")
-    plan = []
+    # Analyse Ombrage / Agroforesterie (Exigences RDUE / CCC)
+    if "Faible" in p["densite_ombrage"] or p["nb_arbres_forestiers"] < 10:
+        actions.append(
+            "**Agroforesterie (Urgent) :** Densité d'ombrage insuffisante (< 10 arbres/ha). Programmer le reboisement avec des essences certifiées (Akpi, Framiré, Iroko)."
+        )
 
-    if rev_tot > 0 and solde < 100000:
-        plan.append("Orienter vers des intrants subventionnés et formations au compostage (marge financière faible).")
-    elif rev_tot > 0:
-        plan.append("Capacité financière suffisante : Valider le plan de fertilisation raisonnée.")
-    else:
-        plan.append("Données financières incomplètes : Réévaluer les revenus et charges lors du prochain passage.")
+    # Contraintes Sanitaires / Toposequence
+    contraintes_list = [str(c) for c in p["contraintes_parcelle"]]
+    if any(
+        "Swollen Shoot" in c or "Pourriture" in c or "Foreurs" in c
+        for c in contraintes_list
+    ):
+        actions.append(
+            "**Protection Phytosanitaire :** Attaques parasitaires signalées. Exécuter en priorité la taille d'aération et la sanitation des cabosses mûres/malades."
+        )
 
-    if p["age_verger"] >= 25:
-        plan.append("Verger âgé (>= 25 ans) : Programmer un plan de régénération progressive ou de recépage.")
+    # Statut Foncier
+    if "Métayage" in p["statut_foncier"] or "Fermage" in p["statut_foncier"]:
+        actions.append(
+            "**Sécurité Foncière :** Exploitants sous régime temporaire. Structurer un accord écrit avec le propriétaire avant d'engager des investissements lourds de réhabilitation."
+        )
 
-    if p["materiel"] in ["Vétuste", "Inexistant"]:
-        plan.append("Dotation prioritaire en petit matériel de taille (scies/podo-coupes).")
+    # Matériel Agricole
+    materiels = p["materiel_agricole"]
+    materiel_obsolete = any(
+        isinstance(m, dict) and m.get("État") == "Mauvais" for m in materiels
+    )
+    if materiel_obsolete:
+        actions.append(
+            "**Équipement :** Renouvellement prioritaire des équipements de traitement et de protection individuelle (EPI/Atomiseur) en état vétuste."
+        )
 
-    for idx, action in enumerate(plan, 1):
-        st.info(f"**Action {idx} :** {action}")
+    if not actions:
+        actions.append(
+            "Toutes les conditions agronomiques sont maîtrisées. Appliquer le programme annuel d'activités selon le calendrier établi."
+        )
+
+    for idx, act in enumerate(actions, 1):
+        st.info(f"**Action Prioritaire {idx} :** {act}")
+
+    # Synthese narrativisée pour dossier officiel
+    if p["texte_synthese_auto"]:
+        with st.expander(
+            "📄 **Voir la synthèse narrative officielle (Modèle CCC)**"
+        ):
+            st.write(p["texte_synthese_auto"])
+
 
 
 # ==========================================
