@@ -356,7 +356,7 @@ def leila_analyse_avancee_rdue_et_rendement(p: dict) -> dict:
 
 
 def leila_analyse_pdc_metier(donnees_producteur: dict):
-    """Moteur Décisionnel L.E.Y.L.A. - Analyse Intégrale et Prédictive du PDC."""
+    """Moteur Décisionnel L.E.I.L.A. - Analyse Intégrale et Prédictive du PDC."""
     if not isinstance(donnees_producteur, dict):
         st.error("⚠️ Données invalides pour l'analyse LEÏLA.")
         return
@@ -364,7 +364,7 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     p = extraire_etapes_pdc(donnees_producteur)
     p_av = leila_analyse_avancee_rdue_et_rendement(p)
 
-    st.markdown(f"### 🤖 Diagnostic & Copilote L.E.Y.L.A. pour **{p['nom_producteur']}** (`{p['code_ccc']}`)")
+    st.markdown(f"### 🤖 Diagnostic & Copilote L.E.Ï.L.A. pour **{p['nom_producteur']}** (`{p['code_ccc']}`)")
     st.caption(f"📍 **Localisation :** Délégation {p['delegation']} | Dép. {p['departement']} | Village {p['village']}")
     st.markdown("---")
 
@@ -387,7 +387,7 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         st.success("🟢 **Décision : Réhabilitation.** Le verger possède un bon potentiel de relance via la taille et la fertilisation.")
 
     # ---------------------------------------------------------
-    # 2. CONFORMITÉ RDUE & PROJECTIONS DE RENDEMENT (MODULE AVANCÉ)
+    # 2. CONFORMITÉ RDUE & PROJECTIONS DE RENDEMENT
     # ---------------------------------------------------------
     st.markdown("#### 🌲 2. Traçabilité, Norme RDUE & Projection de Gain à 3 Ans")
     col_r1, col_r2, col_r3 = st.columns(3)
@@ -454,110 +454,6 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         with st.expander("📄 **Voir la synthèse narrative officielle (Modèle CCC)**"):
             st.write(p["texte_synthese_auto"])
 
-
-    # ---------------------------------------------------------
-    # 1. SYNTHÈSE AGRONOMIQUE & DÉCISION STRATÉGIQUE
-    # ---------------------------------------------------------
-    st.markdown("#### 🌳 1. Profil Agronomique & Orientation Stratégique")
-    col_a1, col_a2, col_a3, col_a4 = st.columns(4)
-
-    col_a1.metric("Surface Totale", f"{p['superficie_totale']:.1f} ha")
-    col_a2.metric("Cacao Productif", f"{p['superficie_cacao_prod']:.1f} ha")
-    col_a3.metric("Arbres Ombrage", f"{p['nb_arbres_forestiers']} pieds")
-    col_a4.metric("Décision Retenue", p["decision_retenue"])
-
-    # Alerte sur la décision stratégique
-    if p["decision_retenue"] == "Replantation":
-        st.error(
-            "🔴 **Décision : Replantation requise.** Le verger présente des facteurs de vétusté majeure ou de forte baisse de densité."
-        )
-    elif p["decision_retenue"] == "Reconversion":
-        st.warning(
-            "🟠 **Décision : Reconversion conseillée.** Contraintes édaphiques (cuirasse) ou pluviométriques critiques."
-        )
-    elif p["decision_retenue"] == "Réhabilitation":
-        st.success(
-            "🟢 **Décision : Réhabilitation.** Le verger possède un bon potentiel de relance via la taille et la fertilisation."
-        )
-
-    # ---------------------------------------------------------
-    # 2. CAPACITÉ FINANCIÈRE & FAISABILITÉ DU BUDGET
-    # ---------------------------------------------------------
-    st.markdown("#### 💳 2. Faisabilité Financière du PDC")
-    solde = p["solde_net_estime"]
-    budget_a1 = p["budget_annuel_total"]
-    budget_5ans = p["budget_total_5ans"]
-
-    col_f1, col_f2, col_f3 = st.columns(3)
-    col_f1.metric("Solde Net Annuel (N-1)", f"{solde:,.0f} FCFA".replace(",", " "))
-    col_f2.metric(
-        "Budget Requis (Année 1)", f"{budget_a1:,.0f} FCFA".replace(",", " ")
-    )
-    col_f3.metric(
-        "Budget Total (5 Ans)", f"{budget_5ans:,.0f} FCFA".replace(",", " ")
-    )
-
-    if solde < budget_a1:
-        st.error(
-            f"⚠️ **Déficit de Trésorerie Détecté :** Le solde net disponible ({solde:,.0f} FCFA) ne couvre pas le budget de l'Année 1 ({budget_a1:,.0f} FCFA). Un financement externe ou un appui de la coopérative est nécessaire."
-        )
-    else:
-        st.success(
-            "✅ **Capacité d'Autofinancement Vitesse Haute :** Le producteur dispose d'une marge financière suffisante pour amorcer l'Année 1."
-        )
-
-    # ---------------------------------------------------------
-    # 3. RECOMMANDATIONS TECHNIQUES & FEUILLE DE ROUTE LEÏLA
-    # ---------------------------------------------------------
-    st.markdown("#### 💡 Feuille de Route Opérationnelle Automatisée")
-    actions = []
-
-    # Analyse Ombrage / Agroforesterie (Exigences RDUE / CCC)
-    if "Faible" in p["densite_ombrage"] or p["nb_arbres_forestiers"] < 10:
-        actions.append(
-            "**Agroforesterie (Urgent) :** Densité d'ombrage insuffisante (< 10 arbres/ha). Programmer le reboisement avec des essences certifiées (Akpi, Framiré, Iroko)."
-        )
-
-    # Contraintes Sanitaires / Toposequence
-    contraintes_list = [str(c) for c in p["contraintes_parcelle"]]
-    if any(
-        "Swollen Shoot" in c or "Pourriture" in c or "Foreurs" in c
-        for c in contraintes_list
-    ):
-        actions.append(
-            "**Protection Phytosanitaire :** Attaques parasitaires signalées. Exécuter en priorité la taille d'aération et la sanitation des cabosses mûres/malades."
-        )
-
-    # Statut Foncier
-    if "Métayage" in p["statut_foncier"] or "Fermage" in p["statut_foncier"]:
-        actions.append(
-            "**Sécurité Foncière :** Exploitants sous régime temporaire. Structurer un accord écrit avec le propriétaire avant d'engager des investissements lourds de réhabilitation."
-        )
-
-    # Matériel Agricole
-    materiels = p["materiel_agricole"]
-    materiel_obsolete = any(
-        isinstance(m, dict) and m.get("État") == "Mauvais" for m in materiels
-    )
-    if materiel_obsolete:
-        actions.append(
-            "**Équipement :** Renouvellement prioritaire des équipements de traitement et de protection individuelle (EPI/Atomiseur) en état vétuste."
-        )
-
-    if not actions:
-        actions.append(
-            "Toutes les conditions agronomiques sont maîtrisées. Appliquer le programme annuel d'activités selon le calendrier établi."
-        )
-
-    for idx, act in enumerate(actions, 1):
-        st.info(f"**Action Prioritaire {idx} :** {act}")
-
-    # Synthese narrativisée pour dossier officiel
-    if p["texte_synthese_auto"]:
-        with st.expander(
-            "📄 **Voir la synthèse narrative officielle (Modèle CCC)**"
-        ):
-            st.write(p["texte_synthese_auto"])
 
 
 
