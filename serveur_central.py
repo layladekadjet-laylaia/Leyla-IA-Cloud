@@ -356,7 +356,7 @@ def leila_analyse_avancee_rdue_et_rendement(p: dict) -> dict:
 
 
 def leila_analyse_pdc_metier(donnees_producteur: dict):
-    """Moteur Décisionnel L.E.I.L.A. - Analyse Intégrale et Prédictive du PDC."""
+    """Moteur Décisionnel L.E.Y.L.A. - Analyse Intégrale et Prédictive du PDC."""
     if not isinstance(donnees_producteur, dict):
         st.error("⚠️ Données invalides pour l'analyse LEÏLA.")
         return
