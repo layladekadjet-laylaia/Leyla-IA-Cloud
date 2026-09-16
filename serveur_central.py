@@ -170,14 +170,29 @@ def verifier_et_incrementer_quota(cabinet_id: str) -> bool:
 
 
 def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtre: str) -> pd.DataFrame:
-    """Isole strictement les données par CABINET (Multi-Tenant) puis par Coopérative."""
+    """Isole les données via Supabase RLS et applique un filtre SQL natif sur les modules."""
     if not supabase:
         return pd.DataFrame()
     try:
+        # Correspondance des motifs sous forme de filtres SQL (ILIKE / OR)
+        MOTIFS_SQL = {
+            "Géolocalisation & RDUE (Parcelles)": "géo,parcelle,rdue,superficie",
+            "Diagnostic Phytosanitaire": "diagnostic,phyto,pathologie,sante",
+            "Estimation de Rendement": "rendement,estimation,recolte",
+            "Plan de Développement (PDC)": "pdc,développement,plan",
+        }
+
+        # Construction de la requête avec RLS (le filter cabinet_id est sécurisé côté BDD)
         query = supabase.table("producteurs_parcelles").select("*").eq("cabinet_id", cabinet_id)
         
         if code_coop_filtre != "ALL":
             query = query.eq("code_cooperative", code_coop_filtre)
+
+        # Filtre ILIKE directement dans la BDD
+        mots_cles = MOTIFS_SQL.get(module_choisi, "").split(",")
+        if mots_cles and mots_cles[0]:
+            conditions = ",".join([f"module_execute.ilike.%{m}%,module_type.ilike.%{m}%" for m in mots_cles])
+            query = query.or_(conditions)
 
         response = query.execute()
         data = response.data
@@ -185,33 +200,12 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
         if not data:
             return pd.DataFrame()
 
-        df_global = pd.DataFrame(data)
-
-        col_module = "module_execute" if "module_execute" in df_global.columns else "module_type"
-        if col_module not in df_global.columns:
-            return pd.DataFrame()
-
-        df_global[col_module] = df_global[col_module].fillna("").astype(str)
-
-        MOTIFS_MODULES = {
-            "Géolocalisation & RDUE (Parcelles)": "géo|parcelle|rdue|superficie",
-            "Diagnostic Phytosanitaire": "diagnostic|phyto|pathologie|sante",
-            "Estimation de Rendement": "rendement|estimation|recolte",
-            "Plan de Développement (PDC)": "pdc|développement|plan",
-        }
-
-        motif = MOTIFS_MODULES.get(module_choisi, "")
-
-        if motif:
-            df_mod = df_global[df_global[col_module].str.contains(motif, case=False, na=False)].copy()
-        else:
-            df_mod = pd.DataFrame()
-
-        return df_mod.reset_index(drop=True)
+        return pd.DataFrame(data).reset_index(drop=True)
 
     except Exception as e:
         st.error(f"Erreur d'accès à la base Supabase : {e}")
         return pd.DataFrame()
+
 
 
 # ==========================================
