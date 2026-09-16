@@ -610,62 +610,51 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
 # ==========================================
 # 3. INTERFACE DU SERVEUR CENTRAL
 # ==========================================
-st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
-st.markdown(
-    f"*Espace de travail connecté : **{structure_courante['nom']}***"
-)
+cabinet_courant = st.session_state.get("cabinet_actif")
+user_profile = st.session_state.get("profile")
 
-st.sidebar.title(f"🏢 {structure_courante['nom']}")
-if st.sidebar.button("🚪 Changer de structure / Déconnexion"):
-    st.session_state["structure_active"] = None
+st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
+st.markdown(f"*Espace de travail connecté : **{cabinet_courant['nom']}***")
+
+# En-tête / Déconnexion dans la barre latérale
+if st.sidebar.button("🚪 Déconnexion"):
+    supabase.auth.sign_out()
+    st.session_state.clear()
     st.rerun()
 
 st.sidebar.divider()
 
-code_filtre_db = structure_courante["code_db"]
-if structure_courante["type"] == "ADMIN":
-    st.sidebar.header("👁️ Super-Vision AGRIFORCE")
-    choix_coop_admin = st.sidebar.selectbox(
-        "Sélectionner la vue coopérative :",
-        [
-            "Toutes les coopératives",
-            "SOCOAMO",
-            "NECAB",
-            "TIASSALE",
-            "SOUBRE",
-            "LAKOTA",
-        ],
-    )
-    if choix_coop_admin != "Toutes les coopératives":
-        code_filtre_db = choix_coop_admin
+# Gestion Super-Vision Admin vs Vue Cabinet
+cabinet_id_actif = cabinet_courant["id"]
 
 st.sidebar.header("🎛️ Sélection du Module")
 module_choisi = st.sidebar.selectbox(
     "Choisir le domaine d'analyse",
     [
+        "Plan de Développement (PDC)",
         "Géolocalisation & RDUE (Parcelles)",
         "Diagnostic Phytosanitaire",
         "Estimation de Rendement",
-        "Plan de Développement (PDC)",
     ],
 )
 
-df_filtered = charger_donnees_isolees(module_choisi, code_filtre_db)
+# Chargement sécurisé et isolé des données par CABINET_ID
+df_filtered = charger_donnees_isolees(
+    module_choisi=module_choisi,
+    cabinet_id=cabinet_id_actif,
+    code_coop_filtre=code_coop_filtre,  # Défini en Partie 1
+)
 
 st.subheader(f"📊 Module actif : {module_choisi}")
 
 with st.expander(
-    f"📁 Afficher / Masquer les données brutes ({len(df_filtered)}"
-    " enregistrement(s))",
+    f"📁 Afficher / Masquer les données brutes ({len(df_filtered)} enregistrement(s))",
     expanded=False,
 ):
     if not df_filtered.empty:
         st.dataframe(df_filtered, use_container_width=True)
     else:
-        st.info(
-            "Aucune donnée enregistrée pour le module"
-            f" {module_choisi} dans cette structure."
-        )
+        st.info(f"Aucune donnée enregistrée pour le module {module_choisi} dans cette sélection.")
 
 st.divider()
 
@@ -680,9 +669,7 @@ if "PDC" in module_choisi:
         st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
 
     with col_reset:
-        if st.button(
-            "🔄 Réinitialiser l'affichage PDC", use_container_width=True
-        ):
+        if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             if "pdc_select_box" in st.session_state:
@@ -690,36 +677,17 @@ if "PDC" in module_choisi:
             st.success("Interface réinitialisée !")
             st.rerun()
 
-        if structure_courante.get("type") == "ADMIN":
-            with st.expander("⚠️ Zone Dangereuse (Admin)"):
-                if st.button(
-                    "🚨 Purger les PDC sur Supabase",
-                    type="secondary",
-                    use_container_width=True,
-                ):
-                    reinitialiser_table_pdc_supabase()
-
     if df_filtered.empty:
-        st.info(
-            "ℹ️ Aucun enregistrement PDC disponible. La base de données est"
-            " propre."
-        )
+        st.info("ℹ️ Aucun enregistrement PDC disponible. La base de données est propre.")
     else:
         df_pdc = df_filtered.copy()
 
-        col_nom = (
-            "nom_producteur"
-            if "nom_producteur" in df_pdc.columns
-            else df_pdc.columns[0]
-        )
-        col_code = (
-            "code_producteur" if "code_producteur" in df_pdc.columns else None
-        )
+        col_nom = "nom_producteur" if "nom_producteur" in df_pdc.columns else df_pdc.columns[0]
+        col_code = "code_producteur" if "code_producteur" in df_pdc.columns else None
         col_id = "id" if "id" in df_pdc.columns else None
 
         df_pdc = df_pdc[
-            df_pdc[col_nom].notna()
-            & (df_pdc[col_nom].astype(str).str.strip() != "")
+            df_pdc[col_nom].notna() & (df_pdc[col_nom].astype(str).str.strip() != "")
         ].copy()
 
         if not df_pdc.empty:
@@ -728,24 +696,16 @@ if "PDC" in module_choisi:
                 nom_str = str(row[col_nom]).strip()
                 code_str = (
                     f" | Code: {row[col_code]}"
-                    if col_code
-                    and pd.notna(row[col_code])
-                    and str(row[col_code]).strip() != ""
+                    if col_code and pd.notna(row[col_code]) and str(row[col_code]).strip() != ""
                     else ""
                 )
-                id_str = (
-                    f" | ID #{row[col_id]}"
-                    if col_id and pd.notna(row[col_id])
-                    else ""
-                )
+                id_str = f" | ID #{row[col_id]}" if col_id and pd.notna(row[col_id]) else ""
                 return f"{nom_str}{code_str}{id_str}"
 
             df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
 
             OPTION_DEFAUT = "--- Sélectionner un producteur ---"
-            options_disponibles = [OPTION_DEFAUT] + df_pdc[
-                "cle_unique"
-            ].tolist()
+            options_disponibles = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
 
             with st.form("form_selection_pdc"):
                 choix_utilisateur = st.selectbox(
@@ -764,29 +724,20 @@ if "PDC" in module_choisi:
                 if choix_utilisateur == OPTION_DEFAUT:
                     st.warning("Veuillez sélectionner un producteur valide dans la liste.")
                 else:
-                    code_structure_actuelle = structure_courante["code_db"]
-
-                    if verifier_et_incrementer_quota(code_structure_actuelle):
+                    # CORRECTION : Passage du cabinet_id (UUID) pour la vérification du quota
+                    if verifier_et_incrementer_quota(cabinet_id_actif):
                         ligne_selectionnee = (
-                            df_pdc[df_pdc["cle_unique"] == choix_utilisateur]
-                            .iloc[0]
-                            .to_dict()
+                            df_pdc[df_pdc["cle_unique"] == choix_utilisateur].iloc[0].to_dict()
                         )
                         leila_analyse_pdc_metier(ligne_selectionnee)
                     else:
-                        st.error(
-                            "🚫 **Quota d'analyses IA mensuel atteint pour votre"
-                            " structure.**"
-                        )
+                        st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
                         st.info(
-                            "Veuillez contacter le **Cabinet AGRIFORCE** pour"
-                            " recharger votre forfait de requêtes L.E.Y.L.A."
+                            "Veuillez contacter le **Cabinet AGRIFORCE** pour recharger votre"
+                            " forfait de requêtes L.E.Y.L.A."
                         )
         else:
-            st.warning(
-                "Aucun nom de producteur valide trouvé dans les"
-                " enregistrements."
-            )
+            st.warning("Aucun nom de producteur valide trouvé dans les enregistrements.")
 
     st.divider()
 
@@ -795,9 +746,7 @@ if "PDC" in module_choisi:
 # 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
 st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
-st.markdown(
-    f"Posez vos questions en lien direct avec le module **{module_choisi}**."
-)
+st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
 
 user_query = st.text_input("Votre requête pour le satellite :")
 
@@ -805,13 +754,9 @@ if st.button("Lancer l'analyse du satellite"):
     if not user_query:
         st.warning("Veuillez saisir une question ou une consigne.")
     else:
-        code_structure_actuelle = structure_courante["code_db"]
-
-        if verifier_et_incrementer_quota(code_structure_actuelle):
-            with st.spinner(
-                "Le satellite analyse exclusivement les données de"
-                f" {module_choisi}..."
-            ):
+        # CORRECTION : Passage du cabinet_id (UUID) pour la vérification du quota
+        if verifier_et_incrementer_quota(cabinet_id_actif):
+            with st.spinner(f"Le satellite analyse exclusivement les données de {module_choisi}..."):
                 try:
                     contexte_donnees = (
                         df_filtered.to_string(index=False)
@@ -820,37 +765,29 @@ if st.button("Lancer l'analyse du satellite"):
                     )
 
                     prompt_complet = (
-                        "Tu es L.E.Y.L.A., l'intelligence artificielle"
-                        " centrale pour la gestion agricole.\n"
-                        f"Structure active : {structure_courante['nom']}\n"
+                        "Tu es L.E.Y.L.A., l'intelligence artificielle centrale pour la gestion"
+                        " agricole.\n"
+                        f"Cabinet actif : {cabinet_courant['nom']}\n"
                         f"Module en cours d'analyse : {module_choisi}\n"
                         "Données brutes exclusives à ce module :\n"
                         f"{contexte_donnees}\n\n"
-                        "Consigne / Question de l'administrateur :"
-                        f" {user_query}\n\n"
-                        "Fournis une analyse professionnelle, claire et axée"
-                        " uniquement sur ce module."
+                        f"Consigne / Question de l'administrateur : {user_query}\n\n"
+                        "Fournis une analyse professionnelle, claire et axée uniquement sur ce"
+                        " module."
                     )
 
-                    historique_fictif = [
-                        {"role": "user", "content": prompt_complet}
-                    ]
+                    historique_fictif = [{"role": "user", "content": prompt_complet}]
                     reponse_satellite = rechercher_sur_le_web(historique_fictif)
 
                     st.success("Rapport du Satellite L.E.Y.L.A. :")
                     st.write(reponse_satellite.get("texte", ""))
 
                 except Exception as e:
-                    st.error(
-                        "Erreur lors de la communication avec le satellite :"
-                        f" {e}"
-                    )
+                    st.error(f"Erreur lors de la communication avec le satellite : {e}")
         else:
-            st.error(
-                "🚫 **Quota d'analyses IA mensuel atteint pour votre"
-                " structure.**"
-            )
+            st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
             st.info(
-                "Veuillez contacter le **Cabinet AGRIFORCE** pour recharger votre"
-                " forfait de requêtes L.E.Y.L.A."
+                "Veuillez contacter votre **Fournisseur** pour recharger votre forfait de"
+                " requêtes L.E.Y.L.A."
             )
+
