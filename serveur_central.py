@@ -13,6 +13,16 @@ st.set_page_config(
     layout="wide",
 )
 
+# Initialisation des variables dans st.session_state
+if "user" not in st.session_state:
+    st.session_state["user"] = None
+if "profile" not in st.session_state:
+    st.session_state["profile"] = None
+if "cabinet_actif" not in st.session_state:
+    st.session_state["cabinet_actif"] = None
+if "cooperatives_accessibles" not in st.session_state:
+    st.session_state["cooperatives_accessibles"] = []
+
 # Import sécurisé du module de recherche satellite
 try:
     from recherche_ia import rechercher_sur_le_web
@@ -39,41 +49,75 @@ supabase = init_supabase()
 
 
 # ==========================================
-# 2. AUTHENTIFICATION DYNAMIQUE & MULTI-TENANT
+# 2. ÉCRAN D'AUTHENTIFICATION UNIVERSEL
 # ==========================================
-# 1. Authentification Supabase Auth
-auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password})
-user = auth_resp.user
+if not st.session_state["user"]:
+    st.title("🔐 Authentification Centralisée - L.E.Y.L.A.")
+    st.markdown("##### Connectez-vous avec vos identifiants réseau L.E.Y.L.A.")
 
-# 2. Récupération du profil
-profile_resp = supabase.table("profiles").select("*").eq("id", user.id).single().execute()
-profile = profile_resp.data
+    with st.form("login_form", clear_on_submit=False):
+        col_email, col_pass = st.columns(2)
+        with col_email:
+            email_input = st.text_input("Adresse Email professionnelle :")
+        with col_pass:
+            password_input = st.text_input("Mot de passe :", type="password")
 
-if not profile or not profile.get("cabinet_id"):
-    st.error("Aucun profil ou cabinet associé à cet utilisateur.")
-    st.stop()
+        submit_login = st.form_submit_button("🔓 Se connecter", type="primary")
 
-cabinet_id = profile["cabinet_id"]
+    if submit_login:
+        if email_input and password_input and supabase:
+            try:
+                # 1. Authentification Supabase Auth
+                auth_resp = supabase.auth.sign_in_with_password({
+                    "email": email_input.strip(), 
+                    "password": password_input
+                })
+                user = auth_resp.user
 
-# 3. Récupération des informations du cabinet
-cabinet_resp = supabase.table("cabinets").select("*").eq("id", cabinet_id).single().execute()
-cabinet = cabinet_resp.data
+                # 2. Récupération du profil
+                profile_resp = supabase.table("profiles").select("*").eq("id", user.id).single().execute()
+                profile = profile_resp.data
 
-# 4. Récupération dynamique des coopératives du cabinet
-coops_resp = supabase.table("cooperatives").select("*").eq("cabinet_id", cabinet_id).execute()
+                if not profile or not profile.get("cabinet_id"):
+                    st.error("Aucun profil ou cabinet associé à cet utilisateur.")
+                    st.stop()
 
-# Stockage en session Streamlit
-st.session_state["user"] = user
-st.session_state["profile"] = profile
-st.session_state["cabinet_actif"] = cabinet
-st.session_state["cooperatives_accessibles"] = coops_resp.data
+                cabinet_id = profile["cabinet_id"]
 
-st.success(f"Bienvenue {profile.get('nom_utilisateur', '')} — Cabinet : {cabinet['nom']}")
-st.rerun()
+                # 3. Récupération des informations du cabinet
+                cabinet_resp = supabase.table("cabinets").select("*").eq("id", cabinet_id).single().execute()
+                cabinet = cabinet_resp.data
+
+                # 4. Récupération dynamique des coopératives du cabinet
+                coops_resp = supabase.table("cooperatives").select("*").eq("cabinet_id", cabinet_id).execute()
+
+                # Stockage en session Streamlit
+                st.session_state["user"] = user
+                st.session_state["profile"] = profile
+                st.session_state["cabinet_actif"] = cabinet
+                st.session_state["cooperatives_accessibles"] = coops_resp.data or []
+
+                st.success(f"Bienvenue {profile.get('nom_utilisateur', '')} — Cabinet : {cabinet['nom']}")
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Échec d'authentification : {e}")
+        else:
+            st.warning("Veuillez saisir votre email et votre mot de passe.")
+            
+    st.stop()  # Bloque l'exécution tant que l'utilisateur n'est pas connecté
 
 
 # ==========================================
-# 3. EN-TÊTE DYNAMIQUE ET SÉLECTEUR DE COOPÉRATIVE
+# 3. RÉCUPÉRATION DE LA SESSION ACTIVE
+# ==========================================
+user_profile = st.session_state["profile"]
+cabinet_courant = st.session_state["cabinet_actif"]
+liste_cooperatives = st.session_state["cooperatives_accessibles"]
+
+
+# ==========================================
+# 4. BARRE LATÉRALE & SÉLECTEUR DE COOPÉRATIVE
 # ==========================================
 st.sidebar.title(f"🏢 {cabinet_courant['nom']}")
 st.sidebar.caption(f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisateur')}")
@@ -81,18 +125,20 @@ st.sidebar.caption(f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisate
 # Sélecteur dynamique de coopérative basé sur la BDD
 options_coop = {"Toutes les coopératives (Vue Direction)": "ALL"}
 for coop in liste_cooperatives:
-    options_coop[coop["nom"]] = coop["code_db"]
+    options_coop[coop.get("nom", "Coopérative")] = coop.get("code_db", "")
 
 coop_selectionnee_label = st.sidebar.selectbox("Sélectionner la Coopérative :", list(options_coop.keys()))
 code_coop_filtre = options_coop[coop_selectionnee_label]
 
 if st.sidebar.button("Déconnexion"):
-    supabase.auth.sign_out()
+    if supabase:
+        supabase.auth.sign_out()
     st.session_state.clear()
     st.rerun()
 
+
 # ==========================================
-# 4. FONCTIONS DE GESTION DES QUOTAS & DONNÉES
+# 5. FONCTIONS DE GESTION DES QUOTAS & DONNÉES
 # ==========================================
 def verifier_et_incrementer_quota(cabinet_id: str) -> bool:
     """Vérifie et consomme le quota d'IA au niveau du Cabinet."""
@@ -128,10 +174,8 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     if not supabase:
         return pd.DataFrame()
     try:
-        # Filtre de base OBLIGATOIRE : cabinet_id
         query = supabase.table("producteurs_parcelles").select("*").eq("cabinet_id", cabinet_id)
         
-        # Filtre secondaire : coopérative spécifique
         if code_coop_filtre != "ALL":
             query = query.eq("code_cooperative", code_coop_filtre)
 
@@ -143,7 +187,6 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
 
         df_global = pd.DataFrame(data)
 
-        # Filtre par module métier
         col_module = "module_execute" if "module_execute" in df_global.columns else "module_type"
         if col_module not in df_global.columns:
             return pd.DataFrame()
@@ -170,8 +213,9 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
         st.error(f"Erreur d'accès à la base Supabase : {e}")
         return pd.DataFrame()
 
+
 # ==========================================
-# 5. CORPS DE L'APPLICATION STREAMLIT
+# 6. CORPS DE L'APPLICATION STREAMLIT
 # ==========================================
 st.title(f"🌐 L.E.Y.L.A. Serveur Central — {cabinet_courant['nom']}")
 
@@ -197,6 +241,7 @@ if not df_affichage.empty:
     st.dataframe(df_affichage, use_container_width=True)
 else:
     st.info("Aucune donnée enregistrée pour cette sélection.")
+
 
 
 
