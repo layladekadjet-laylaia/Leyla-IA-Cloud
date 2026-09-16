@@ -41,58 +41,36 @@ supabase = init_supabase()
 # ==========================================
 # 2. AUTHENTIFICATION DYNAMIQUE & MULTI-TENANT
 # ==========================================
-if "user" not in st.session_state:
-    st.session_state["user"] = None
-if "cabinet_actif" not in st.session_state:
-    st.session_state["cabinet_actif"] = None
-if "cooperatives_accessibles" not in st.session_state:
-    st.session_state["cooperatives_accessibles"] = []
+# 1. Authentification Supabase Auth
+auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password})
+user = auth_resp.user
 
-# --- ÉCRAN DE CONNEXION UNIVERSEL ---
-if not st.session_state["user"]:
-    st.title("🔐 Authentification Centralisée - L.E.Y.L.A.")
-    st.markdown("##### Connectez-vous avec vos identifiants réseau L.E.Y.L.A.")
+# 2. Récupération du profil
+profile_resp = supabase.table("profiles").select("*").eq("id", user.id).single().execute()
+profile = profile_resp.data
 
-    col_email, col_pass = st.columns(2)
-    with col_email:
-        email = st.text_input("Adresse Email professionnelle :")
-    with col_pass:
-        password = st.text_input("Mot de passe :", type="password")
-
-    if st.button("🔓 Se connecter", type="primary"):
-        if email and password and supabase:
-            try:
-                # 1. Authentification Supabase Auth
-                auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                user = auth_resp.user
-                
-                # 2. Récupération du profil et du cabinet rattaché
-                profile_resp = supabase.table("profiles").select("*, cabinets(*)").eq("id", user.id).single().execute()
-                profile = profile_resp.data
-                cabinet = profile.get("cabinets")
-
-                # 3. Récupération dynamique des coopératives du cabinet
-                coops_resp = supabase.table("cooperatives").select("*").eq("cabinet_id", cabinet["id"]).execute()
-                
-                # Stockage en session Streamlit
-                st.session_state["user"] = user
-                st.session_state["profile"] = profile
-                st.session_state["cabinet_actif"] = cabinet
-                st.session_state["cooperatives_accessibles"] = coops_resp.data
-
-                st.success(f"Bienvenue {profile.get('nom_utilisateur', '')} — Cabinet : {cabinet['nom']}")
-                st.rerun()
-
-            except Exception as e:
-                st.error(f"Échec d'authentification : {e}")
-        else:
-            st.warning("Veuillez saisir votre email et votre mot de passe.")
+if not profile or not profile.get("cabinet_id"):
+    st.error("Aucun profil ou cabinet associé à cet utilisateur.")
     st.stop()
 
-# Charger les informations de session courante
-cabinet_courant = st.session_state["cabinet_actif"]
-user_profile = st.session_state["profile"]
-liste_cooperatives = st.session_state["cooperatives_accessibles"]
+cabinet_id = profile["cabinet_id"]
+
+# 3. Récupération des informations du cabinet
+cabinet_resp = supabase.table("cabinets").select("*").eq("id", cabinet_id).single().execute()
+cabinet = cabinet_resp.data
+
+# 4. Récupération dynamique des coopératives du cabinet
+coops_resp = supabase.table("cooperatives").select("*").eq("cabinet_id", cabinet_id).execute()
+
+# Stockage en session Streamlit
+st.session_state["user"] = user
+st.session_state["profile"] = profile
+st.session_state["cabinet_actif"] = cabinet
+st.session_state["cooperatives_accessibles"] = coops_resp.data
+
+st.success(f"Bienvenue {profile.get('nom_utilisateur', '')} — Cabinet : {cabinet['nom']}")
+st.rerun()
+
 
 # ==========================================
 # 3. EN-TÊTE DYNAMIQUE ET SÉLECTEUR DE COOPÉRATIVE
