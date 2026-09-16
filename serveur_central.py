@@ -8,94 +8,21 @@ from supabase import Client, create_client
 # 0. CONFIGURATION DE LA PAGE STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="L.E.Y.L.A. - Serveur Central Multimodaux",
+    page_title="L.E.Y.L.A. - Serveur Central Multi-Cabinet",
     page_icon="🌐",
     layout="wide",
 )
 
-# Import sécurisé du satellite (recherche_ia.py)
+# Import sécurisé du module de recherche satellite
 try:
     from recherche_ia import rechercher_sur_le_web
 except ImportError:
-
     def rechercher_sur_le_web(historique):
-        return {
-            "texte": (
-                "Module satellite indisponible temporairement, Mon Professeur."
-            )
-        }
+        return {"texte": "Module satellite indisponible temporairement, Mon Professeur."}
 
 
 # ==========================================
-# 0.B SYSTEME D'ACTIVATION ET CODES COOPÉRATIVES
-# ==========================================
-STRUCTURES_AUTORISEES = {
-    "SOC-2026": {
-        "nom": "Coopérative SOCOAMO",
-        "code_db": "SOCOAMO",
-        "type": "COOP",
-    },
-    "NEC-2026": {"nom": "Coopérative NECAB", "code_db": "NECAB", "type": "COOP"},
-    "TIA-2026": {
-        "nom": "Coopérative TIASSALÉ",
-        "code_db": "TIASSALE",
-        "type": "COOP",
-    },
-    "SOU-2026": {"nom": "Coopérative SOUBRÉ", "code_db": "SOUBRE", "type": "COOP"},
-    "LAK-2026": {
-        "nom": "Coopérative LAKOTA",
-        "code_db": "LAKOTA",
-        "type": "COOP",
-    },
-    "AGRI-SUPER": {
-        "nom": "Cabinet AGRIFORCE (Direction)",
-        "code_db": "ALL",
-        "type": "ADMIN",
-    },
-}
-
-if "structure_active" not in st.session_state:
-    st.session_state["structure_active"] = None
-
-# Écran de verrouillage si aucun code valide n'est saisi
-if not st.session_state["structure_active"]:
-    st.title("🔐 Authentification - Serveur Central L.E.Y.L.A.")
-    st.markdown(
-        "##### Entrez le code d'activation attribué à votre structure pour"
-        " accéder aux données."
-    )
-
-    col_code, col_btn = st.columns([2, 1])
-    with col_code:
-        code_saisi = st.text_input(
-            "Code d'accès structure :",
-            type="password",
-            placeholder="Ex: SOC-2026",
-        )
-    with col_btn:
-        st.write("")
-        st.write("")
-        if st.button("🔓 Déverrouiller L.E.Y.L.A.", type="primary"):
-            if code_saisi in STRUCTURES_AUTORISEES:
-                st.session_state["structure_active"] = STRUCTURES_AUTORISEES[
-                    code_saisi
-                ]
-                st.success(
-                    "Accès autorisé :"
-                    f" {STRUCTURES_AUTORISEES[code_saisi]['nom']}"
-                )
-                st.rerun()
-            else:
-                st.error(
-                    "Code invalide. Veuillez contacter le Cabinet AGRIFORCE."
-                )
-    st.stop()
-
-structure_courante = st.session_state["structure_active"]
-
-
-# ==========================================
-# 1. CONNEXION À SUPABASE & FONCTIONS BASE DE DONNÉES
+# 1. CONNEXION À SUPABASE
 # ==========================================
 @st.cache_resource
 def init_supabase() -> Optional[Client]:
@@ -108,75 +35,129 @@ def init_supabase() -> Optional[Client]:
         st.error(f"Erreur de configuration des secrets Supabase : {e}")
         return None
 
-
 supabase = init_supabase()
 
 
-def verifier_et_incrementer_quota(code_structure: str) -> bool:
-    """Vérifie si la structure a encore du crédit IA.
+# ==========================================
+# 2. AUTHENTIFICATION DYNAMIQUE & MULTI-TENANT
+# ==========================================
+if "user" not in st.session_state:
+    st.session_state["user"] = None
+if "cabinet_actif" not in st.session_state:
+    st.session_state["cabinet_actif"] = None
+if "cooperatives_accessibles" not in st.session_state:
+    st.session_state["cooperatives_accessibles"] = []
 
-    Si oui, incrémente le compteur et renvoie True. Sinon, renvoie False.
-    """
+# --- ÉCRAN DE CONNEXION UNIVERSEL ---
+if not st.session_state["user"]:
+    st.title("🔐 Authentification Centralisée - L.E.Y.L.A.")
+    st.markdown("##### Connectez-vous avec vos identifiants réseau L.E.Y.L.A.")
+
+    col_email, col_pass = st.columns(2)
+    with col_email:
+        email = st.text_input("Adresse Email professionnelle :")
+    with col_pass:
+        password = st.text_input("Mot de passe :", type="password")
+
+    if st.button("🔓 Se connecter", type="primary"):
+        if email and password and supabase:
+            try:
+                # 1. Authentification Supabase Auth
+                auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                user = auth_resp.user
+                
+                # 2. Récupération du profil et du cabinet rattaché
+                profile_resp = supabase.table("profiles").select("*, cabinets(*)").eq("id", user.id).single().execute()
+                profile = profile_resp.data
+                cabinet = profile.get("cabinets")
+
+                # 3. Récupération dynamique des coopératives du cabinet
+                coops_resp = supabase.table("cooperatives").select("*").eq("cabinet_id", cabinet["id"]).execute()
+                
+                # Stockage en session Streamlit
+                st.session_state["user"] = user
+                st.session_state["profile"] = profile
+                st.session_state["cabinet_actif"] = cabinet
+                st.session_state["cooperatives_accessibles"] = coops_resp.data
+
+                st.success(f"Bienvenue {profile.get('nom_utilisateur', '')} — Cabinet : {cabinet['nom']}")
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Échec d'authentification : {e}")
+        else:
+            st.warning("Veuillez saisir votre email et votre mot de passe.")
+    st.stop()
+
+# Charger les informations de session courante
+cabinet_courant = st.session_state["cabinet_actif"]
+user_profile = st.session_state["profile"]
+liste_cooperatives = st.session_state["cooperatives_accessibles"]
+
+# ==========================================
+# 3. EN-TÊTE DYNAMIQUE ET SÉLECTEUR DE COOPÉRATIVE
+# ==========================================
+st.sidebar.title(f"🏢 {cabinet_courant['nom']}")
+st.sidebar.caption(f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisateur')}")
+
+# Sélecteur dynamique de coopérative basé sur la BDD
+options_coop = {"Toutes les coopératives (Vue Direction)": "ALL"}
+for coop in liste_cooperatives:
+    options_coop[coop["nom"]] = coop["code_db"]
+
+coop_selectionnee_label = st.sidebar.selectbox("Sélectionner la Coopérative :", list(options_coop.keys()))
+code_coop_filtre = options_coop[coop_selectionnee_label]
+
+if st.sidebar.button("Déconnexion"):
+    supabase.auth.sign_out()
+    st.session_state.clear()
+    st.rerun()
+
+# ==========================================
+# 4. FONCTIONS DE GESTION DES QUOTAS & DONNÉES
+# ==========================================
+def verifier_et_incrementer_quota(cabinet_id: str) -> bool:
+    """Vérifie et consomme le quota d'IA au niveau du Cabinet."""
     if not supabase:
-        return True  # Sécurité si Supabase est déconnecté
+        return True
 
     try:
-        # 1. Lire les crédits de la structure connectée
-        res = (
-            supabase.table("credits_ia")
-            .select("*")
-            .eq("code_structure", code_structure)
-            .execute()
-        )
+        res = supabase.table("credits_ia").select("*").eq("cabinet_id", cabinet_id).execute()
 
         if not res.data:
-            # Si la structure n'est pas encore enregistrée dans la table credits_ia
             return True
 
         donnees = res.data[0]
         consommation = donnees.get("requetes_utilisees", 0)
         limite = donnees.get("quota_mensuel", 20000)
 
-        # 2. Vérifier si le quota est dépassé
         if consommation >= limite:
-            return False  # Quota atteint !
+            return False
 
-        # 3. Incrémenter de +1 la consommation dans Supabase
         supabase.table("credits_ia").update(
             {"requetes_utilisees": consommation + 1}
-        ).eq("code_structure", code_structure).execute()
+        ).eq("cabinet_id", cabinet_id).execute()
 
         return True
 
     except Exception as e:
-        st.warning(f"Impossible de vérifier le quota IA : {e}")
-        return True  # Autorise par défaut en cas d'erreur de lecture
+        st.warning(f"Suivi des quotas indisponible : {e}")
+        return True
 
 
-def reinitialiser_table_pdc_supabase():
-    """Purge les enregistrements PDC de la base Supabase (Zone Admin)."""
-    if not supabase:
-        st.error("Supabase non connecté.")
-        return
-    try:
-        supabase.table("producteurs_parcelles").delete().neq(
-            "id", 0
-        ).execute()
-        st.success("La table des PDC a été purgée avec succès.")
-        st.cache_data.clear()
-        st.rerun()
-    except Exception as e:
-        st.error(f"Erreur lors de la réinitialisation : {e}")
-
-
-def charger_donnees_isolees(
-    module_choisi: str, code_structure_filtre: str
-) -> pd.DataFrame:
-    """Récupère la table unique Supabase et isole strictement les données selon la coopérative et le module."""
+def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtre: str) -> pd.DataFrame:
+    """Isole strictement les données par CABINET (Multi-Tenant) puis par Coopérative."""
     if not supabase:
         return pd.DataFrame()
     try:
-        response = supabase.table("producteurs_parcelles").select("*").execute()
+        # Filtre de base OBLIGATOIRE : cabinet_id
+        query = supabase.table("producteurs_parcelles").select("*").eq("cabinet_id", cabinet_id)
+        
+        # Filtre secondaire : coopérative spécifique
+        if code_coop_filtre != "ALL":
+            query = query.eq("code_cooperative", code_coop_filtre)
+
+        response = query.execute()
         data = response.data
 
         if not data:
@@ -184,38 +165,15 @@ def charger_donnees_isolees(
 
         df_global = pd.DataFrame(data)
 
-        # 1. Filtre strict par coopérative
-        if code_structure_filtre != "ALL":
-            col_coop = (
-                "code_cooperative"
-                if "code_cooperative" in df_global.columns
-                else "code_db"
-            )
-            if col_coop in df_global.columns:
-                df_global = df_global[
-                    df_global[col_coop] == code_structure_filtre
-                ]
-
-        if df_global.empty:
-            return pd.DataFrame()
-
-        # 2. Harmonisation et détection des colonnes de module
-        col_module = (
-            "module_execute"
-            if "module_execute" in df_global.columns
-            else "module_type"
-        )
-
+        # Filtre par module métier
+        col_module = "module_execute" if "module_execute" in df_global.columns else "module_type"
         if col_module not in df_global.columns:
             return pd.DataFrame()
 
         df_global[col_module] = df_global[col_module].fillna("").astype(str)
 
-        # 3. Mappage strict des motifs par module
         MOTIFS_MODULES = {
-            "Géolocalisation & RDUE (Parcelles)": (
-                "géo|parcelle|rdue|superficie"
-            ),
+            "Géolocalisation & RDUE (Parcelles)": "géo|parcelle|rdue|superficie",
             "Diagnostic Phytosanitaire": "diagnostic|phyto|pathologie|sante",
             "Estimation de Rendement": "rendement|estimation|recolte",
             "Plan de Développement (PDC)": "pdc|développement|plan",
@@ -224,17 +182,44 @@ def charger_donnees_isolees(
         motif = MOTIFS_MODULES.get(module_choisi, "")
 
         if motif:
-            df_mod = df_global[
-                df_global[col_module].str.contains(motif, case=False, na=False)
-            ].copy()
+            df_mod = df_global[df_global[col_module].str.contains(motif, case=False, na=False)].copy()
         else:
             df_mod = pd.DataFrame()
 
         return df_mod.reset_index(drop=True)
 
     except Exception as e:
-        st.error(f"Erreur lors de la récupération des données Supabase : {e}")
+        st.error(f"Erreur d'accès à la base Supabase : {e}")
         return pd.DataFrame()
+
+# ==========================================
+# 5. CORPS DE L'APPLICATION STREAMLIT
+# ==========================================
+st.title(f"🌐 L.E.Y.L.A. Serveur Central — {cabinet_courant['nom']}")
+
+modules = [
+    "Plan de Développement (PDC)",
+    "Géolocalisation & RDUE (Parcelles)",
+    "Diagnostic Phytosanitaire",
+    "Estimation de Rendement"
+]
+
+module_actif = st.selectbox("Choisissez le module métier à consulter :", modules)
+
+# Chargement sécurisé et filtré des données
+df_affichage = charger_donnees_isolees(
+    module_choisi=module_actif,
+    cabinet_id=cabinet_courant["id"],
+    code_coop_filtre=code_coop_filtre
+)
+
+st.subheader(f"Données : {module_actif} ({coop_selectionnee_label})")
+
+if not df_affichage.empty:
+    st.dataframe(df_affichage, use_container_width=True)
+else:
+    st.info("Aucune donnée enregistrée pour cette sélection.")
+
 
 
 # ==========================================
