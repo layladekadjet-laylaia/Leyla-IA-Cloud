@@ -1420,76 +1420,45 @@ with st.expander(
 st.divider()
 
 
-# ==========================================
-# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR
-# ==========================================
-if "PDC" in module_choisi:
-    col_titre, col_reset = st.columns([2.5, 1.5])
+    # ---------------------------------------------------------
+    # 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR
+    # ---------------------------------------------------------
+    OPTION_DEFAUT = "--- Sélectionner un producteur ---"
+    options_disponibles = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
 
-    with col_titre:
-        st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
-
-    with col_reset:
-        if st.button(
-            "🔄 Réinitialiser l'affichage PDC", use_container_width=True
-        ):
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            if "pdc_select_box" in st.session_state:
-                del st.session_state["pdc_select_box"]
-            st.success("Interface réinitialisée !")
-            st.rerun()
-
-    if df_filtered.empty:
-        st.info(
-            "ℹ️ Aucun enregistrement PDC disponible. La base de données est"
-            " propre."
+    # Début du bloc st.form (Ligne 1491)
+    with st.form("form_selection_pdc"):
+        choix_utilisateur = st.selectbox(
+            "Sélectionner la fiche d'un producteur :",
+            options_disponibles,
+            key="pdc_select_box",
         )
-    else:
-        df_pdc = df_filtered.copy()
 
-        col_nom = (
-            "nom_producteur"
-            if "nom_producteur" in df_pdc.columns
-            else df_pdc.columns[0]
+        soumis = st.form_submit_button(
+            "Analyser le PDC avec Leïla 🤖",
+            type="primary",
+            use_container_width=True,
         )
-        col_code = (
-            "code_producteur" if "code_producteur" in df_pdc.columns else None
-        )
-        col_id = "id" if "id" in df_pdc.columns else None
 
-        df_pdc = df_pdc[
-            df_pdc[col_nom].notna()
-            & (df_pdc[col_nom].astype(str).str.strip() != "")
-        ].copy()
-
-        if not df_pdc.empty:
-
-            def construire_libelle(row):
-                nom_str = str(row[col_nom]).strip()
-                code_str = (
-                    f" | Code: {row[col_code]}"
-                    if col_code
-                    and pd.notna(row[col_code])
-                    and str(row[col_code]).strip() != ""
-                    else ""
+    # Traitement de la soumission du formulaire
+    if soumis:
+        if choix_utilisateur == OPTION_DEFAUT:
+            st.warning("Veuillez sélectionner un producteur valide dans la liste.")
+        else:
+            if verifier_et_incrementer_quota(cabinet_id_actif):
+                ligne_selectionnee = (
+                    df_pdc[df_pdc["cle_unique"] == choix_utilisateur]
+                    .iloc[0]
+                    .to_dict()
                 )
-                id_str = (
-                    f" | ID #{row[col_id]}"
-                    if col_id and pd.notna(row[col_id])
-                    else ""
+                leila_analyse_pdc_metier(ligne_selectionnee)
+            else:
+                st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
+                st.info(
+                    "Veuillez contacter votre **Fournisseur** pour recharger votre"
+                    " forfait de requêtes L.E.Y.L.A."
                 )
-                return f"{nom_str}{code_str}{id_str}"
 
-            df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
-
-            OPTION_DEFAUT = "--- Sélectionner un producteur ---"
-            options_disponibles = [
-                OPTION_DEFAUT
-            ] + df_pdc["cle_unique"].tolist()
-
-            with st.form("form_selection_pdc"):
-            
 
 # ==========================================
 # 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
