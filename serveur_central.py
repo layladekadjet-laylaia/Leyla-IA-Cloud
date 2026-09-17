@@ -1433,12 +1433,11 @@ if "PDC" in module_choisi:
         st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
 
     with col_reset:
-        # Ajout de la key unique pour le bouton de réinitialisation (Résout l'erreur de la ligne 1434)
         if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True, key="btn_reset_pdc_view"):
             st.cache_data.clear()
             st.cache_resource.clear()
-            if "pdc_select_box" in st.session_state:
-                del st.session_state["pdc_select_box"]
+            if "pdc_select_box_central" in st.session_state:
+                del st.session_state["pdc_select_box_central"]
             st.success("Interface réinitialisée !")
             st.rerun()
 
@@ -1477,11 +1476,12 @@ if "PDC" in module_choisi:
             OPTION_DEFAUT = "--- Sélectionner un producteur ---"
             options_disponibles = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
 
-            with st.form("form_selection_pdc"):
+            # Clef unique garantie pour le formulaire
+            with st.form(key="form_selection_pdc_central"):
                 choix_utilisateur = st.selectbox(
                     "Sélectionner la fiche d'un producteur :",
                     options_disponibles,
-                    key="pdc_select_box",
+                    key="pdc_select_box_central",
                 )
                 soumis = st.form_submit_button(
                     "Analyser le PDC avec Leïla 🤖",
@@ -1506,6 +1506,7 @@ if "PDC" in module_choisi:
                     )
 
     st.divider()
+
 
 
 # ==========================================
