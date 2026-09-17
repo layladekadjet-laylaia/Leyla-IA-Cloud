@@ -1378,7 +1378,6 @@ user_profile = st.session_state.get("profile")
 st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
 st.markdown(f"*Espace de travail connecté : **{cabinet_courant['nom']}***")
 
-# Ajout de la key unique pour la déconnexion
 if st.sidebar.button("🚪 Déconnexion", key="btn_logout_central"):
     supabase.auth.sign_out()
     st.session_state.clear()
@@ -1389,7 +1388,6 @@ st.sidebar.divider()
 cabinet_id_actif = cabinet_courant["id"]
 
 st.sidebar.header("🎛️ Sélection du Module")
-# Ajout de la key unique pour le selectbox du module
 module_choisi = st.sidebar.selectbox(
     "Choisir le domaine d'analyse",
     [
@@ -1414,7 +1412,7 @@ with st.expander(
     expanded=False,
 ):
     if not df_filtered.empty:
-        st.dataframe(df_filtered, use_container_width=True)
+        st.dataframe(df_filtered, width="stretch")
     else:
         st.info(
             f"Aucune donnée enregistrée pour le module {module_choisi} dans cette sélection."
@@ -1433,7 +1431,7 @@ if "PDC" in module_choisi:
         st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
 
     with col_reset:
-        if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True, key="btn_reset_pdc_view"):
+        if st.button("🔄 Réinitialiser l'affichage PDC", width="stretch", key="btn_reset_pdc_view"):
             st.cache_data.clear()
             st.cache_resource.clear()
             if "pdc_select_box_central" in st.session_state:
@@ -1476,7 +1474,6 @@ if "PDC" in module_choisi:
             OPTION_DEFAUT = "--- Sélectionner un producteur ---"
             options_disponibles = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
 
-            # Clef unique garantie pour le formulaire
             with st.form(key="form_selection_pdc_central"):
                 choix_utilisateur = st.selectbox(
                     "Sélectionner la fiche d'un producteur :",
@@ -1486,7 +1483,7 @@ if "PDC" in module_choisi:
                 soumis = st.form_submit_button(
                     "Analyser le PDC avec Leïla 🤖",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
             if soumis:
@@ -1508,17 +1505,14 @@ if "PDC" in module_choisi:
     st.divider()
 
 
-
 # ==========================================
 # 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
 st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
 st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
 
-# Ajout de la key unique pour la saisie de texte
 user_query = st.text_input("Votre requête pour le satellite :", key="input_satellite_query")
 
-# Ajout de la key unique pour le bouton de lancement du satellite
 if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
     if not user_query:
         st.warning("Veuillez saisir une question ou une consigne.")
@@ -1554,6 +1548,7 @@ if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
         st.info(
             "Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A."
         )
+
 
 
 
