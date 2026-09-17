@@ -196,31 +196,30 @@ def verifier_et_incrementer_quota(cabinet_id: str) -> bool:
 
 
 def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtre: str) -> pd.DataFrame:
-    """Isole les données via Supabase RLS et applique un filtre SQL natif sur les modules."""
+    """Isole et charge les données depuis Supabase de manière tolérante."""
     if not supabase:
         return pd.DataFrame()
     try:
-        # 1. Base de la requête sur le cabinet
-        query = supabase.table("producteurs_parcelles").select("*").eq("cabinet_id", cabinet_id)
-        
-        # 2. Application du filtre de coopérative
-        if code_coop_filtre and code_coop_filtre != "ALL":
-            query = query.eq("code_cooperative", code_coop_filtre)
-
-        # 3. Exécution directe pour rapatrier les données de la coopérative
-        response = query.execute()
+        # 1. Requête globale sur la table
+        response = supabase.table("producteurs_parcelles").select("*").execute()
         data = response.data or []
-
-        # 🔍 IMPRESSION DIAGNOSTIC (À PLACER ICI)
-        st.write("🔍 Diagnostic Supabase - Nb lignes trouvées :", len(data))
-        st.write("🔍 Extrait des données brutes :", data)
 
         if not data:
             return pd.DataFrame()
 
         df = pd.DataFrame(data)
 
-        # 4. Filtrage souple en mémoire Python sur le module
+        # 2. Harmonisation du code coopérative (gestion des colonnes cooperative_id / code_cooperative)
+        col_coop = "cooperative_id" if "cooperative_id" in df.columns else "code_cooperative"
+        
+        if col_coop in df.columns and code_coop_filtre and code_coop_filtre != "ALL":
+            # Nettoyage des espaces et comparaison
+            df = df[df[col_coop].astype(str).str.strip().str.upper() == code_coop_filtre.strip().upper()]
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # 3. Filtrage tolérant sur le module (PDC, Géo, etc.)
         MOTIFS_SQL = {
             "(Parcelles)": ["pdc", "géo", "parcelle"],
             "Géolocalisation & RDUE (Parcelles)": ["pdc", "géo", "parcelle"],
@@ -231,8 +230,7 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
 
         mots_cles = MOTIFS_SQL.get(module_choisi, ["pdc"])
         
-        # Vérification si les colonnes existent dans le DataFrame
-        cols_a_verifier = [c for c in ["module_execute", "module_type"] if c in df.columns]
+        cols_a_verifier = [c for c in ["module_type", "module_execute"] if c in df.columns]
         
         if cols_a_verifier:
             masque = False
@@ -247,8 +245,9 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
         return df.reset_index(drop=True)
 
     except Exception as e:
-        st.error(f"Erreur d'accès à la base Supabase : {e}")
+        st.error(f"Erreur lors du chargement des données : {e}")
         return pd.DataFrame()
+
 
 
 
