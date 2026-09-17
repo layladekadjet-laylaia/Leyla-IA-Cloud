@@ -1405,16 +1405,14 @@ df_filtered = charger_donnees_isolees(
 st.subheader(f"📊 Module actif : {module_choisi}")
 
 with st.expander(
-    f"📁 Afficher / Masquer les données brutes ({len(df_filtered)}"
-    " enregistrement(s))",
+    f"📁 Afficher / Masquer les données brutes ({len(df_filtered)} enregistrement(s))",
     expanded=False,
 ):
     if not df_filtered.empty:
         st.dataframe(df_filtered, use_container_width=True)
     else:
         st.info(
-            "Aucune donnée enregistrée pour le module"
-            f" {module_choisi} dans cette sélection."
+            f"Aucune donnée enregistrée pour le module {module_choisi} dans cette sélection."
         )
 
 st.divider()
@@ -1430,9 +1428,7 @@ if "PDC" in module_choisi:
         st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
 
     with col_reset:
-        if st.button(
-            "🔄 Réinitialiser l'affichage PDC", use_container_width=True
-        ):
+        if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True):
             st.cache_data.clear()
             st.cache_resource.clear()
             if "pdc_select_box" in st.session_state:
@@ -1441,37 +1437,26 @@ if "PDC" in module_choisi:
             st.rerun()
 
     if df_filtered.empty:
-        st.info(
-            "ℹ️ Aucun enregistrement PDC disponible. La base de données est"
-            " propre."
-        )
+        st.info("ℹ️ Aucun enregistrement PDC disponible. La base de données est propre.")
     else:
         df_pdc = df_filtered.copy()
 
-        col_nom = (
-            "nom_producteur"
-            if "nom_producteur" in df_pdc.columns
-            else df_pdc.columns[0]
-        )
-        col_code = (
-            "code_producteur" if "code_producteur" in df_pdc.columns else None
-        )
+        col_nom = "nom_producteur" if "nom_producteur" in df_pdc.columns else df_pdc.columns[0]
+        col_code = "code_producteur" if "code_producteur" in df_pdc.columns else None
         col_id = "id" if "id" in df_pdc.columns else None
 
         df_pdc = df_pdc[
-            df_pdc[col_nom].notna()
-            & (df_pdc[col_nom].astype(str).str.strip() != "")
+            df_pdc[col_nom].notna() & (df_pdc[col_nom].astype(str).str.strip() != "")
         ].copy()
 
-        if not df_pdc.empty:
-
+        if df_pdc.empty:
+            st.warning("Aucun nom de producteur valide trouvé dans les enregistrements.")
+        else:
             def construire_libelle(row):
                 nom_str = str(row[col_nom]).strip()
                 code_str = (
                     f" | Code: {row[col_code]}"
-                    if col_code
-                    and pd.notna(row[col_code])
-                    and str(row[col_code]).strip() != ""
+                    if col_code and pd.notna(row[col_code]) and str(row[col_code]).strip() != ""
                     else ""
                 )
                 id_str = (
@@ -1483,11 +1468,8 @@ if "PDC" in module_choisi:
 
             df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
 
-            # Ligne 1426 : alignée sous le 'if not df_pdc.empty:'
             OPTION_DEFAUT = "--- Sélectionner un producteur ---"
-            options_disponibles = [
-                OPTION_DEFAUT
-            ] + df_pdc["cle_unique"].tolist()
+            options_disponibles = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
 
             with st.form("form_selection_pdc"):
                 choix_utilisateur = st.selectbox(
@@ -1495,7 +1477,6 @@ if "PDC" in module_choisi:
                     options_disponibles,
                     key="pdc_select_box",
                 )
-
                 soumis = st.form_submit_button(
                     "Analyser le PDC avec Leïla 🤖",
                     type="primary",
@@ -1504,41 +1485,27 @@ if "PDC" in module_choisi:
 
             if soumis:
                 if choix_utilisateur == OPTION_DEFAUT:
-                    st.warning(
-                        "Veuillez sélectionner un producteur valide dans la"
-                        " liste."
+                    st.warning("Veuillez sélectionner un producteur valide dans la liste.")
+                elif verifier_et_incrementer_quota(cabinet_id_actif):
+                    ligne_selectionnee = (
+                        df_pdc[df_pdc["cle_unique"] == choix_utilisateur]
+                        .iloc[0]
+                        .to_dict()
                     )
+                    leila_analyse_pdc_metier(ligne_selectionnee)
                 else:
-                    if verifier_et_incrementer_quota(cabinet_id_actif):
-                        ligne_selectionnee = (
-                            df_pdc[df_pdc["cle_unique"] == choix_utilisateur]
-                            .iloc[0]
-                            .to_dict()
-                        )
-                        leila_analyse_pdc_metier(ligne_selectionnee)
-                    else:
-                        st.error(
-                            "🚫 **Quota d'analyses IA mensuel atteint pour votre"
-                            " cabinet.**"
-                        )
-                        st.info(
-                            "Veuillez contacter le **Cabinet AGRIFORCE** pour"
-                            " recharger votre forfait de requêtes L.E.Y.L.A."
-                        )
-        else:
-            st.warning(
-                "Aucun nom de producteur valide trouvé dans les"
-                " enregistrements."
-            )
+                    st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
+                    st.info(
+                        "Veuillez contacter le **Cabinet AGRIFORCE** pour recharger votre forfait de requêtes L.E.Y.L.A."
+                    )
 
-st.divider()
+    st.divider()
 
 
 # ==========================================
 # 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
 st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
-
 st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
 
 user_query = st.text_input("Votre requête pour le satellite :")
@@ -1546,41 +1513,37 @@ user_query = st.text_input("Votre requête pour le satellite :")
 if st.button("Lancer l'analyse du satellite"):
     if not user_query:
         st.warning("Veuillez saisir une question ou une consigne.")
+    elif verifier_et_incrementer_quota(cabinet_id_actif):
+        with st.spinner(f"Le satellite analyse exclusivement les données de {module_choisi}..."):
+            try:
+                contexte_donnees = (
+                    df_filtered.to_string(index=False)
+                    if not df_filtered.empty
+                    else "Aucune donnée disponible pour ce module."
+                )
+
+                prompt_complet = (
+                    "Tu es L.E.Y.L.A., l'intelligence artificielle centrale pour la gestion agricole.\n"
+                    f"Cabinet actif : {cabinet_courant['nom']}\n"
+                    f"Module en cours d'analyse : {module_choisi}\n"
+                    "Données brutes exclusives à ce module :\n"
+                    f"{contexte_donnees}\n\n"
+                    f"Consigne / Question de l'administrateur : {user_query}\n\n"
+                    "Fournis une analyse professionnelle, claire et axée uniquement sur ce module."
+                )
+
+                historique_fictif = [{"role": "user", "content": prompt_complet}]
+                reponse_satellite = rechercher_sur_le_web(historique_fictif)
+
+                st.success("Rapport du Satellite L.E.Y.L.A. :")
+                st.write(reponse_satellite.get("texte", ""))
+
+            except Exception as e:
+                st.error(f"Erreur lors de la communication avec le satellite : {e}")
     else:
-        # CORRECTION : Passage du cabinet_id (UUID) pour la vérification du quota
-        if verifier_et_incrementer_quota(cabinet_id_actif):
-            with st.spinner(f"Le satellite analyse exclusivement les données de {module_choisi}..."):
-                try:
-                    contexte_donnees = (
-                        df_filtered.to_string(index=False)
-                        if not df_filtered.empty
-                        else "Aucune donnée disponible pour ce module."
-                    )
+        st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
+        st.info(
+            "Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A."
+        )
 
-                    prompt_complet = (
-                        "Tu es L.E.Y.L.A., l'intelligence artificielle centrale pour la gestion"
-                        " agricole.\n"
-                        f"Cabinet actif : {cabinet_courant['nom']}\n"
-                        f"Module en cours d'analyse : {module_choisi}\n"
-                        "Données brutes exclusives à ce module :\n"
-                        f"{contexte_donnees}\n\n"
-                        f"Consigne / Question de l'administrateur : {user_query}\n\n"
-                        "Fournis une analyse professionnelle, claire et axée uniquement sur ce"
-                        " module."
-                    )
-
-                    historique_fictif = [{"role": "user", "content": prompt_complet}]
-                    reponse_satellite = rechercher_sur_le_web(historique_fictif)
-
-                    st.success("Rapport du Satellite L.E.Y.L.A. :")
-                    st.write(reponse_satellite.get("texte", ""))
-
-                except Exception as e:
-                    st.error(f"Erreur lors de la communication avec le satellite : {e}")
-        else:
-            st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
-            st.info(
-                "Veuillez contacter votre **Fournisseur** pour recharger votre forfait de"
-                " requêtes L.E.Y.L.A."
-            )
 
