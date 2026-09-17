@@ -174,27 +174,24 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     if not supabase:
         return pd.DataFrame()
     try:
-        # Correspondance incluant explicitement 'PDC' et les variantes de la sidebar
+        # Correspondance des modules
         MOTIFS_SQL = {
-            "(Parcelles)": "PDC,géo,parcelle,rdue",
-            "Géolocalisation & RDUE (Parcelles)": "PDC,géo,parcelle,rdue",
-            "Diagnostic Phytosanitaire": "diagnostic,phyto,pathologie,sante",
-            "Estimation de Rendement": "rendement,estimation,recolte",
-            "Plan de Développement (PDC)": "PDC,pdc,développement,plan",
+            "(Parcelles)": ["PDC", "géo", "parcelle"],
+            "Géolocalisation & RDUE (Parcelles)": ["PDC", "géo", "parcelle"],
+            "Diagnostic Phytosanitaire": ["diagnostic", "phyto"],
+            "Estimation de Rendement": ["rendement", "estimation"],
+            "Plan de Développement (PDC)": ["PDC", "pdc", "plan"]
         }
 
-        # Construction de la requête avec RLS (le filtre cabinet_id est sécurisé côté BDD)
         query = supabase.table("producteurs_parcelles").select("*").eq("cabinet_id", cabinet_id)
         
         if code_coop_filtre != "ALL":
             query = query.eq("code_cooperative", code_coop_filtre)
 
-        # Extraction des mots-clés de recherche
-        mots_cles = MOTIFS_SQL.get(module_choisi, "PDC").split(",")
-        if mots_cles and mots_cles[0]:
-            # Filtre OR ciblant module_execute ET module_type
-            conditions = ",".join([f"module_execute.ilike.%{m}%,module_type.ilike.%{m}%" for m in mots_cles])
-            query = query.or_(conditions)
+        # Filtre sur module_execute ou module_type
+        mots_cles = MOTIFS_SQL.get(module_choisi, ["PDC"])
+        conditions = ",".join([f"module_execute.ilike.%{m}%,module_type.ilike.%{m}%" for m in mots_cles])
+        query = query.or_(conditions)
 
         response = query.execute()
         data = response.data
@@ -207,7 +204,6 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     except Exception as e:
         st.error(f"Erreur d'accès à la base Supabase : {e}")
         return pd.DataFrame()
-
 
 
 
