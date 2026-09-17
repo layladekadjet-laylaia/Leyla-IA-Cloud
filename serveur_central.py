@@ -196,7 +196,7 @@ def verifier_et_incrementer_quota(cabinet_id: str) -> bool:
 
 
 def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtre: str) -> pd.DataFrame:
-    """Isole et charge les données depuis Supabase de manière tolérante."""
+    """Isole et filtre strictement les données par module métier."""
     if not supabase:
         return pd.DataFrame()
     try:
@@ -209,27 +209,24 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
 
         df = pd.DataFrame(data)
 
-        # 2. Harmonisation du code coopérative (gestion des colonnes cooperative_id / code_cooperative)
+        # 2. Filtrage par coopérative
         col_coop = "cooperative_id" if "cooperative_id" in df.columns else "code_cooperative"
-        
         if col_coop in df.columns and code_coop_filtre and code_coop_filtre != "ALL":
-            # Nettoyage des espaces et comparaison
             df = df[df[col_coop].astype(str).str.strip().str.upper() == code_coop_filtre.strip().upper()]
 
         if df.empty:
             return pd.DataFrame()
 
-        # 3. Filtrage tolérant sur le module (PDC, Géo, etc.)
+        # 3. Mots-clés associés à chaque module
         MOTIFS_SQL = {
             "(Parcelles)": ["pdc", "géo", "parcelle"],
-            "Géolocalisation & RDUE (Parcelles)": ["pdc", "géo", "parcelle"],
-            "Diagnostic Phytosanitaire": ["diagnostic", "phyto"],
+            "Géolocalisation & RDUE (Parcelles)": ["géo", "rdue", "parcelle", "geolocalisation"],
+            "Diagnostic Phytosanitaire": ["diagnostic", "phyto", "phytosanitaire"],
             "Estimation de Rendement": ["rendement", "estimation"],
             "Plan de Développement (PDC)": ["pdc", "plan"]
         }
 
-        mots_cles = MOTIFS_SQL.get(module_choisi, ["pdc"])
-        
+        mots_cles = MOTIFS_SQL.get(module_choisi, [module_choisi.lower()])
         cols_a_verifier = [c for c in ["module_type", "module_execute"] if c in df.columns]
         
         if cols_a_verifier:
@@ -238,15 +235,15 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
                 for mc in mots_cles:
                     masque |= df[col].astype(str).str.lower().str.contains(mc, na=False)
             
-            df_filtre = df[masque]
-            if not df_filtre.empty:
-                return df_filtre.reset_index(drop=True)
+            # Retourne uniquement les lignes qui correspondent au filtre du module
+            return df[masque].reset_index(drop=True)
 
-        return df.reset_index(drop=True)
+        return pd.DataFrame()
 
     except Exception as e:
         st.error(f"Erreur lors du chargement des données : {e}")
         return pd.DataFrame()
+
 
 
 
@@ -258,7 +255,7 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
 # ==========================================
 st.title(f"🌐 L.E.Y.L.A. Serveur Central — {cabinet_courant['nom']}")
 
-modules = [
+modules = [.               
     "Plan de Développement (PDC)",
     "Géolocalisation & RDUE (Parcelles)",
     "Diagnostic Phytosanitaire",
