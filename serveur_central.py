@@ -280,6 +280,9 @@ else:
 # 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC 3.0)
 # ==========================================
 
+import json
+import streamlit as st
+
 def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
     """Extraction intégrale et granulaire des structures complexes du JSON PDC."""
     raw_pdc = {}
@@ -338,15 +341,27 @@ def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
     prod_historique = raw_pdc.get("prod_historique") or raw_pdc.get("df_prod_historique") or []
     plan_action = raw_pdc.get("plan_quinquennal") or raw_pdc.get("plan_quinquennal_detail") or []
 
+    # --- CORRECTION DE L'EXTRACTION DES SUPERFICIES ---
     surf_totale = to_float(desc_expl.get("superficie_totale", raw_pdc.get("superficie", 0.0)))
     surf_cacao_prod = to_float(desc_expl.get("superficie_cacao_productif", 0.0))
     surf_cacao_jeune = to_float(desc_expl.get("superficie_cacao_immature", 0.0))
 
+    # 1. Si non spécifié dans desc_expl, on tente la somme dans le tableau des cultures
     if surf_cacao_prod == 0.0 and isinstance(cultures, list):
         for c in cultures:
             nom_c = str(c.get("Culture", "")).lower()
             if "cacao" in nom_c:
                 surf_cacao_prod += to_float(c.get("Superficie (ha)", 0.0))
+
+    # 2. Fallback propre : si toujours 0, on prend surf_totale sans double addition
+    if surf_cacao_prod == 0.0:
+        surf_cacao_prod = surf_totale
+
+    # 3. Ajustement de sécurité : si surf_totale est inférieure à surf_cacao_prod (saisie incomplète)
+    if surf_totale > 0 and surf_cacao_prod > surf_totale:
+        # Si la différence est minime (arrondi), on harmonise
+        if (surf_cacao_prod - surf_totale) <= 0.05:
+            surf_cacao_prod = surf_totale
 
     # Calcul dépenses du foyer
     total_depenses_foyer_an = 0.0
@@ -375,7 +390,7 @@ def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
         "localite": f"{raw_pdc.get('sous_prefecture', raw_pdc.get('departement', 'N/A'))} / {raw_pdc.get('village', 'N/A')}",
         "statut_foncier": str(desc_expl.get("statut_foncier", "Non précisé")),
         "superficie_totale": surf_totale,
-        "superficie_cacao_prod": surf_cacao_prod if surf_cacao_prod > 0 else surf_totale,
+        "superficie_cacao_prod": surf_cacao_prod,
         "superficie_cacao_jeune": surf_cacao_jeune,
         "age_moyen_verger": str(desc_expl.get("age_moyen", "Non précisé")),
         "relief_sol": desc_expl.get("relief_sol", []),
@@ -417,8 +432,9 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     # 0. CONTRÔLE QUALITÉ DES DONNÉES (AUDIT AUTOMATIQUE)
     # ---------------------------------------------------------
     anomalies = []
-    if p["superficie_cacao_prod"] > p["superficie_totale"] and p["superficie_totale"] > 0:
-        anomalies.append("La superficie en cacao productif dépasse la superficie totale déclarée.")
+    # Marge de sécurité de 0.01 ha pour éviter les déclenchements dus aux arrondis float
+    if p["superficie_totale"] > 0 and (p["superficie_cacao_prod"] - p["superficie_totale"]) > 0.01:
+        anomalies.append(f"La superficie en cacao productif ({p['superficie_cacao_prod']:.2f} ha) dépasse la superficie totale déclarée ({p['superficie_totale']:.2f} ha).")
     if p["revenu_total_estime"] > 0 and p["charges_totales_estimees"] > p["revenu_total_estime"]:
         anomalies.append("Les charges de production déclarées sont supérieures au revenu brut.")
 
@@ -513,8 +529,9 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         st.write("• **Ramassage des cabosses mûres :** Fréquence tous les 10-14 jours pour prévenir les attaques de ravageurs.")
         st.write("• **EPI & Matériel :** Révision des atomiseurs et mise aux normes des équipements de protection individuel.")
 
+
 def generer_synthese_narrative_leila(p: dict, score_global: int, ratio_arbres_ha: float, roi_5ans: float) -> str:
-    """Génère une synthèse narrative métier 100% cohérente avec l'analyse LEÏLA."""
+    """Génère une synthèse narrative métier 100% coherent avec l'analyse LEÏLA."""
     
     surf_cacao = max(0.1, p["superficie_cacao_prod"] + p["superficie_cacao_jeune"])
     
@@ -543,6 +560,7 @@ def generer_synthese_narrative_leila(p: dict, score_global: int, ratio_arbres_ha
         finance = "La capacité d'autofinancement actuelle est critique. Un préfinancement ou une restructuration des charges est indispensable."
 
     return intro + agro + orient + finance
+
 
 
 
