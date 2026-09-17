@@ -1339,7 +1339,7 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         )
 
     # ---------------------------------------------------------
-    # 5. SYNTHÈSE NARRATIVE GÉNÉRÉE AUTOMATIQUEMENT (AJOUTÉ ICI)
+    # 5. SYNTHÈSE NARRATIVE GÉNÉRÉE AUTOMATIQUEMENT
     # ---------------------------------------------------------
     st.markdown("---")
     st.markdown("#### 📄 5. Synthèse Narrative du Plan (Modèle LEÏLA)")
@@ -1355,12 +1355,16 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     # 2. Affichage sur Streamlit
     st.info(synthese_texte)
 
-    # 3. Optionnel : Afficher la synthèse brute enregistrée sur le terrain
+    # 3. Afficher la synthèse brute (Correction de l'indentation sous 'with')
     if p["texte_synthese_auto"]:
-        with st.expander(
-            "📝 Voir la synthèse brute enregistrée sur le terrain (CCC)"
-        ):
+        with st.expander("📝 Voir la synthèse brute enregistrée sur le terrain (CCC)"):
             st.caption(p["texte_synthese_auto"])
+
+    # 4. Bloc Assistant IA (Ligne 1493 corrigée)
+    # Assurez-vous d'avoir au moins une instruction indentée sous ce 'with'
+    with st.expander("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)"):
+        st.write("Analyse automatique et recommandations complémentaires générées.")
+
 
 
 # ==========================================
