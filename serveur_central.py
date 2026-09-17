@@ -513,9 +513,36 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         st.write("• **Ramassage des cabosses mûres :** Fréquence tous les 10-14 jours pour prévenir les attaques de ravageurs.")
         st.write("• **EPI & Matériel :** Révision des atomiseurs et mise aux normes des équipements de protection individuel.")
 
-    if p["texte_synthese_auto"]:
-        with st.expander("📄 Synthèse narrative officielle (Modèle CCC)"):
-            st.write(p["texte_synthese_auto"])
+def generer_synthese_narrative_leila(p: dict, score_global: int, ratio_arbres_ha: float, roi_5ans: float) -> str:
+    """Génère une synthèse narrative métier 100% cohérente avec l'analyse LEÏLA."""
+    
+    surf_cacao = max(0.1, p["superficie_cacao_prod"] + p["superficie_cacao_jeune"])
+    
+    # 1. Introduction & Contexte
+    intro = (
+        f"L'exploitation de M./Mme {p['nom_producteur']} (Code CCC : {p['code_ccc']}), "
+        f"localisée à {p['localite']}, couvre une superficie totale de {p['superficie_totale']:.1f} ha, "
+        f"dont {surf_cacao:.1f} ha dédiés à la culture du cacao ({p['statut_foncier']}). "
+    )
+    
+    # 2. Diagnostic Technique & RDUE
+    if ratio_arbres_ha >= 18.0:
+        agro = f"Sur le plan environnemental, la parcelle présente une densité d'ombrage conforme aux normes RDUE ({ratio_arbres_ha:.1f} arbres/ha). "
+    else:
+        manque = int((18.0 * surf_cacao) - p['total_arbres_ombrage'])
+        agro = f"Sur le plan environnemental, un déficit agroforestier est identifié ({ratio_arbres_ha:.1f} arbres/ha). L'introduction de {manque} plants d'ombrage est obligatoire pour la conformité RDUE. "
+        
+    # 3. Orientations & Bilan Financier
+    orient = f"L'orientation stratégique retenue est la **{p['decision_retenue']}**. "
+    
+    if score_global >= 75:
+        finance = f"Le profil financier du ménage est solide avec un gain net estimé à {roi_5ans:,.0f} FCFA sur 5 ans, rendant le projet hautement bancable."
+    elif score_global >= 50:
+        finance = f"Le plan quinquennal nécessite un accompagnement financier partiel pour couvrir le budget de {p['budget_total_5ans']:,.0f} FCFA."
+    else:
+        finance = "La capacité d'autofinancement actuelle est critique. Un préfinancement ou une restructuration des charges est indispensable."
+
+    return intro + agro + orient + finance
 
 
 
