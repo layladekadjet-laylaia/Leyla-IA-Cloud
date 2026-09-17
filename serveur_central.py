@@ -276,17 +276,14 @@ else:
 
 
 
-
 # ==========================================
-# 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC)
+# 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC 3.0)
 # ==========================================
 
-
-def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
-    """Extraction robuste et récursive des données PDC peu importe le format de stockage (session_state ou DB)."""
+def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
+    """Extraction intégrale et granulaire des structures complexes du JSON PDC."""
     raw_pdc = {}
 
-    # 1. Sélection de la source JSON/dict brute
     source = (
         donnees_producteur.get("observations_diagnostic")
         or donnees_producteur.get("reponses_pdc")
@@ -295,7 +292,6 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
         or {}
     )
 
-    # 2. Conversion JSON -> Dict si la source est stockée sous forme de texte (String)
     if isinstance(source, str) and source.strip().startswith("{"):
         try:
             raw_pdc = json.loads(source)
@@ -306,21 +302,6 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
 
     if not raw_pdc:
         raw_pdc = donnees_producteur
-
-    # 3. Fonction utilitaire de recherche récursive
-    def chercher_valeur(cles_possibles, default=None):
-        for key, val in raw_pdc.items():
-            if val is not None and str(val).strip() != "":
-                if any(k.lower() in key.lower() for k in cles_possibles):
-                    return val
-
-        for sub_k, sub_v in raw_pdc.items():
-            if isinstance(sub_v, dict):
-                for k, v in sub_v.items():
-                    if v is not None and str(v).strip() != "":
-                        if any(kp.lower() in k.lower() for kp in cles_possibles):
-                            return v
-        return default
 
     def to_float(val, default=0.0):
         try:
@@ -344,327 +325,198 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
         except Exception:
             return default
 
-    desc_expl = raw_pdc.get("description_exploitation", {})
+    desc_expl = raw_pdc.get("description_exploitation") or {}
     if not isinstance(desc_expl, dict):
         desc_expl = {}
 
-    facteurs = raw_pdc.get("facteurs_succes", {})
-    if not isinstance(facteurs, dict):
-        facteurs = {}
+    cultures = raw_pdc.get("cultures_et_revenus") or raw_pdc.get("tableau_cultures") or []
+    arbres = raw_pdc.get("inventaire_arbres") or raw_pdc.get("tableau_arbres") or []
+    sante = raw_pdc.get("sante_cacaoyere") or []
+    densite_carres = raw_pdc.get("donnees_densite") or []
+    sol_caract = raw_pdc.get("caracteristiques_sol") or raw_pdc.get("df_sol_caract") or []
+    depenses_foyer = raw_pdc.get("depenses_foyer") or []
+    prod_historique = raw_pdc.get("prod_historique") or raw_pdc.get("df_prod_historique") or []
+    plan_action = raw_pdc.get("plan_quinquennal") or raw_pdc.get("plan_quinquennal_detail") or []
 
-    # 4. Restitution du dictionnaire avec extraction dynamique des clés
+    surf_totale = to_float(desc_expl.get("superficie_totale", raw_pdc.get("superficie", 0.0)))
+    surf_cacao_prod = to_float(desc_expl.get("superficie_cacao_productif", 0.0))
+    surf_cacao_jeune = to_float(desc_expl.get("superficie_cacao_immature", 0.0))
+
+    if surf_cacao_prod == 0.0 and isinstance(cultures, list):
+        for c in cultures:
+            nom_c = str(c.get("Culture", "")).lower()
+            if "cacao" in nom_c:
+                surf_cacao_prod += to_float(c.get("Superficie (ha)", 0.0))
+
+    # Calcul dépenses du foyer
+    total_depenses_foyer_an = 0.0
+    for d in depenses_foyer:
+        m = to_float(d.get("Montant moyen (FCFA)", 0.0))
+        p = str(d.get("Périodicité", "")).lower()
+        if "mois" in p and "2" not in p:
+            total_depenses_foyer_an += m * 12
+        elif "2 mois" in p:
+            total_depenses_foyer_an += m * 6
+        else:
+            total_depenses_foyer_an += m
+
     return {
         "nom_producteur": str(
-            donnees_producteur.get("nom_producteur")
-            or raw_pdc.get("nom_prenoms_producteur")
+            raw_pdc.get("nom_prenoms_producteur")
             or raw_pdc.get("nom_producteur")
+            or donnees_producteur.get("nom_producteur")
             or "Producteur Inconnu"
         ).strip(),
         "code_ccc": str(
-            donnees_producteur.get("code_producteur")
+            raw_pdc.get("code_producteur")
             or raw_pdc.get("code_national_producteur")
-            or raw_pdc.get("code_producteur")
-            or "CCC-N/A"
+            or "CCC-Non renseigné"
         ).strip(),
-        "delegation": str(chercher_valeur(["delegation_regionale", "region", "delegation"], "Non spécifiée")),
-        "departement": str(chercher_valeur(["departement"], "Non spécifié")),
-        "village": str(chercher_valeur(["village", "localite", "section"], "Non spécifié")),
-        "statut_foncier": str(
-            desc_expl.get(
-                "statut_foncier",
-                chercher_valeur(["statut_foncier", "foncier"], "Inconnu"),
-            )
-        ),
-        "superficie_totale": to_float(
-            desc_expl.get(
-                "superficie_totale",
-                chercher_valeur(["superficie_totale", "superficie", "surf_totale"], 0.0),
-            )
-        ),
-        "superficie_cacao_prod": to_float(
-            desc_expl.get(
-                "superficie_cacao_productif",
-                chercher_valeur(["cacao_productif", "surf_cacao_prod"], 0.0),
-            )
-        ),
-        "superficie_cacao_jeune": to_float(
-            desc_expl.get(
-                "superficie_cacao_immature",
-                chercher_valeur(["cacao_immature", "surf_cacao_jeune"], 0.0),
-            )
-        ),
-        "age_moyen_verger": str(
-            desc_expl.get(
-                "age_moyen",
-                chercher_valeur(["age_moyen", "age_verger"], "Non précisé"),
-            )
-        ),
+        "localite": f"{raw_pdc.get('sous_prefecture', raw_pdc.get('departement', 'N/A'))} / {raw_pdc.get('village', 'N/A')}",
+        "statut_foncier": str(desc_expl.get("statut_foncier", "Non précisé")),
+        "superficie_totale": surf_totale,
+        "superficie_cacao_prod": surf_cacao_prod if surf_cacao_prod > 0 else surf_totale,
+        "superficie_cacao_jeune": surf_cacao_jeune,
+        "age_moyen_verger": str(desc_expl.get("age_moyen", "Non précisé")),
         "relief_sol": desc_expl.get("relief_sol", []),
         "contraintes_parcelle": desc_expl.get("contraintes", []),
-        "waypoint_gps": str(
-            desc_expl.get("waypoint_gps", "Coordonnées non saisies")
-        ),
-        "texte_synthese_auto": str(desc_expl.get("texte_synthese_auto", "")),
-        "nb_arbres_forestiers": to_int(
-            desc_expl.get(
-                "nb_arbres_forestiers",
-                chercher_valeur(["nb_arbres_forestiers", "arbres"], 0),
-            )
-        ),
-        "essences_arbres": desc_expl.get("essences_arbres", []),
-        "densite_ombrage": str(
-            desc_expl.get("densite_ombrage", "Non évaluée")
-        ),
-        "inventaire_arbres_detail": raw_pdc.get("inventaire_arbres", []),
-        "situation_epargne": raw_pdc.get("situation_epargne", []),
-        "situation_main_oeuvre": raw_pdc.get("situation_main_oeuvre", []),
-        "solde_net_estime": to_float(
-            chercher_valeur(["solde_net_estime", "solde_net", "solde"], 0.0)
-        ),
-        "budget_annuel_total": to_float(
-            raw_pdc.get(
-                "budget_annuel_total",
-                raw_pdc.get(
-                    "budget_annee_1",
-                    chercher_valeur(["budget_annuel", "budget_annee_1"], 0.0),
-                ),
-            )
-        ),
-        "budget_total_5ans": to_float(
-            raw_pdc.get(
-                "budget_total_5ans",
-                raw_pdc.get(
-                    "budget_global_5ans",
-                    chercher_valeur(["budget_5ans", "total_5ans"], 0.0),
-                ),
-            )
-        ),
-        "decision_retenue": str(
-            raw_pdc.get(
-                "decision_retenue",
-                chercher_valeur(
-                    ["decision_retenue", "decision"], "À déterminer"
-                ),
-            )
-        ),
-        "plan_quinquennal_detail": raw_pdc.get(
-            "plan_quinquennal_detail", raw_pdc.get("df_plan_action_5ans", [])
-        ),
-        "programme_annuel_detail": raw_pdc.get(
-            "programme_annuel_detail", raw_pdc.get("df_programme_annuel", [])
-        ),
-        "moyens_fiche8_details": raw_pdc.get("moyens_fiche8_details", []),
-        "cultures_et_revenus": raw_pdc.get("cultures_et_revenus", []),
-        "materiel_agricole": raw_pdc.get("materiel_agricole", []),
-        "facteurs_internes": facteurs.get("facteurs_internes", []),
-        "soutiens_attendus": facteurs.get("soutiens_attendus", []),
-        "risques_identifies": facteurs.get("risques_identifies", []),
-        "mesures_mitigation": str(
-            facteurs.get("mesures_mitigation", "Aucune mesure spécifiée")
-        ),
-    }
-
-
-
-def leila_analyse_avancee_rdue_et_rendement(p: dict) -> dict:
-    """Analyse décisionnelle poussée : Conformité RDUE, Projections de production et Analyse de Sensibilité."""
-    surf_cacao = p["superficie_cacao_prod"] + p["superficie_cacao_jeune"]
-    ratio_arbres_ha = (
-        (p["nb_arbres_forestiers"] / surf_cacao) if surf_cacao > 0 else 0.0
-    )
-    rdue_conforme = ratio_arbres_ha >= 18.0
-
-    prix_kg_cacao = 1500
-    rendement_actuel_estime = (
-        (p["solde_net_estime"] / prix_kg_cacao)
-        if p["solde_net_estime"] > 0
-        else (surf_cacao * 400)
-    )
-
-    if p["decision_retenue"] == "Réhabilitation":
-        rendement_cible_a3 = surf_cacao * 800
-    elif p["decision_retenue"] == "Replantation":
-        rendement_cible_a3 = surf_cacao * 1000
-    else:
-        rendement_cible_a3 = surf_cacao * 500
-
-    gain_brut_estime_a3 = (
-        rendement_cible_a3 - (rendement_actuel_estime / prix_kg_cacao)
-    ) * prix_kg_cacao
-    revenu_choc_prix = (p["solde_net_estime"] * 0.8) - p["budget_annuel_total"]
-
-    return {
-        "ratio_arbres_ha": ratio_arbres_ha,
-        "rdue_conforme": rdue_conforme,
-        "gain_brut_estime_a3": max(0.0, gain_brut_estime_a3),
-        "resilience_choc_financier": revenu_choc_prix >= 0,
-        "marge_choc_valeur": revenu_choc_prix,
+        "waypoint_gps": str(desc_expl.get("waypoint_gps", "Non renseigné")),
+        "densite_calculee_ha": to_float(raw_pdc.get("densite_calculee_ha", 0.0)),
+        "donnees_densite": densite_carres,
+        "sante_cacaoyere": sante,
+        "caracteristiques_sol": sol_caract,
+        "inventaire_arbres": arbres,
+        "total_arbres_ombrage": to_int(raw_pdc.get("total_arbres_ombrage", len(arbres))),
+        "revenu_total_estime": to_float(raw_pdc.get("revenu_total_estime", 0.0)),
+        "charges_totales_estimees": to_float(raw_pdc.get("charges_totales_estimees", 0.0)),
+        "solde_net_estime": to_float(raw_pdc.get("solde_net_estime", 0.0)),
+        "depenses_foyer_annuelles": total_depenses_foyer_an,
+        "prod_historique": prod_historique,
+        "cultures_et_revenus": cultures,
+        "budget_total_5ans": to_float(raw_pdc.get("budget_total_5ans", raw_pdc.get("budget_fiche8_total", 0.0))),
+        "decision_retenue": str(raw_pdc.get("decision_retenue", "Non déterminée")),
+        "plan_quinquennal": plan_action,
+        "texte_synthese_auto": str(desc_expl.get("texte_synthese_auto", raw_pdc.get("texte_synthese_auto", "")))
     }
 
 
 def leila_analyse_pdc_metier(donnees_producteur: dict):
-    """Moteur Décisionnel L.E.Y.L.A. - Analyse Intégrale et Prédictive du PDC."""
+    """Moteur Décisionnel L.E.Y.L.A. 3.0 - Analyse Expert, Credit Scoring & Projection ROI."""
     if not isinstance(donnees_producteur, dict):
         st.error("⚠️ Données invalides pour l'analyse LEÏLA.")
         return
 
-    p = extraire_etapes_pdc(donnees_producteur)
-    p_av = leila_analyse_avancee_rdue_et_rendement(p)
+    p = extraire_etapes_pdc_avancees(donnees_producteur)
 
-    st.markdown(
-        "### 🤖 Diagnostic & Copilote L.E.Ï.L.A. pour"
-        f" **{p['nom_producteur']}** (`{p['code_ccc']}`)"
-    )
-    st.caption(
-        f"📍 **Localisation :** Délégation {p['delegation']} | Dép."
-        f" {p['departement']} | Village {p['village']}"
-    )
+    # Header Profil
+    st.markdown(f"### 🤖 Diagnostic Expert L.E.Ï.L.A. — **{p['nom_producteur']}**")
+    st.caption(f"🆔 **Code CCC :** `{p['code_ccc']}` | 📍 **Localisation :** {p['localite']} | 🛰️ **GPS :** {p['waypoint_gps']}")
     st.markdown("---")
 
-    # 1. SYNTHÈSE AGRONOMIQUE & DÉCISION STRATÉGIQUE
-    st.markdown("#### 🌳 1. Profil Agronomique & Orientation Stratégique")
-    col_a1, col_a2, col_a3, col_a4 = st.columns(4)
+    # ---------------------------------------------------------
+    # 0. CONTRÔLE QUALITÉ DES DONNÉES (AUDIT AUTOMATIQUE)
+    # ---------------------------------------------------------
+    anomalies = []
+    if p["superficie_cacao_prod"] > p["superficie_totale"] and p["superficie_totale"] > 0:
+        anomalies.append("La superficie en cacao productif dépasse la superficie totale déclarée.")
+    if p["revenu_total_estime"] > 0 and p["charges_totales_estimees"] > p["revenu_total_estime"]:
+        anomalies.append("Les charges de production déclarées sont supérieures au revenu brut.")
 
-    col_a1.metric("Surface Totale", f"{p['superficie_totale']:.1f} ha")
-    col_a2.metric("Cacao Productif", f"{p['superficie_cacao_prod']:.1f} ha")
-    col_a3.metric("Arbres Ombrage", f"{p['nb_arbres_forestiers']} pieds")
-    col_a4.metric("Décision Retenue", p["decision_retenue"])
+    if anomalies:
+        with st.expander("⚠️ **Alertes Qualité Données (Incohérences Détectées)**", expanded=True):
+            for ano in anomalies:
+                st.warning(f"• {ano}")
 
-    if p["decision_retenue"] == "Replantation":
-        st.error(
-            "🔴 **Décision : Replantation requise.** Le verger présente des"
-            " facteurs de vétusté majeure ou de forte baisse de densité."
-        )
-    elif p["decision_retenue"] == "Reconversion":
-        st.warning(
-            "🟠 **Décision : Reconversion conseillée.** Contraintes édaphiques"
-            " (cuirasse) ou pluviométriques critiques."
-        )
-    elif p["decision_retenue"] == "Réhabilitation":
-        st.success(
-            "🟢 **Décision : Réhabilitation.** Le verger possède un bon"
-            " potentiel de relance via la taille et la fertilisation."
-        )
+    # ---------------------------------------------------------
+    # 1. SCORE DE FAISABILITÉ & BANCARITÉ (CREDIT SCORING LEÏLA)
+    # ---------------------------------------------------------
+    score_foncier = 30 if "propriétaire" in p["statut_foncier"].lower() or "titre" in p["statut_foncier"].lower() else 15
+    
+    surf_cacao = max(0.1, p["superficie_cacao_prod"] + p["superficie_cacao_jeune"])
+    ratio_arbres_ha = p["total_arbres_ombrage"] / surf_cacao
+    score_rdue = 30 if ratio_arbres_ha >= 18.0 else int((ratio_arbres_ha / 18.0) * 30)
 
-    # 2. CONFORMITÉ RDUE & PROJECTIONS DE RENDEMENT
-    st.markdown(
-        "#### 🌲 2. Traçabilité, Norme RDUE & Projection de Gain à 3 Ans"
-    )
-    col_r1, col_r2, col_r3 = st.columns(3)
+    revenu_net_foyer = p["revenu_total_estime"] - p["charges_totales_estimees"] - p["depenses_foyer_annuelles"]
+    score_finance = 40 if revenu_net_foyer > (p["budget_total_5ans"] / 5) else (20 if revenu_net_foyer > 0 else 5)
 
-    col_r1.metric(
-        "Densité Agroforestière", f"{p_av['ratio_arbres_ha']:.1f} arbres/ha"
-    )
+    score_global = score_foncier + score_rdue + score_finance
 
-    if p_av["rdue_conforme"]:
-        col_r2.metric("Statut RDUE / UE", "Conforme ✅")
+    st.markdown("#### 🎯 1. Score d'Éligibilité et de Bancarité du Plan")
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+    
+    col_s1.metric("Score Global LEÏLA", f"{score_global} / 100")
+    col_s2.metric("Sécurité Foncière", f"{score_foncier} / 30")
+    col_s3.metric("Conformité Durabilité", f"{score_rdue} / 30")
+    col_s4.metric("Autofinancement", f"{score_finance} / 40")
+
+    if score_global >= 75:
+        st.success("🥇 **Dossier Excellent :** Projet bancable, éligible aux financements à taux préférentiel.")
+    elif score_global >= 50:
+        st.info("🥈 **Dossier Modéré :** Projet faisable avec accompagnement technique ou préfinancement coopératif.")
     else:
-        col_r3_delta = 18.0 - p_av["ratio_arbres_ha"]
-        col_r2.metric(
-            "Statut RDUE / UE",
-            "Non-Conforme ⚠️",
-            delta=f"-{col_r3_delta:.1f} d'arbres/ha",
-            delta_color="inverse",
-        )
+        st.error("🥉 **Dossier à Risque élevé :** Restructuration financière ou sécurisation foncière requise avant investissement.")
 
-    col_r3.metric(
-        "Gain Brut Estimé (A3)",
-        f"+{p_av['gain_brut_estime_a3']:,.0f} FCFA".replace(",", " "),
-    )
-
-    # 3. CAPACITÉ FINANCIÈRE & ANALYSE DE SENSIBILITÉ
-    st.markdown("#### 💳 3. Faisabilité Financière & Résilience aux Chocs")
-    solde = p["solde_net_estime"]
-    budget_a1 = p["budget_annuel_total"]
-    budget_5ans = p["budget_total_5ans"]
-
-    col_f1, col_f2, col_f3 = st.columns(3)
-    col_f1.metric(
-        "Solde Net Annuel (N-1)", f"{solde:,.0f} FCFA".replace(",", " ")
-    )
-    col_f2.metric(
-        "Budget Requis (Année 1)", f"{budget_a1:,.0f} FCFA".replace(",", " ")
-    )
-    col_f3.metric(
-        "Budget Total (5 Ans)", f"{budget_5ans:,.0f} FCFA".replace(",", " ")
-    )
-
-    if solde < budget_a1:
-        st.error(
-            f"⚠️ **Déficit de Trésorerie Détecté :** Le solde net disponible"
-            f" ({solde:,.0f} FCFA) ne couvre pas le budget de l'Année 1"
-            f" ({budget_a1:,.0f} FCFA). Un financement externe ou un"
-            " préfinancement coopératif est indispensable."
-        )
+    # ---------------------------------------------------------
+    # 2. PROJECTION DE RENDEMENT ET ROI À 5 ANS
+    # ---------------------------------------------------------
+    st.markdown("#### 📈 2. Simulation d'Impact Financier & ROI à 5 Ans")
+    
+    prix_kg = 1500  # Tarif de référence de la campagne en cours
+    rendement_actuel_moyen = (p["revenu_total_estime"] / prix_kg) if p["revenu_total_estime"] > 0 else (surf_cacao * 400)
+    
+    if "réhabilitation" in p["decision_retenue"].lower():
+        rendement_cible_a5 = surf_cacao * 900
+    elif "replantation" in p["decision_retenue"].lower():
+        rendement_cible_a5 = surf_cacao * 1200
     else:
-        st.success(
-            "✅ **Capacité d'Autofinancement Validée :** Le producteur dispose"
-            " de la marge financière requise pour démarrer les opérations de"
-            " l'Année 1."
-        )
+        rendement_cible_a5 = surf_cacao * 600
 
-    if not p_av["resilience_choc_financier"]:
-        st.warning(
-            "📉 **Analyse de Sensibilité :** En cas de baisse de 20% des cours"
-            " du cacao, la trésorerie nette deviendrait négative"
-            f" ({p_av['marge_choc_valeur']:,.0f} FCFA). Diversification"
-            " vivement recommandée."
-        )
+    gain_production_a5 = max(0.0, rendement_cible_a5 - rendement_actuel_moyen)
+    gain_financier_annuel_a5 = gain_production_a5 * prix_kg
+    roi_5ans = ((gain_financier_annuel_a5 * 5) - p["budget_total_5ans"]) if p["budget_total_5ans"] > 0 else 0.0
 
-    # 4. RECOMMANDATIONS TECHNIQUES & FEUILLE DE ROUTE LEÏLA
-    st.markdown("#### 💡 Feuille de Route Opérationnelle Automatisée")
-    actions = []
+    col_p1, col_p2, col_p3 = st.columns(3)
+    col_p1.metric("Production Actuelle Est.", f"{rendement_actuel_moyen:,.0f} kg".replace(",", " "))
+    col_p2.metric("Cible Production (Année 5)", f"{rendement_cible_a5:,.0f} kg".replace(",", " "), delta=f"+{gain_production_a5:,.0f} kg")
+    col_p3.metric("Gain Net Cumulé sur 5 Ans", f"{roi_5ans:,.0f} FCFA".replace(",", " "))
 
-    if not p_av["rdue_conforme"]:
-        actions.append(
-            "**Conformité RDUE (Prioritaire) :** Densité d'ombrage insuffisante"
-            f" ({p_av['ratio_arbres_ha']:.1f} arbres/ha). Introduire au moins"
-            f" {18 - p_av['ratio_arbres_ha']:.0f} arbres forestiers"
-            " supplémentaires/ha (Akpi, Framiré, Iroko)."
-        )
+    # ---------------------------------------------------------
+    # 3. CONFORMITÉ RDUE, AGROFORESTERIE ET SANTÉ
+    # ---------------------------------------------------------
+    st.markdown("#### 🌲 3. Normes RDUE & État Phytosanitaire")
+    col_r1, col_r2 = st.columns(2)
+    col_r1.metric("Densité Agroforestière Actuelle", f"{ratio_arbres_ha:.1f} arbres/ha")
+    
+    if ratio_arbres_ha >= 18.0:
+        col_r2.metric("Conformité Marché UE (RDUE)", "Conforme ✅")
+    else:
+        manque = int((18.0 * surf_cacao) - p["total_arbres_ombrage"])
+        col_r2.metric("Conformité Marché UE (RDUE)", f"Non-Conforme (-{manque} arbres)", delta_color="inverse")
 
-    contraintes_list = [str(c) for c in p["contraintes_parcelle"]]
-    if any(
-        "Swollen Shoot" in c or "Pourriture" in c or "Foreurs" in c
-        for c in contraintes_list
-    ):
-        actions.append(
-            "**Protection Phytosanitaire :** Attaques parasitaires majeures."
-            " Effectuer la taille d'aération, le débroussaillage et la"
-            " régulation de l'ombrage avant le pic de floraison."
-        )
+    # ---------------------------------------------------------
+    # 4. FEUILLE DE ROUTE CALENDRAIRE (SAISONNIÈRE)
+    # ---------------------------------------------------------
+    st.markdown("#### 📅 4. Feuillets d'Actions Prioritaires Chronologiques")
+    
+    t1, t2 = st.tabs(["🌧️ Saison des Pluies (Travaux Lourd)", "☀️ Saison Sèche (Récolte & Protection)"])
+    
+    with t1:
+        st.write("**Priorités Immédiates :**")
+        if ratio_arbres_ha < 18.0:
+            st.info(f"• **Reboisement :** Mettre en terre {int((18.0 * surf_cacao) - p['total_arbres_ombrage'])} plants d'essences ombrageables.")
+        st.write("• **Taille & Émondage :** Aérer le houppier des cacaoyers pour limiter l'humidité propice à la pourriture brune.")
+        if "replantation" in p["decision_retenue"].lower():
+            st.write("• **Pepinère :** Préparer le matériel végétal haut rendement (CNRA) pour le schéma de replantation.")
 
-    if "Métayage" in p["statut_foncier"] or "Fermage" in p["statut_foncier"]:
-        actions.append(
-            "**Sécurité Foncière :** Exploitants sous régime de partage"
-            " temporaire. Formaliser un contrat écrit d'exploitation avant"
-            " d'engager les investissements du plan quinquennal."
-        )
-
-    materiels = p["materiel_agricole"]
-    if any(
-        isinstance(m, dict) and m.get("État") == "Mauvais" for m in materiels
-    ):
-        actions.append(
-            "**Équipement & Sécurité :** Renouvellement prioritaire des"
-            " appareils de traitement et équipement de protection individuel"
-            " (EPI) déclarés en mauvais état."
-        )
-
-    if not actions:
-        actions.append(
-            "Le plan est techniquement conforme. Exécuter le programme"
-            " d'action annuel trimestriel conformément aux échéances prévues."
-        )
-
-    for idx, act in enumerate(actions, 1):
-        st.info(f"**Action Prioritaire {idx} :** {act}")
+    with t2:
+        st.write("**Entretien & Post-Récolte :**")
+        st.write("• **Ramassage des cabosses mûres :** Fréquence tous les 10-14 jours pour prévenir les attaques de ravageurs.")
+        st.write("• **EPI & Matériel :** Révision des atomiseurs et mise aux normes des équipements de protection individuel.")
 
     if p["texte_synthese_auto"]:
-        with st.expander(
-            "📄 **Voir la synthèse narrative officielle (Modèle CCC)**"
-        ):
+        with st.expander("📄 Synthèse narrative officielle (Modèle CCC)"):
             st.write(p["texte_synthese_auto"])
+
 
 
 # ==========================================
