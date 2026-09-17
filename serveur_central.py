@@ -174,23 +174,25 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     if not supabase:
         return pd.DataFrame()
     try:
-        # Correspondance des motifs sous forme de filtres SQL (ILIKE / OR)
+        # Correspondance incluant explicitement 'PDC' et les variantes de la sidebar
         MOTIFS_SQL = {
-            "Géolocalisation & RDUE (Parcelles)": "géo,parcelle,rdue,superficie",
+            "(Parcelles)": "PDC,géo,parcelle,rdue",
+            "Géolocalisation & RDUE (Parcelles)": "PDC,géo,parcelle,rdue",
             "Diagnostic Phytosanitaire": "diagnostic,phyto,pathologie,sante",
             "Estimation de Rendement": "rendement,estimation,recolte",
-            "Plan de Développement (PDC)": "pdc,développement,plan",
+            "Plan de Développement (PDC)": "PDC,pdc,développement,plan",
         }
 
-        # Construction de la requête avec RLS (le filter cabinet_id est sécurisé côté BDD)
+        # Construction de la requête avec RLS (le filtre cabinet_id est sécurisé côté BDD)
         query = supabase.table("producteurs_parcelles").select("*").eq("cabinet_id", cabinet_id)
         
         if code_coop_filtre != "ALL":
             query = query.eq("code_cooperative", code_coop_filtre)
 
-        # Filtre ILIKE directement dans la BDD
-        mots_cles = MOTIFS_SQL.get(module_choisi, "").split(",")
+        # Extraction des mots-clés de recherche
+        mots_cles = MOTIFS_SQL.get(module_choisi, "PDC").split(",")
         if mots_cles and mots_cles[0]:
+            # Filtre OR ciblant module_execute ET module_type
             conditions = ",".join([f"module_execute.ilike.%{m}%,module_type.ilike.%{m}%" for m in mots_cles])
             query = query.or_(conditions)
 
@@ -205,6 +207,7 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     except Exception as e:
         st.error(f"Erreur d'accès à la base Supabase : {e}")
         return pd.DataFrame()
+
 
 
 
@@ -248,15 +251,17 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
     """Extraction robuste et récursive des données PDC peu importe le format de stockage (session_state ou DB)."""
     raw_pdc = {}
 
+    # 1. Sélection de la source JSON/dict brute
     source = (
-        donnees_producteur.get("reponses_pdc")
-        or donnees_producteur.get("observations_diagnostic")
+        donnees_producteur.get("observations_diagnostic")
+        or donnees_producteur.get("reponses_pdc")
         or donnees_producteur.get("donnees_module")
         or donnees_producteur.get("reponses")
         or {}
     )
 
-    if isinstance(source, str):
+    # 2. Conversion JSON -> Dict si la source est stockée sous forme de texte (String)
+    if isinstance(source, str) and source.strip().startswith("{"):
         try:
             raw_pdc = json.loads(source)
         except Exception:
@@ -267,6 +272,7 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
     if not raw_pdc:
         raw_pdc = donnees_producteur
 
+    # 3. Fonction utilitaire de recherche récursive
     def chercher_valeur(cles_possibles, default=None):
         for key, val in raw_pdc.items():
             if val is not None and str(val).strip() != "":
@@ -277,9 +283,7 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
             if isinstance(sub_v, dict):
                 for k, v in sub_v.items():
                     if v is not None and str(v).strip() != "":
-                        if any(
-                            kp.lower() in k.lower() for kp in cles_possibles
-                        ):
+                        if any(kp.lower() in k.lower() for kp in cles_possibles):
                             return v
         return default
 
@@ -313,20 +317,23 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
     if not isinstance(facteurs, dict):
         facteurs = {}
 
+    # 4. Restitution du dictionnaire avec extraction dynamique des clés
     return {
         "nom_producteur": str(
             donnees_producteur.get("nom_producteur")
             or raw_pdc.get("nom_prenoms_producteur")
+            or raw_pdc.get("nom_producteur")
             or "Producteur Inconnu"
         ).strip(),
         "code_ccc": str(
             donnees_producteur.get("code_producteur")
             or raw_pdc.get("code_national_producteur")
+            or raw_pdc.get("code_producteur")
             or "CCC-N/A"
         ).strip(),
-        "delegation": str(raw_pdc.get("delegation_regionale", "Non spécifiée")),
-        "departement": str(raw_pdc.get("departement", "Non spécifié")),
-        "village": str(raw_pdc.get("village", "Non spécifié")),
+        "delegation": str(chercher_valeur(["delegation_regionale", "region", "delegation"], "Non spécifiée")),
+        "departement": str(chercher_valeur(["departement"], "Non spécifié")),
+        "village": str(chercher_valeur(["village", "localite", "section"], "Non spécifié")),
         "statut_foncier": str(
             desc_expl.get(
                 "statut_foncier",
@@ -336,7 +343,7 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
         "superficie_totale": to_float(
             desc_expl.get(
                 "superficie_totale",
-                chercher_valeur(["superficie_totale", "surf_totale"], 0.0),
+                chercher_valeur(["superficie_totale", "superficie", "surf_totale"], 0.0),
             )
         ),
         "superficie_cacao_prod": to_float(
@@ -421,6 +428,7 @@ def extraire_etapes_pdc(donnees_producteur: dict) -> dict:
             facteurs.get("mesures_mitigation", "Aucune mesure spécifiée")
         ),
     }
+
 
 
 def leila_analyse_avancee_rdue_et_rendement(p: dict) -> dict:
