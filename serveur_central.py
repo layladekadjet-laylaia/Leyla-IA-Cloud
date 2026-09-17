@@ -217,13 +217,12 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
         if df.empty:
             return pd.DataFrame()
 
-        # 3. Mots-clés associés à chaque module
+        # 3. Mots-clés stricts et exclusifs par module
         MOTIFS_SQL = {
-            "(Parcelles)": ["pdc", "géo", "parcelle"],
-            "Géolocalisation & RDUE (Parcelles)": ["géo", "rdue", "parcelle", "geolocalisation"],
+            "Plan de Développement (PDC)": ["pdc"],
+            "Géolocalisation & RDUE (Parcelles)": ["géo", "rdue", "geolocalisation"],
             "Diagnostic Phytosanitaire": ["diagnostic", "phyto", "phytosanitaire"],
-            "Estimation de Rendement": ["rendement", "estimation"],
-            "Plan de Développement (PDC)": ["pdc", "plan"]
+            "Estimation de Rendement": ["rendement", "estimation"]
         }
 
         mots_cles = MOTIFS_SQL.get(module_choisi, [module_choisi.lower()])
@@ -235,7 +234,7 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
                 for mc in mots_cles:
                     masque |= df[col].astype(str).str.lower().str.contains(mc, na=False)
             
-            # Retourne uniquement les lignes qui correspondent au filtre du module
+            # Retourne uniquement les lignes correspondant au filtre du module
             return df[masque].reset_index(drop=True)
 
         return pd.DataFrame()
@@ -243,9 +242,6 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     except Exception as e:
         st.error(f"Erreur lors du chargement des données : {e}")
         return pd.DataFrame()
-
-
-
 
 
 
