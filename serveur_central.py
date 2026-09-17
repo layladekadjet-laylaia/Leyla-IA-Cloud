@@ -768,6 +768,7 @@ module_choisi = st.sidebar.selectbox(
         "Diagnostic Phytosanitaire",
         "Estimation de Rendement",
     ],
+    key="select_module_serveur_central"  # <-- Clé unique ajoutée ici
 )
 
 df_filtered = charger_donnees_isolees(
