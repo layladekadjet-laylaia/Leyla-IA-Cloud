@@ -211,12 +211,16 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
         response = query.execute()
         data = response.data or []
 
+        # 🔍 IMPRESSION DIAGNOSTIC (À PLACER ICI)
+        st.write("🔍 Diagnostic Supabase - Nb lignes trouvées :", len(data))
+        st.write("🔍 Extrait des données brutes :", data)
+
         if not data:
             return pd.DataFrame()
 
         df = pd.DataFrame(data)
 
-        # 4. Filtrage souple en mémoire Python sur le module pour éviter le blocage SQL .or_()
+        # 4. Filtrage souple en mémoire Python sur le module
         MOTIFS_SQL = {
             "(Parcelles)": ["pdc", "géo", "parcelle"],
             "Géolocalisation & RDUE (Parcelles)": ["pdc", "géo", "parcelle"],
@@ -231,14 +235,12 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
         cols_a_verifier = [c for c in ["module_execute", "module_type"] if c in df.columns]
         
         if cols_a_verifier:
-            # Construction d'un masque de recherche insensible à la casse
             masque = False
             for col in cols_a_verifier:
                 for mc in mots_cles:
                     masque |= df[col].astype(str).str.lower().str.contains(mc, na=False)
             
             df_filtre = df[masque]
-            # Si le filtre trouve des résultats, on les renvoie, sinon on renvoie tout le DataFrame de la coop
             if not df_filtre.empty:
                 return df_filtre.reset_index(drop=True)
 
@@ -247,6 +249,7 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     except Exception as e:
         st.error(f"Erreur d'accès à la base Supabase : {e}")
         return pd.DataFrame()
+
 
 
 
