@@ -1369,7 +1369,6 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         st.write("Analyse automatique et recommandations complémentaires générées.")
 
 
-
 # ==========================================
 # 3. INTERFACE DU SERVEUR CENTRAL
 # ==========================================
@@ -1379,7 +1378,8 @@ user_profile = st.session_state.get("profile")
 st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
 st.markdown(f"*Espace de travail connecté : **{cabinet_courant['nom']}***")
 
-if st.sidebar.button("🚪 Déconnexion"):
+# Ajout de la key unique pour la déconnexion
+if st.sidebar.button("🚪 Déconnexion", key="btn_logout_central"):
     supabase.auth.sign_out()
     st.session_state.clear()
     st.rerun()
@@ -1389,6 +1389,7 @@ st.sidebar.divider()
 cabinet_id_actif = cabinet_courant["id"]
 
 st.sidebar.header("🎛️ Sélection du Module")
+# Ajout de la key unique pour le selectbox du module
 module_choisi = st.sidebar.selectbox(
     "Choisir le domaine d'analyse",
     [
@@ -1397,6 +1398,7 @@ module_choisi = st.sidebar.selectbox(
         "Diagnostic Phytosanitaire",
         "Estimation de Rendement",
     ],
+    key="select_module_main"
 )
 
 df_filtered = charger_donnees_isolees(
@@ -1431,7 +1433,8 @@ if "PDC" in module_choisi:
         st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
 
     with col_reset:
-        if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True):
+        # Ajout de la key unique pour le bouton de réinitialisation (Résout l'erreur de la ligne 1434)
+        if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True, key="btn_reset_pdc_view"):
             st.cache_data.clear()
             st.cache_resource.clear()
             if "pdc_select_box" in st.session_state:
@@ -1511,9 +1514,11 @@ if "PDC" in module_choisi:
 st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
 st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
 
-user_query = st.text_input("Votre requête pour le satellite :")
+# Ajout de la key unique pour la saisie de texte
+user_query = st.text_input("Votre requête pour le satellite :", key="input_satellite_query")
 
-if st.button("Lancer l'analyse du satellite"):
+# Ajout de la key unique pour le bouton de lancement du satellite
+if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
     if not user_query:
         st.warning("Veuillez saisir une question ou une consigne.")
     elif verifier_et_incrementer_quota(cabinet_id_actif):
@@ -1548,5 +1553,6 @@ if st.button("Lancer l'analyse du satellite"):
         st.info(
             "Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A."
         )
+
 
 
