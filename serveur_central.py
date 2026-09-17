@@ -748,12 +748,14 @@ user_profile = st.session_state.get("profile")
 st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
 st.markdown(f"*Espace de travail connecté : **{cabinet_courant['nom']}***")
 
-if st.sidebar.button("🚪 Déconnexion"):
+# Ajout d'une clé unique pour différencier ce bouton des autres déconnexions
+if st.sidebar.button("🚪 Déconnexion", key="btn_logout_serveur_central"):
     supabase.auth.sign_out()
     st.session_state.clear()
     st.rerun()
 
 st.sidebar.divider()
+
 
 cabinet_id_actif = cabinet_courant["id"]
 
