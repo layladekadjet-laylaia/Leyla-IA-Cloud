@@ -251,7 +251,7 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
 # ==========================================
 st.title(f"🌐 L.E.Y.L.A. Serveur Central — {cabinet_courant['nom']}")
 
-modules = [.               
+modules = [               
     "Plan de Développement (PDC)",
     "Géolocalisation & RDUE (Parcelles)",
     "Diagnostic Phytosanitaire",
