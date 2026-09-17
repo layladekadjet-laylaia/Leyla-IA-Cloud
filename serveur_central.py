@@ -200,36 +200,54 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     if not supabase:
         return pd.DataFrame()
     try:
-        # Correspondance des modules
-        MOTIFS_SQL = {
-            "(Parcelles)": ["PDC", "géo", "parcelle"],
-            "Géolocalisation & RDUE (Parcelles)": ["PDC", "géo", "parcelle"],
-            "Diagnostic Phytosanitaire": ["diagnostic", "phyto"],
-            "Estimation de Rendement": ["rendement", "estimation"],
-            "Plan de Développement (PDC)": ["PDC", "pdc", "plan"]
-        }
-
+        # 1. Base de la requête sur le cabinet
         query = supabase.table("producteurs_parcelles").select("*").eq("cabinet_id", cabinet_id)
         
-        if code_coop_filtre != "ALL":
+        # 2. Application du filtre de coopérative
+        if code_coop_filtre and code_coop_filtre != "ALL":
             query = query.eq("code_cooperative", code_coop_filtre)
 
-        # Filtre sur module_execute ou module_type
-        mots_cles = MOTIFS_SQL.get(module_choisi, ["PDC"])
-        conditions = ",".join([f"module_execute.ilike.%{m}%,module_type.ilike.%{m}%" for m in mots_cles])
-        query = query.or_(conditions)
-
+        # 3. Exécution directe pour rapatrier les données de la coopérative
         response = query.execute()
-        data = response.data
+        data = response.data or []
 
         if not data:
             return pd.DataFrame()
 
-        return pd.DataFrame(data).reset_index(drop=True)
+        df = pd.DataFrame(data)
+
+        # 4. Filtrage souple en mémoire Python sur le module pour éviter le blocage SQL .or_()
+        MOTIFS_SQL = {
+            "(Parcelles)": ["pdc", "géo", "parcelle"],
+            "Géolocalisation & RDUE (Parcelles)": ["pdc", "géo", "parcelle"],
+            "Diagnostic Phytosanitaire": ["diagnostic", "phyto"],
+            "Estimation de Rendement": ["rendement", "estimation"],
+            "Plan de Développement (PDC)": ["pdc", "plan"]
+        }
+
+        mots_cles = MOTIFS_SQL.get(module_choisi, ["pdc"])
+        
+        # Vérification si les colonnes existent dans le DataFrame
+        cols_a_verifier = [c for c in ["module_execute", "module_type"] if c in df.columns]
+        
+        if cols_a_verifier:
+            # Construction d'un masque de recherche insensible à la casse
+            masque = False
+            for col in cols_a_verifier:
+                for mc in mots_cles:
+                    masque |= df[col].astype(str).str.lower().str.contains(mc, na=False)
+            
+            df_filtre = df[masque]
+            # Si le filtre trouve des résultats, on les renvoie, sinon on renvoie tout le DataFrame de la coop
+            if not df_filtre.empty:
+                return df_filtre.reset_index(drop=True)
+
+        return df.reset_index(drop=True)
 
     except Exception as e:
         st.error(f"Erreur d'accès à la base Supabase : {e}")
         return pd.DataFrame()
+
 
 
 
