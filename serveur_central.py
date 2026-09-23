@@ -23,7 +23,7 @@ if "cabinet_actif" not in st.session_state:
 if "cooperatives_accessibles" not in st.session_state:
     st.session_state["cooperatives_accessibles"] = []
 
-# Import sécurisé du module de recherche satellite
+# Import sécurisé du module de recherche satellite / IA
 try:
     from recherche_ia import rechercher_sur_le_web
 except ImportError:
@@ -95,14 +95,12 @@ if not st.session_state.get("user"):
 
                 # 4. Récupération des coopératives accessibles selon le RÔLE
                 if profile.get("role") == "CHEF_COOP" and profile.get("code_cooperative"):
-                    # Un chef de coopérative ne voit QUE sa coopérative
                     coops_resp = supabase.table("cooperatives")\
                         .select("*")\
                         .eq("cabinet_id", cabinet_id)\
                         .eq("code_db", profile["code_cooperative"])\
                         .execute()
                 else:
-                    # Un Admin voit TOUTES les coopératives du cabinet
                     coops_resp = supabase.table("cooperatives")\
                         .select("*")\
                         .eq("cabinet_id", cabinet_id)\
@@ -134,37 +132,7 @@ liste_cooperatives = st.session_state["cooperatives_accessibles"]
 
 
 # ==========================================
-# 4. BARRE LATÉRALE & SÉLECTEUR DE COOPÉRATIVE
-# ==========================================
-st.sidebar.title(f"🏢 {cabinet_courant['nom']}")
-st.sidebar.caption(f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisateur')} ({user_profile.get('role', '')})")
-
-# Construction des options du sélecteur
-options_coop = {}
-
-# La "Vue Direction" globale n'est disponible que pour les ADMIN_CABINET
-if user_profile.get("role") == "ADMIN_CABINET":
-    options_coop["Toutes les coopératives (Vue Direction)"] = "ALL"
-
-for coop in liste_cooperatives:
-    options_coop[coop.get("nom", "Coopérative")] = coop.get("code_db", "")
-
-if options_coop:
-    coop_selectionnee_label = st.sidebar.selectbox("Sélectionner la Coopérative :", list(options_coop.keys()))
-    code_coop_filtre = options_coop[coop_selectionnee_label]
-else:
-    code_coop_filtre = "ALL"
-
-if st.sidebar.button("Déconnexion"):
-    if supabase:
-        supabase.auth.sign_out()
-    st.session_state.clear()
-    st.rerun()
-
-
-
-# ==========================================
-# 5. FONCTIONS DE GESTION DES QUOTAS & DONNÉES
+# 4. FONCTIONS DE GESTION DES QUOTAS & DONNÉES
 # ==========================================
 def verifier_et_incrementer_quota(cabinet_id: str) -> bool:
     """Vérifie et consomme le quota d'IA au niveau du Cabinet."""
@@ -200,7 +168,6 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
     if not supabase:
         return pd.DataFrame()
     try:
-        # 1. Requête globale sur la table
         response = supabase.table("producteurs_parcelles").select("*").execute()
         data = response.data or []
 
@@ -209,7 +176,7 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
 
         df = pd.DataFrame(data)
 
-        # 2. Filtrage par coopérative
+        # Filtrage par coopérative
         col_coop = "cooperative_id" if "cooperative_id" in df.columns else "code_cooperative"
         if col_coop in df.columns and code_coop_filtre and code_coop_filtre != "ALL":
             df = df[df[col_coop].astype(str).str.strip().str.upper() == code_coop_filtre.strip().upper()]
@@ -217,7 +184,7 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
         if df.empty:
             return pd.DataFrame()
 
-        # 3. Mots-clés stricts et exclusifs par module
+        # Mots-clés stricts et exclusifs par module
         MOTIFS_SQL = {
             "Plan de Développement (PDC)": ["pdc"],
             "Géolocalisation & RDUE (Parcelles)": ["géo", "rdue", "geolocalisation"],
@@ -234,7 +201,6 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
                 for mc in mots_cles:
                     masque |= df[col].astype(str).str.lower().str.contains(mc, na=False)
             
-            # Retourne uniquement les lignes correspondant au filtre du module
             return df[masque].reset_index(drop=True)
 
         return pd.DataFrame()
@@ -244,47 +210,9 @@ def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtr
         return pd.DataFrame()
 
 
-
-
 # ==========================================
-# 6. CORPS DE L'APPLICATION STREAMLIT
+# 5. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC 3.0)
 # ==========================================
-st.title(f"🌐 L.E.Y.L.A. Serveur Central — {cabinet_courant['nom']}")
-
-modules = [               
-    "Plan de Développement (PDC)",
-    "Géolocalisation & RDUE (Parcelles)",
-    "Diagnostic Phytosanitaire",
-    "Estimation de Rendement"
-]
-
-module_actif = st.selectbox("Choisissez le module métier à consulter :", modules)
-
-# Chargement sécurisé et filtré des données
-df_affichage = charger_donnees_isolees(
-    module_choisi=module_actif,
-    cabinet_id=cabinet_courant["id"],
-    code_coop_filtre=code_coop_filtre
-)
-
-st.subheader(f"Données : {module_actif} ({coop_selectionnee_label})")
-
-if not df_affichage.empty:
-    st.dataframe(df_affichage, use_container_width=True)
-else:
-    st.info("Aucune donnée enregistrée pour cette sélection.")
-
-
-
-# ==========================================
-# 2. MOTEUR D'ANALYSE DÉCISIONNELLE LEÏLA (PDC 3.0)
-# ==========================================
-
-import json
-import pandas as pd
-import streamlit as st
-
-
 def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
     """Extraction intégrale et granulaire des structures complexes du JSON PDC."""
     raw_pdc = {}
@@ -334,53 +262,32 @@ def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
     if not isinstance(desc_expl, dict):
         desc_expl = {}
 
-    cultures = (
-        raw_pdc.get("cultures_et_revenus") or raw_pdc.get("tableau_cultures") or []
-    )
-    arbres = (
-        raw_pdc.get("inventaire_arbres") or raw_pdc.get("tableau_arbres") or []
-    )
+    cultures = raw_pdc.get("cultures_et_revenus") or raw_pdc.get("tableau_cultures") or []
+    arbres = raw_pdc.get("inventaire_arbres") or raw_pdc.get("tableau_arbres") or []
     sante = raw_pdc.get("sante_cacaoyere") or []
     densite_carres = raw_pdc.get("donnees_densite") or []
-    sol_caract = (
-        raw_pdc.get("caracteristiques_sol") or raw_pdc.get("df_sol_caract") or []
-    )
+    sol_caract = raw_pdc.get("caracteristiques_sol") or raw_pdc.get("df_sol_caract") or []
     depenses_foyer = raw_pdc.get("depenses_foyer") or []
-    prod_historique = (
-        raw_pdc.get("prod_historique") or raw_pdc.get("df_prod_historique") or []
-    )
-    plan_action = (
-        raw_pdc.get("plan_quinquennal")
-        or raw_pdc.get("plan_quinquennal_detail")
-        or []
-    )
+    prod_historique = raw_pdc.get("prod_historique") or raw_pdc.get("df_prod_historique") or []
+    plan_action = raw_pdc.get("plan_quinquennal") or raw_pdc.get("plan_quinquennal_detail") or []
 
-    # --- CORRECTION DE L'EXTRACTION DES SUPERFICIES ---
-    surf_totale = to_float(
-        desc_expl.get("superficie_totale", raw_pdc.get("superficie", 0.0))
-    )
+    surf_totale = to_float(desc_expl.get("superficie_totale", raw_pdc.get("superficie", 0.0)))
     surf_cacao_prod = to_float(desc_expl.get("superficie_cacao_productif", 0.0))
-    surf_cacao_jeune = to_float(
-        desc_expl.get("superficie_cacao_immature", 0.0)
-    )
+    surf_cacao_jeune = to_float(desc_expl.get("superficie_cacao_immature", 0.0))
 
-    # 1. Si non spécifié dans desc_expl, on tente la somme dans le tableau des cultures
     if surf_cacao_prod == 0.0 and isinstance(cultures, list):
         for c in cultures:
             nom_c = str(c.get("Culture", "")).lower()
             if "cacao" in nom_c:
                 surf_cacao_prod += to_float(c.get("Superficie (ha)", 0.0))
 
-    # 2. Fallback propre : si toujours 0, on prend surf_totale sans double addition
     if surf_cacao_prod == 0.0:
         surf_cacao_prod = surf_totale
 
-    # 3. Ajustement de sécurité : si surf_totale est inférieure à surf_cacao_prod (saisie incomplète)
     if surf_totale > 0 and surf_cacao_prod > surf_totale:
         if (surf_cacao_prod - surf_totale) <= 0.05:
             surf_cacao_prod = surf_totale
 
-    # Calcul dépenses du foyer
     total_depenses_foyer_an = 0.0
     for d in depenses_foyer:
         m = to_float(d.get("Montant moyen (FCFA)", 0.0))
@@ -421,111 +328,75 @@ def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
         "sante_cacaoyere": sante,
         "caracteristiques_sol": sol_caract,
         "inventaire_arbres": arbres,
-        "total_arbres_ombrage": to_int(
-            raw_pdc.get("total_arbres_ombrage", len(arbres))
-        ),
-        "revenu_total_estime": to_float(
-            raw_pdc.get("revenu_total_estime", 0.0)
-        ),
-        "charges_totales_estimees": to_float(
-            raw_pdc.get("charges_totales_estimees", 0.0)
-        ),
+        "total_arbres_ombrage": to_int(raw_pdc.get("total_arbres_ombrage", len(arbres))),
+        "revenu_total_estime": to_float(raw_pdc.get("revenu_total_estime", 0.0)),
+        "charges_totales_estimees": to_float(raw_pdc.get("charges_totales_estimees", 0.0)),
         "solde_net_estime": to_float(raw_pdc.get("solde_net_estime", 0.0)),
         "depenses_foyer_annuelles": total_depenses_foyer_an,
         "prod_historique": prod_historique,
         "cultures_et_revenus": cultures,
-        "budget_total_5ans": to_float(
-            raw_pdc.get(
-                "budget_total_5ans", raw_pdc.get("budget_fiche8_total", 0.0)
-            )
-        ),
-        "decision_retenue": str(
-            raw_pdc.get("decision_retenue", "Non déterminée")
-        ),
+        "budget_total_5ans": to_float(raw_pdc.get("budget_total_5ans", raw_pdc.get("budget_fiche8_total", 0.0))),
+        "decision_retenue": str(raw_pdc.get("decision_retenue", "Non déterminée")),
         "plan_quinquennal": plan_action,
-        "texte_synthese_auto": str(
-            desc_expl.get(
-                "texte_synthese_auto", raw_pdc.get("texte_synthese_auto", "")
-            )
-        ),
+        "texte_synthese_auto": str(desc_expl.get("texte_synthese_auto", raw_pdc.get("texte_synthese_auto", ""))),
     }
 
 
-def generer_synthese_narrative_leila(
-    p: dict, score_global: int, ratio_arbres_ha: float, roi_5ans: float
-) -> str:
+def generer_synthese_narrative_leila(p: dict, score_global: int, ratio_arbres_ha: float, roi_5ans: float) -> str:
     """Génère une synthèse narrative métier 100% cohérente avec l'analyse LEÏLA."""
+    surf_cacao = max(0.1, p["superficie_cacao_prod"] + p["superficie_cacao_jeune"])
 
-    surf_cacao = max(
-        0.1, p["superficie_cacao_prod"] + p["superficie_cacao_jeune"]
-    )
-
-    # 1. Introduction & Contexte
     intro = (
-        f"L'exploitation de M./Mme {p['nom_producteur']} (Code CCC :"
-        f" {p['code_ccc']}), localisée à {p['localite']}, couvre une superficie"
-        f" totale de {p['superficie_totale']:.1f} ha, dont {surf_cacao:.1f} ha"
-        f" dédiés à la culture du cacao ({p['statut_foncier']}). "
+        f"L'exploitation de M./Mme {p['nom_producteur']} (Code CCC : {p['code_ccc']}), "
+        f"localisée à {p['localite']}, couvre une superficie totale de {p['superficie_totale']:.1f} ha, "
+        f"dont {surf_cacao:.1f} ha dédiés à la culture du cacao ({p['statut_foncier']}). "
     )
 
-    # 2. Diagnostic Technique & RDUE
     if ratio_arbres_ha >= 18.0:
         agro = (
-            "Sur le plan environnemental, la parcelle présente une densité"
-            " d'ombrage conforme aux normes RDUE"
-            f" ({ratio_arbres_ha:.1f} arbres/ha). "
+            "Sur le plan environnemental, la parcelle présente une densité d'ombrage conforme aux normes RDUE "
+            f"({ratio_arbres_ha:.1f} arbres/ha). "
         )
     else:
         manque = int((18.0 * surf_cacao) - p["total_arbres_ombrage"])
         agro = (
-            "Sur le plan environnemental, un déficit agroforestier est"
-            f" identifié ({ratio_arbres_ha:.1f} arbres/ha). L'introduction de"
-            f" {manque} plants d'ombrage est obligatoire pour la conformité"
-            " RDUE. "
+            f"Sur le plan environnemental, un déficit agroforestier est identifié ({ratio_arbres_ha:.1f} arbres/ha). "
+            f"L'introduction de {manque} plants d'ombrage est obligatoire pour la conformité RDUE. "
         )
 
-    # 3. Orientations & Bilan Financier
-    orient = (
-        "L'orientation stratégique retenue est la"
-        f" **{p['decision_retenue']}**. "
-    )
+    orient = f"L'orientation stratégique retenue est la **{p['decision_retenue']}**. "
 
     if score_global >= 75:
         finance = (
-            "Le profil financier du ménage est solide avec un gain net estimé à"
-            f" {roi_5ans:,.0f} FCFA sur 5 ans, rendant le projet hautement"
-            " bancable."
+            f"Le profil financier du ménage est solide avec un gain net estimé à {roi_5ans:,.0f} FCFA sur 5 ans, "
+            "rendant le projet hautement bancable."
         )
     elif score_global >= 50:
         finance = (
-            "Le plan quinquennal nécessite un accompagnement financier partiel"
-            f" pour couvrir le budget de {p['budget_total_5ans']:,.0f} FCFA."
+            f"Le plan quinquennal nécessite un accompagnement financier partiel pour couvrir le budget de {p['budget_total_5ans']:,.0f} FCFA."
         )
     else:
         finance = (
-            "La capacité d'autofinancement actuelle est critique. Un"
-            " préfinancement ou une restructuration des charges est"
-            " indispensable."
+            "La capacité d'autofinancement actuelle est critique. Un préfinancement ou une restructuration des charges "
+            "est indispensable."
         )
 
     return intro + agro + orient + finance
 
 
 def leila_analyse_pdc_metier(donnees_producteur: dict):
-    """Moteur Décisionnel L.E.Y.L.A. 3.0 - Analyse Expert, Credit Scoring & Projection ROI."""
+    """Moteur Décisionnel L.E.Y.L.A. 3.0 - Analyse Expert, Credit Scoring, Projection ROI & Visualisation PDF Cloud."""
     if not isinstance(donnees_producteur, dict):
         st.error("⚠️ Données invalides pour l'analyse LEÏLA.")
         return
 
+    # 1. EXTRACTION DES DONNÉES DU PRODUCTEUR
     p = extraire_etapes_pdc_avancees(donnees_producteur)
 
     # Header Profil
-    st.markdown(
-        f"### 🤖 Diagnostic Expert L.E.Ï.L.A. — **{p['nom_producteur']}**"
-    )
+    st.markdown(f"### 🤖 Diagnostic Expert L.E.Ï.L.A. — **{p['nom_producteur']}**")
     st.caption(
-        f"🆔 **Code CCC :** `{p['code_ccc']}` | 📍 **Localisation :**"
-        f" {p['localite']} | 🛰️ **GPS :** {p['waypoint_gps']}"
+        f"🆔 **Code CCC :** `{p['code_ccc']}` | 📍 **Localisation :** {p['localite']} | 🛰️ **GPS :** {p['waypoint_gps']}"
     )
     st.markdown("---")
 
@@ -619,7 +490,7 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     # ---------------------------------------------------------
     st.markdown("#### 📈 2. Simulation d'Impact Financier & ROI à 5 Ans")
 
-    prix_kg = 1500  # Tarif de référence de la campagne en cours
+    prix_kg = 1500  # Tarif de référence
     rendement_actuel_moyen = (
         (p["revenu_total_estime"] / prix_kg)
         if p["revenu_total_estime"] > 0
@@ -681,7 +552,7 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     st.markdown("#### 📅 4. Feuillets d'Actions Prioritaires Chronologiques")
 
     t1, t2 = st.tabs([
-        "🌧️ Saison des Pluies (Travaux Lourd)",
+        "🌧️ Saison des Pluies (Travaux Lourds)",
         "☀️ Saison Sèche (Récolte & Protection)",
     ])
 
@@ -699,7 +570,7 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         )
         if "replantation" in p["decision_retenue"].lower():
             st.write(
-                "• **Pepinère :** Préparer le matériel végétal haut rendement"
+                "• **Pépinière :** Préparer le matériel végétal haut rendement"
                 " (CNRA) pour le schéma de replantation."
             )
 
@@ -711,16 +582,15 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         )
         st.write(
             "• **EPI & Matériel :** Révision des atomiseurs et mise aux"
-            " normes des équipements de protection individuel."
+            " normes des équipements de protection individuelle."
         )
 
     # ---------------------------------------------------------
-    # 5. SYNTHÈSE NARRATIVE GÉNÉRÉE AUTOMATIQUEMENT (AJOUTÉ ICI)
+    # 5. SYNTHÈSE NARRATIVE GÉNÉRÉE AUTOMATIQUEMENT
     # ---------------------------------------------------------
     st.markdown("---")
     st.markdown("#### 📄 5. Synthèse Narrative du Plan (Modèle LEÏLA)")
 
-    # 1. Génération du texte via la fonction
     synthese_texte = generer_synthese_narrative_leila(
         p=p,
         score_global=score_global,
@@ -728,37 +598,188 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
         roi_5ans=roi_5ans,
     )
 
-    # 2. Affichage sur Streamlit
     st.info(synthese_texte)
 
-    # 3. Optionnel : Afficher la synthèse brute enregistrée sur le terrain
     if p["texte_synthese_auto"]:
         with st.expander(
             "📝 Voir la synthèse brute enregistrée sur le terrain (CCC)"
         ):
             st.caption(p["texte_synthese_auto"])
 
+    # ---------------------------------------------------------
+    # 6. DOCUMENT OFFICIAL PDC (PDF STOCKÉ DANS SUPABASE STORAGE)
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.markdown("#### 📄 Document Officiel du PDC (Généré sur le Terrain)")
+
+    # Récupération de l'URL publique stockée dans Supabase lors de la synchro
+    url_pdf = (
+        donnees_producteur.get("url_pdf_pdc")
+        or donnees_producteur.get("pdf_url")
+        or p.get("url_pdf_pdc")
+    )
+
+    if url_pdf:
+        st.success("✅ Le PDF original généré par la tablette est disponible.")
+
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            st.link_button(
+                "🌐 Ouvrir / Imprimer le PDF dans un nouvel onglet",
+                url_pdf,
+                use_container_width=True,
+                type="primary",
+            )
+
+        with col_btn2:
+            with st.expander("👁️ Prévisualiser le PDF directement dans le dashboard"):
+                st.components.v1.iframe(url_pdf, height=600, scrolling=True)
+    else:
+        st.warning(
+            "⚠️ Aucun fichier PDF original n'a été transmis pour ce producteur."
+        )
+        st.info(
+            "💡 Vérifiez que la tablette a correctement téléversé le fichier vers le bucket `pdc-rapports` de Supabase Storage lors de la synchronisation."
+        )
+
+
+    # 0. AUDIT AUTOMATIQUE QUALITÉ DES DONNÉES
+    anomalies = []
+    if p["superficie_totale"] > 0 and (p["superficie_cacao_prod"] - p["superficie_totale"]) > 0.01:
+        anomalies.append(
+            f"La superficie en cacao productif ({p['superficie_cacao_prod']:.2f} ha) "
+            f"dépasse la superficie totale déclarée ({p['superficie_totale']:.2f} ha)."
+        )
+    if p["revenu_total_estime"] > 0 and p["charges_totales_estimees"] > p["revenu_total_estime"]:
+        anomalies.append("Les charges de production déclarées sont supérieures au revenu brut.")
+
+    if anomalies:
+        with st.expander("⚠️ **Alertes Qualité Données (Incohérences Détectées)**", expanded=True):
+            for ano in anomalies:
+                st.warning(f"• {ano}")
+
+    # 1. SCORE DE FAISABILITÉ & BANCARITÉ
+    score_foncier = 30 if "propriétaire" in p["statut_foncier"].lower() or "titre" in p["statut_foncier"].lower() else 15
+
+    surf_cacao = max(0.1, p["superficie_cacao_prod"] + p["superficie_cacao_jeune"])
+    ratio_arbres_ha = p["total_arbres_ombrage"] / surf_cacao
+    score_rdue = 30 if ratio_arbres_ha >= 18.0 else int((ratio_arbres_ha / 18.0) * 30)
+
+    revenu_net_foyer = p["revenu_total_estime"] - p["charges_totales_estimees"] - p["depenses_foyer_annuelles"]
+    score_finance = 40 if revenu_net_foyer > (p["budget_total_5ans"] / 5) else (20 if revenu_net_foyer > 0 else 5)
+
+    score_global = score_foncier + score_rdue + score_finance
+
+    st.markdown("#### 🎯 1. Score d'Éligibilité et de Bancarité du Plan")
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+
+    col_s1.metric("Score Global LEÏLA", f"{score_global} / 100")
+    col_s2.metric("Sécurité Foncière", f"{score_foncier} / 30")
+    col_s3.metric("Conformité Durabilité", f"{score_rdue} / 30")
+    col_s4.metric("Autofinancement", f"{score_finance} / 40")
+
+    if score_global >= 75:
+        st.success("🥇 **Dossier Excellent :** Projet bancable, éligible aux financements à taux préférentiel.")
+    elif score_global >= 50:
+        st.info("🥈 **Dossier Modéré :** Projet faisable avec accompagnement technique ou préfinancement coopératif.")
+    else:
+        st.error("🥉 **Dossier à Risque élevé :** Restructuration financière ou sécurisation foncière requise avant investissement.")
+
+    # 2. PROJECTION DE RENDEMENT ET ROI À 5 ANS
+    st.markdown("#### 📈 2. Simulation d'Impact Financier & ROI à 5 Ans")
+
+    prix_kg = 1500
+    rendement_actuel_moyen = (p["revenu_total_estime"] / prix_kg) if p["revenu_total_estime"] > 0 else (surf_cacao * 400)
+
+    if "réhabilitation" in p["decision_retenue"].lower():
+        rendement_cible_a5 = surf_cacao * 900
+    elif "replantation" in p["decision_retenue"].lower():
+        rendement_cible_a5 = surf_cacao * 1200
+    else:
+        rendement_cible_a5 = surf_cacao * 600
+
+    gain_production_a5 = max(0.0, rendement_cible_a5 - rendement_actuel_moyen)
+    gain_financier_annuel_a5 = gain_production_a5 * prix_kg
+    roi_5ans = ((gain_financier_annuel_a5 * 5) - p["budget_total_5ans"]) if p["budget_total_5ans"] > 0 else 0.0
+
+    col_p1, col_p2, col_p3 = st.columns(3)
+    col_p1.metric("Production Actuelle Est.", f"{rendement_actuel_moyen:,.0f} kg".replace(",", " "))
+    col_p2.metric("Cible Production (Année 5)", f"{rendement_cible_a5:,.0f} kg".replace(",", " "), delta=f"+{gain_production_a5:,.0f} kg")
+    col_p3.metric("Gain Net Cumulé sur 5 Ans", f"{roi_5ans:,.0f} FCFA".replace(",", " "))
+
+    # 3. CONFORMITÉ RDUE & AGROFORESTERIE
+    st.markdown("#### 🌲 3. Normes RDUE & État Phytosanitaire")
+    col_r1, col_r2 = st.columns(2)
+    col_r1.metric("Densité Agroforestière Actuelle", f"{ratio_arbres_ha:.1f} arbres/ha")
+
+    if ratio_arbres_ha >= 18.0:
+        col_r2.metric("Conformité Marché UE (RDUE)", "Conforme ✅")
+    else:
+        manque = int((18.0 * surf_cacao) - p["total_arbres_ombrage"])
+        col_r2.metric("Conformité Marché UE (RDUE)", f"Non-Conforme (-{manque} arbres)", delta_color="inverse")
+
+    # 4. FEUILLE DE ROUTE CALENDRAIRE
+    st.markdown("#### 📅 4. Feuillets d'Actions Prioritaires Chronologiques")
+    t1, t2 = st.tabs(["🌧️ Saison des Pluies (Travaux Lourds)", "☀️ Saison Sèche (Récolte & Protection)"])
+
+    with t1:
+        st.write("**Priorités Immédiates :**")
+        if ratio_arbres_ha < 18.0:
+            st.info(f"• **Reboisement :** Mettre en terre {int((18.0 * surf_cacao) - p['total_arbres_ombrage'])} plants d'essences ombrageables.")
+        st.write("• **Taille & Émondage :** Aérer le houppier des cacaoyers pour limiter l'humidité propice à la pourriture brune.")
+        if "replantation" in p["decision_retenue"].lower():
+            st.write("• **Pépinière :** Préparer le matériel végétal haut rendement (CNRA) pour le schéma de replantation.")
+
+    with t2:
+        st.write("**Entretien & Post-Récolte :**")
+        st.write("• **Ramassage des cabosses mûres :** Fréquence tous les 10-14 jours pour prévenir les attaques de ravageurs.")
+        st.write("• **EPI & Matériel :** Révision des atomiseurs et mise aux normes des équipements de protection individuelle.")
+
+    # 5. SYNTHÈSE NARRATIVE AUTOMATIQUE
+    st.markdown("---")
+    st.markdown("#### 📄 5. Synthèse Narrative du Plan (Modèle LEÏLA)")
+
+    synthese_texte = generer_synthese_narrative_leila(
+        p=p,
+        score_global=score_global,
+        ratio_arbres_ha=ratio_arbres_ha,
+        roi_5ans=roi_5ans,
+    )
+
+    st.info(synthese_texte)
+
+    if p["texte_synthese_auto"]:
+        with st.expander("📝 Voir la synthèse brute enregistrée sur le terrain (CCC)"):
+            st.caption(p["texte_synthese_auto"])
+
 
 # ==========================================
-# 3. INTERFACE DU SERVEUR CENTRAL
+# 6. BARRE LATÉRALE & FILTRES CENTRALISÉS
 # ==========================================
-cabinet_courant = st.session_state.get("cabinet_actif")
-user_profile = st.session_state.get("profile")
+st.sidebar.title(f"🏢 {cabinet_courant['nom']}")
+st.sidebar.caption(f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisateur')} ({user_profile.get('role', '')})")
 
-st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
-st.markdown(f"*Espace de travail connecté : **{cabinet_courant['nom']}***")
+options_coop = {}
+if user_profile.get("role") == "ADMIN_CABINET":
+    options_coop["Toutes les coopératives (Vue Direction)"] = "ALL"
 
-# Ajout d'une clé unique pour différencier ce bouton des autres déconnexions
-if st.sidebar.button("🚪 Déconnexion", key="btn_logout_serveur_central"):
-    supabase.auth.sign_out()
+for coop in liste_cooperatives:
+    options_coop[coop.get("nom", "Coopérative")] = coop.get("code_db", "")
+
+if options_coop:
+    coop_selectionnee_label = st.sidebar.selectbox("Sélectionner la Coopérative :", list(options_coop.keys()), key="select_coop_sidebar")
+    code_coop_filtre = options_coop[coop_selectionnee_label]
+else:
+    code_coop_filtre = "ALL"
+    coop_selectionnee_label = "Toutes"
+
+if st.sidebar.button("🚪 Déconnexion", key="btn_logout_sidebar"):
+    if supabase:
+        supabase.auth.sign_out()
     st.session_state.clear()
     st.rerun()
 
 st.sidebar.divider()
-
-
-cabinet_id_actif = cabinet_courant["id"]
-
 st.sidebar.header("🎛️ Sélection du Module")
 module_choisi = st.sidebar.selectbox(
     "Choisir le domaine d'analyse",
@@ -768,35 +789,38 @@ module_choisi = st.sidebar.selectbox(
         "Diagnostic Phytosanitaire",
         "Estimation de Rendement",
     ],
-    key="select_module_serveur_central"  # <-- Clé unique ajoutée ici
+    key="select_module_serveur_central"
 )
 
+
+# ==========================================
+# 7. CORPS DE L'APPLICATION CENTRALISÉE
+# ==========================================
+st.title("🌐 L.E.Y.L.A. - Centre de Commandement Global")
+st.markdown(f"*Espace de travail connecté : **{cabinet_courant['nom']}***")
+
+cabinet_id_actif = cabinet_courant["id"]
+
+# Chargement isolé et filtré des données de la table
 df_filtered = charger_donnees_isolees(
     module_choisi=module_choisi,
     cabinet_id=cabinet_id_actif,
     code_coop_filtre=code_coop_filtre,
 )
 
-st.subheader(f"📊 Module actif : {module_choisi}")
+st.subheader(f"📊 Module actif : {module_choisi} ({coop_selectionnee_label})")
 
-with st.expander(
-    f"📁 Afficher / Masquer les données brutes ({len(df_filtered)}"
-    " enregistrement(s))",
-    expanded=False,
-):
+with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered)} enregistrement(s))", expanded=False):
     if not df_filtered.empty:
         st.dataframe(df_filtered, use_container_width=True)
     else:
-        st.info(
-            "Aucune donnée enregistrée pour le module"
-            f" {module_choisi} dans cette sélection."
-        )
+        st.info(f"Aucune donnée enregistrée pour le module {module_choisi} dans cette sélection.")
 
 st.divider()
 
 
 # ==========================================
-# 4. MODULE DÉDIÉ PDC : ANALYSE PAR PRODUCTEUR
+# 8. ANALYSE DÉDIÉE PAR PRODUCTEUR (PDC)
 # ==========================================
 if "PDC" in module_choisi:
     col_titre, col_reset = st.columns([2.5, 1.5])
@@ -805,9 +829,7 @@ if "PDC" in module_choisi:
         st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
 
     with col_reset:
-        if st.button(
-            "🔄 Réinitialiser l'affichage PDC", use_container_width=True
-        ):
+        if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True, key="btn_reset_pdc"):
             st.cache_data.clear()
             st.cache_resource.clear()
             if "pdc_select_box" in st.session_state:
@@ -816,27 +838,15 @@ if "PDC" in module_choisi:
             st.rerun()
 
     if df_filtered.empty:
-        st.info(
-            "ℹ️ Aucun enregistrement PDC disponible. La base de données est"
-            " propre."
-        )
+        st.info("ℹ️ Aucun enregistrement PDC disponible. La base de données est propre.")
     else:
         df_pdc = df_filtered.copy()
 
-        col_nom = (
-            "nom_producteur"
-            if "nom_producteur" in df_pdc.columns
-            else df_pdc.columns[0]
-        )
-        col_code = (
-            "code_producteur" if "code_producteur" in df_pdc.columns else None
-        )
+        col_nom = "nom_producteur" if "nom_producteur" in df_pdc.columns else df_pdc.columns[0]
+        col_code = "code_producteur" if "code_producteur" in df_pdc.columns else None
         col_id = "id" if "id" in df_pdc.columns else None
 
-        df_pdc = df_pdc[
-            df_pdc[col_nom].notna()
-            & (df_pdc[col_nom].astype(str).str.strip() != "")
-        ].copy()
+        df_pdc = df_pdc[df_pdc[col_nom].notna() & (df_pdc[col_nom].astype(str).str.strip() != "")].copy()
 
         if not df_pdc.empty:
 
@@ -844,24 +854,16 @@ if "PDC" in module_choisi:
                 nom_str = str(row[col_nom]).strip()
                 code_str = (
                     f" | Code: {row[col_code]}"
-                    if col_code
-                    and pd.notna(row[col_code])
-                    and str(row[col_code]).strip() != ""
+                    if col_code and pd.notna(row[col_code]) and str(row[col_code]).strip() != ""
                     else ""
                 )
-                id_str = (
-                    f" | ID #{row[col_id]}"
-                    if col_id and pd.notna(row[col_id])
-                    else ""
-                )
+                id_str = f" | ID #{row[col_id]}" if col_id and pd.notna(row[col_id]) else ""
                 return f"{nom_str}{code_str}{id_str}"
 
             df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
 
             OPTION_DEFAUT = "--- Sélectionner un producteur ---"
-            options_disponibles = [
-                OPTION_DEFAUT
-            ] + df_pdc["cle_unique"].tolist()
+            options_disponibles = [OPTION_DEFAUT] + df_pdc["cle_unique"].tolist()
 
             with st.form("form_selection_pdc"):
                 choix_utilisateur = st.selectbox(
@@ -878,10 +880,7 @@ if "PDC" in module_choisi:
 
             if soumis:
                 if choix_utilisateur == OPTION_DEFAUT:
-                    st.warning(
-                        "Veuillez sélectionner un producteur valide dans la"
-                        " liste."
-                    )
+                    st.warning("Veuillez sélectionner un producteur valide dans la liste.")
                 else:
                     if verifier_et_incrementer_quota(cabinet_id_actif):
                         ligne_selectionnee = (
@@ -889,29 +888,18 @@ if "PDC" in module_choisi:
                             .iloc[0]
                             .to_dict()
                         )
-                        # Appelle la fonction qui exécute et affiche tout le diagnostic (y compris la section 5)
                         leila_analyse_pdc_metier(ligne_selectionnee)
                     else:
-                        st.error(
-                            "🚫 **Quota d'analyses IA mensuel atteint pour votre"
-                            " cabinet.**"
-                        )
-                        st.info(
-                            "Veuillez contacter le **Cabinet AGRIFORCE** pour"
-                            " recharger votre forfait de requêtes L.E.Y.L.A."
-                        )
+                        st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
+                        st.info("Veuillez contacter le **Cabinet AGRIFORCE** pour recharger votre forfait de requêtes L.E.Y.L.A.")
         else:
-            st.warning(
-                "Aucun nom de producteur valide trouvé dans les"
-                " enregistrements."
-            )
+            st.warning("Aucun nom de producteur valide trouvé dans les enregistrements.")
 
     st.divider()
 
 
-
 # ==========================================
-# 5. INTERACTION AVEC LE SATELLITE IA (HUB UNIVERSEL)
+# 9. ASSISTANT SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
 st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
 st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
@@ -950,10 +938,4 @@ if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
                 st.error(f"Erreur lors de la communication avec le satellite : {e}")
     else:
         st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
-        st.info(
-            "Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A."
-        )
-
-
-
-
+        st.info("Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A.")
