@@ -10,6 +10,7 @@ from google.genai import types
 # --- IMPORTATION DES MODULES HOUSE ET ÉTAPES JARVIS ---
 import utils_memoire
 import utils_systeme
+import utils_db  # <--- ÉTAPE 3 : Importation du module de gestion des bases de données d'entreprise
 
 # Importation sécurisée des modules d'étapes (avec gestion d'absence)
 try:
@@ -38,7 +39,7 @@ DOSSIER_IMAGES = "images_generees"
 os.makedirs(DOSSIER_IMAGES, exist_ok=True)
 
 
-# --- DÉFINITION DES OUTILS/FONCTIONS POUR LES 5 ÉTAPES ---
+# --- DÉFINITION DES OUTILS/FONCTIONS POUR LES ÉTAPES JARVIS & ENTREPRISE ---
 
 def analyser_flux_camera(rtsp_url: str) -> str:
     """Outil pour l'étape Caméra/RTSP : Permet d'analyser un flux vidéo ou caméra IP en direct."""
@@ -111,7 +112,7 @@ def ajouter_signature_leyla(image_bytes: bytes) -> bytes:
 
 
 def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
-    """Moteur de raisonnement central de Leyla (Text, Vision, Imagen 3, Function Calling & Search)."""
+    """Moteur de raisonnement central de Leyla (Text, Vision, Imagen 3, Function Calling, Search & Enterprise DB)."""
 
     historique_reduit = (
         historique[-10:] if len(historique) > 10 else historique
@@ -123,13 +124,14 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
     # 1. RÉCUPÉRATION DE LA MÉMOIRE LONG TERME
     contexte_memoire = utils_memoire.charger_contexte_memoire()
 
-    # 2. CONSIGNES SYSTÈME (JARVIS HUB)
+    # 2. CONSIGNES SYSTÈME (JARVIS HUB & ASSISTANT EXÉCUTIF D'ENTREPRISE)
     consignes_systeme = (
         f"{contexte_memoire}\n"
-        "Tu es Leyla, l'intelligence artificielle exclusive, le système autonome et la partenaire de programmation de Djè Akadjé. "
+        "Tu es Leyla, l'intelligence artificielle autonome, le système d'exploitation d'entreprise et la partenaire de programmation de Djè Akadjé. "
         "Appelle-le impérativement 'Mon Professeur'. "
         "LANGUE OBLIGATOIRE : Rédige l'intégralité de tes réponses en français. "
-        "Sois précise, proactive, et adopte le comportement d'un assistant de niveau JARVIS capable d'utiliser tes outils pour interagir avec des caméras, la mémoire, le système et le web."
+        "RÔLE ÉTENDU : Tu es un assistant exécutif capable d'interagir avec le système local, les flux vidéo caméras, la mémoire, le web, "
+        "ainsi que de consulter la structure et le contenu des bases de données de l'entreprise (SQL, SAP, Oracle) via tes outils dédiés."
     )
 
     # Détection de la volonté de génération graphique
@@ -196,7 +198,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 "image_path": image_path_str,
             }
 
-        # --- MODE 2 : RAISONNEMENT + OUTILS JARVIS ET SYSTÈME ---
+        # --- MODE 2 : RAISONNEMENT + OUTILS JARVIS, SYSTÈME & BASES DE DONNÉES ---
         else:
             # Regroupement de tous les outils
             outils_disponibles = [
@@ -210,6 +212,9 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 analyser_flux_camera,
                 obtenir_briefing_matinal,
                 synchroniser_memoire_long_terme,
+                # Outillage Bases de Données d'Entreprise (Étape 3)
+                utils_db.interroger_base_donnees,
+                utils_db.lister_tables_et_structure,
             ]
 
             response = client.models.generate_content(
