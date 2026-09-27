@@ -8,6 +8,17 @@ import streamlit as st
 import streamlit.components.v1 as components
 import utils_memoire
 
+# --- IMPORTATION DES MODULES JARVIS ---
+try:
+    from camera_leyla import capturer_et_analyser_camera_externe
+except ImportError:
+    capturer_et_analyser_camera_externe = None
+
+try:
+    from briefing_leyla import generer_briefing_matinal
+except ImportError:
+    generer_briefing_matinal = None
+
 # --- INITIALISATION ET CONFIGURATION ---
 db_manager.init_db()
 st.set_page_config(
@@ -54,9 +65,7 @@ st.markdown(
 user_name = db_manager.get_user_name()
 if not user_name:
     st.title("🤖 Bienvenue sur Leyla IA")
-    nom_saisi = st.text_input(
-        "Comment dois-je vous appeler, Mon Professeur ?"
-    )
+    nom_saisi = st.text_input("Comment dois-je vous appeler, Mon Professeur ?")
     if nom_saisi:
         db_manager.save_user_name(nom_saisi)
         st.rerun()
@@ -69,7 +78,7 @@ if "session_id" not in st.session_state:
 if "message_en_cours" not in st.session_state:
     st.session_state.message_en_cours = ""
 
-# --- BARRE LATÉRALE (SIDEBAR) ---
+# --- BARRE LATÉRALE (SIDEBAR - CONTROLEUR JARVIS) ---
 with st.sidebar:
     st.title("⚡ Leyla Control")
     if st.button("➕ Nouvelle Discussion", use_container_width=True):
@@ -79,6 +88,62 @@ with st.sidebar:
         st.rerun()
 
     activer_voix = st.checkbox("🔊 Réponse vocale automatique", value=True)
+
+    # --- NOUVELLE SECTION : FONCTIONNALITÉS JARVIS ---
+    st.markdown("---")
+    st.markdown("### 👑 Fonctions JARVIS")
+
+    # Étape 1 : Wake Word
+    if st.button("🎧 Écoute Passive (Wake Word)", use_container_width=True):
+        st.toast("Pour activer l'écoute passive sur mobile, utilisez ecoute_leyla_mobile.py")
+
+    # Étape 2 : Briefing Matinal
+    if st.button("🌅 Briefing Matinal Proactif", use_container_width=True):
+        if generer_briefing_matinal:
+            with st.spinner("Génération de votre briefing, Mon Professeur..."):
+                briefing = generer_briefing_matinal()
+                st.session_state.message_en_cours = briefing
+                st.rerun()
+        else:
+            st.error("Module briefing_leyla.py introuvable.")
+
+    # Étape 4 : Mémoire Proactive
+    if st.button("🧠 Synchro Mémoire Long Terme", use_container_width=True):
+        messages = db_manager.get_history(st.session_state.session_id)
+        utils_memoire.extraire_et_sauvegarder_faits(messages)
+        st.toast("Mémoire de Leyla synchronisée !")
+
+    # Étape 5 : Hub Multi-Appareils
+    if st.button("📱 État Hub Multi-Appareils", use_container_width=True):
+        st.info("Serveur Hub : ws://localhost:8000/ws")
+
+    # --- SECTION SOURCING MÉDIA & CAMÉRAS ---
+    st.markdown("---")
+    st.markdown("### 🎨 Studio Visuel & Caméras")
+    choix_source = st.radio(
+        "Source média :",
+        ["Aucune", "📁 Fichier", "📷 Caméra", "📹 Caméra IP (RTSP)"],
+        horizontal=False,
+    )
+
+    media_file = None
+    if choix_source == "📁 Fichier":
+        media_file = st.file_uploader(
+            "Téléverser une image", type=["jpg", "jpeg", "png"]
+        )
+    elif choix_source == "📷 Caméra":
+        media_file = st.camera_input("Prendre une photo")
+    elif choix_source == "📹 Caméra IP (RTSP)":
+        rtsp_url = st.text_input(
+            "URL du flux (RTSP/HTTP) :",
+            placeholder="rtsp://admin:12345@192.168.1.50:554/live",
+        )
+        if st.button("👁️ Analyser le Flux Caméra", use_container_width=True):
+            if rtsp_url and capturer_et_analyser_camera_externe:
+                with st.spinner("Analyse du flux réseau..."):
+                    rapport = capturer_et_analyser_camera_externe(rtsp_url)
+                    st.session_state.message_en_cours = f"[ANALYSE CAMÉRA DISTANTE]\n{rapport}"
+                    st.rerun()
 
     st.markdown("---")
     st.markdown("### 💬 Sessions")
@@ -125,19 +190,6 @@ with st.sidebar:
                     st.session_state[f"editing_{s_id}"] = False
                     st.rerun()
 
-    st.markdown("---")
-    st.markdown("### 🎨 Studio Créatif / Vision")
-    choix_source = st.radio(
-        "Source média :", ["Aucune", "📁 Fichier", "📷 Caméra"], horizontal=True
-    )
-    media_file = None
-    if choix_source == "📁 Fichier":
-        media_file = st.file_uploader(
-            "Téléverser une image", type=["jpg", "jpeg", "png"]
-        )
-    elif choix_source == "📷 Caméra":
-        media_file = st.camera_input("Prendre une photo")
-
 # --- AFFICHAGE DE L'HISTORIQUE ---
 messages = db_manager.get_history(st.session_state.session_id)
 for m in messages:
@@ -173,7 +225,6 @@ if btn_stop:
     )
 
 if btn_parler:
-    # JS pour la reconnaissance vocale Web Speech API
     components.html(
         """
         <script>
@@ -239,7 +290,7 @@ if st.session_state.message_en_cours:
             db_manager.get_history(st.session_state.session_id)
         )
 
-        # 4. Synthesize vocale (TTS)
+        # 4. Synthèse vocale (TTS)
         if activer_voix:
             texte_vocale = re.sub(r"[\*\#\_\`\~]", "", reponse_texte)
             texte_vocale = (
