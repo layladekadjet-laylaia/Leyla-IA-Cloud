@@ -20,11 +20,11 @@ DEVICE_ID = get_device_id()
 
 
 def init_db():
-    """Initialise les tables de la base de données, gère la migration sans erreur DEFAULT et crée les index."""
+    """Initialise les tables de la base de données de manière totalement sécurisée."""
     with sqlite3.connect(DB_NAME) as conn:
         c = conn.cursor()
 
-        # Table des messages
+        # 1. Table des messages (création si absente)
         c.execute(
             """CREATE TABLE IF NOT EXISTS messages 
                      (id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -32,16 +32,17 @@ def init_db():
                       session_id TEXT, 
                       role TEXT, 
                       content TEXT,
-                      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""
+                      timestamp TIMESTAMP)"""
         )
 
-        # MIGRATION COMPATIBLE SQLITE : Ajout de la colonne sans valeur par défaut dynamique
-        c.execute("PRAGMA table_info(messages)")
-        colonnes = [col[1] for col in c.fetchall()]
-        if "timestamp" not in colonnes:
+        # 2. Migration ultra-sécurisée de la colonne timestamp
+        try:
             c.execute("ALTER TABLE messages ADD COLUMN timestamp TIMESTAMP")
+        except sqlite3.OperationalError:
+            # La colonne existe déjà ou ne peut pas être réajoutée, on ignore l'erreur en toute sécurité
+            pass
 
-        # Table des métadonnées des sessions
+        # 3. Table des métadonnées des sessions
         c.execute(
             """CREATE TABLE IF NOT EXISTS sessions 
                      (session_id TEXT PRIMARY KEY, 
@@ -50,7 +51,7 @@ def init_db():
                       created_at TIMESTAMP)"""
         )
 
-        # Table du profil utilisateur
+        # 4. Table du profil utilisateur
         c.execute(
             """CREATE TABLE IF NOT EXISTS user_profile 
                      (device_id TEXT PRIMARY KEY, 
@@ -58,7 +59,7 @@ def init_db():
                       title TEXT DEFAULT 'Mon Professeur')"""
         )
 
-        # Index d'optimisation
+        # 5. Index d'optimisation
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(device_id, session_id)"
         )
@@ -140,7 +141,7 @@ def save_message(
     with sqlite3.connect(DB_NAME) as conn:
         c = conn.cursor()
 
-        # 1. Sauvegarde du message avec horodatage fourni par Python
+        # 1. Sauvegarde du message
         c.execute(
             "INSERT INTO messages (device_id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
             (dev_id, session_id, role, content, now),
