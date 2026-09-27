@@ -15,3 +15,7 @@ duckduckgo-search>=5.0.0
 pillow>=10.2.0
 pandas>=2.2.0
 requests>=2.31.0
+
+# --- TRAITEMENT VOCAL (Mobile Compatible) ---
+speechrecognition>=3.10.0
+pydub>=0.25.1
