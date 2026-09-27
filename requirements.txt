@@ -1,8 +1,17 @@
-google-genai
-streamlit>=1.30.0
-pandas
-requests
+# --- SDK GOOGLE & IA (Nouveau SDK Officiel Unifié) ---
+google-genai>=0.1.1
+
+# --- INTERFACE & BACKEND ---
+streamlit>=1.35.0
+fastapi>=0.110.0
+uvicorn>=0.28.0
+pydantic>=2.6.0
+
+# --- BASE DE DONNÉES & RECHERCHE ---
 supabase>=2.4.0
-google-generativeai>=0.8.0
-pillow
-duckduckgo-search
+duckduckgo-search>=5.0.0
+
+# --- TRAITEMENT MEDIA & DONNÉES ---
+pillow>=10.2.0
+pandas>=2.2.0
+requests>=2.31.0
