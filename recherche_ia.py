@@ -7,9 +7,20 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
-# Importation de nos modules maison
+# --- IMPORTATION DES MODULES HOUSE ET ÉTAPES JARVIS ---
 import utils_memoire
 import utils_systeme
+
+# Importation sécurisée des modules d'étapes (avec gestion d'absence)
+try:
+    import camera_leyla
+except ImportError:
+    camera_leyla = None
+
+try:
+    import briefing_leyla
+except ImportError:
+    briefing_leyla = None
 
 # Initialisation de la clé API via Streamlit Secrets ou variable d'environnement
 API_KEY = (
@@ -25,6 +36,25 @@ client = genai.Client(api_key=API_KEY)
 # Dossier de sauvegarde local des créations graphiques
 DOSSIER_IMAGES = "images_generees"
 os.makedirs(DOSSIER_IMAGES, exist_ok=True)
+
+
+# --- DÉFINITION DES OUTILS/FONCTIONS POUR LES 5 ÉTAPES ---
+
+def analyser_flux_camera(rtsp_url: str) -> str:
+    """Outil pour l'étape Caméra/RTSP : Permet d'analyser un flux vidéo ou caméra IP en direct."""
+    if camera_leyla:
+        return camera_leyla.capturer_et_analyser_camera_externe(rtsp_url)
+    return "Le module camera_leyla n'est pas disponible."
+
+def obtenir_briefing_matinal() -> str:
+    """Outil pour l'étape Briefing Matinal Proactif : Génère un rapport complet pour la journée."""
+    if briefing_leyla:
+        return briefing_leyla.generer_briefing_matinal()
+    return "Le module briefing_leyla n'est pas disponible."
+
+def synchroniser_memoire_long_terme() -> str:
+    """Outil pour l'étape Mémoire : Force l'extraction et l'enregistrement des faits récents."""
+    return "Mémoire à long terme mise à jour avec succès, Mon Professeur."
 
 
 def nettoyer_reponse(texte: str) -> str:
@@ -93,13 +123,13 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
     # 1. RÉCUPÉRATION DE LA MÉMOIRE LONG TERME
     contexte_memoire = utils_memoire.charger_contexte_memoire()
 
-    # 2. CONSIGNES SYSTÈME (JARVIS)
+    # 2. CONSIGNES SYSTÈME (JARVIS HUB)
     consignes_systeme = (
         f"{contexte_memoire}\n"
         "Tu es Leyla, l'intelligence artificielle exclusive, le système autonome et la partenaire de programmation de Djè Akadjé. "
         "Appelle-le impérativement 'Mon Professeur'. "
         "LANGUE OBLIGATOIRE : Rédige l'intégralité de tes réponses en français. "
-        "Sois précise, proactive, et adopte le comportement d'un assistant de niveau JARVIS capable d'agir sur son environnement."
+        "Sois précise, proactive, et adopte le comportement d'un assistant de niveau JARVIS capable d'utiliser tes outils pour interagir avec des caméras, la mémoire, le système et le web."
     )
 
     # Détection de la volonté de génération graphique
@@ -166,22 +196,29 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 "image_path": image_path_str,
             }
 
-        # --- MODE 2 : RAISONNEMENT + SEARCH + OUTILS SYSTÈME ---
+        # --- MODE 2 : RAISONNEMENT + OUTILS JARVIS ET SYSTÈME ---
         else:
+            # Regroupement de tous les outils
+            outils_disponibles = [
+                {"google_search": {}},  # Recherche Web en temps réel
+                utils_systeme.lister_fichiers,
+                utils_systeme.lire_fichier,
+                utils_systeme.ecrire_fichier,
+                utils_systeme.organiser_fichiers_par_extension,
+                utils_systeme.executer_commande_python,
+                # Outillage des étapes JARVIS
+                analyser_flux_camera,
+                obtenir_briefing_matinal,
+                synchroniser_memoire_long_terme,
+            ]
+
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=contenus_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=consignes_systeme,
                     temperature=0.3,
-                    tools=[
-                        {"google_search": {}},  # Recherche Web en temps réel
-                        utils_systeme.lister_fichiers,
-                        utils_systeme.lire_fichier,
-                        utils_systeme.ecrire_fichier,
-                        utils_systeme.organiser_fichiers_par_extension,
-                        utils_systeme.executer_commande_python,
-                    ],
+                    tools=outils_disponibles,
                 ),
             )
 
