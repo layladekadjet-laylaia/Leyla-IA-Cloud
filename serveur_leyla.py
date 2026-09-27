@@ -1,13 +1,30 @@
 import os
 import re
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from google import genai
 from google.genai import types
 from duckduckgo_search import DDGS
 
-app = FastAPI(title="Serveur Passerelle Leyla IA")
+import utils_memoire
+
+app = FastAPI(
+    title="Serveur Passerelle Leyla IA",
+    version="3.0.0",
+    description="API Passerelle Cloud pour l'application mobile Leyla IA",
+)
+
+# --- SÉCURITÉ NETWORK (CORS) ---
+# Nécessaire pour que l'APK Android / iOS communique avec le serveur sans être bloquée
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- INITIALISATION ET SÉCURITÉ ---
 API_KEY = os.getenv("GOOGLE_API_KEY", "AQ.Ab8RN6JbqEcZXxikzFtPnxwUeqBobUqVMhxhtgvXRE7nE9fmLg")
@@ -15,18 +32,14 @@ client = genai.Client(api_key=API_KEY)
 
 
 def nettoyer_pour_lecture_vocale(texte: str) -> str:
-    """Nettoie le texte pour qu'il soit lu de manière naturelle et fluide par la voix (TTS)."""
+    """Nettoie le texte pour qu'il soit lu de manière naturelle et fluide par la synthèse vocale (TTS)."""
     if not texte:
         return ""
 
-    # Supprime les réflexions internes si présentes
     texte = re.sub(r"<think>.*?</think>", "", texte, flags=re.DOTALL).strip()
-
-    # Supprime la mise en forme Markdown (astérisques, dièses, crochets, etc.)
     texte = re.sub(r"[\*\#\_\`\~]", "", texte)
     texte = re.sub(r"\[.*?\]", "", texte)
 
-    # Harmonise les sauts de ligne pour une diction fluide
     lignes = [ligne.strip() for ligne in texte.split("\n") if ligne.strip()]
     return " ".join(lignes)
 
@@ -36,10 +49,26 @@ class Message(BaseModel):
     content: str
 
 
+# --- ENDPOINTS DE CONTRÔLE (HEALTH CHECKS FOR CLOUD) ---
+
+@app.get("/")
+async def root():
+    return {
+        "statut": "en_ligne",
+        "systeme": "Leyla IA Core",
+        "message": "Serveur Passerelle opérationnel, Mon Professeur."
+    }
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
+# --- ENDPOINT PRINCIPAL APK ---
+
 @app.post("/discuter")
 async def discuter(messages: List[Message]):
     try:
-        # Conversion et extension du contexte (10 derniers messages au lieu de 3)
         historique = [{"role": m.role, "content": m.content} for m in messages]
         historique_reduit = (
             historique[-10:] if len(historique) > 10 else historique
@@ -61,8 +90,11 @@ async def discuter(messages: List[Message]):
         except Exception:
             contexte_web = "Recherche DuckDuckGo indisponible."
 
-        # 2. CONSIGNES SYSTÈME DÉDIÉES À LA VOIX ET AU RÔLE
+        # 2. MÉMOIRE ET CONSIGNES SYSTÈME
+        contexte_memoire = utils_memoire.charger_contexte_memoire()
+
         consignes_systeme = (
+            f"{contexte_memoire}\n"
             "Tu es Leyla, l'intelligence artificielle exclusive et le système central de Djè Akadjé. "
             "Appelle-le impérativement 'Mon Professeur'. "
             "LANGUE OBLIGATOIRE : Rédige l'intégralité de ta réponse en français courant. "
@@ -72,13 +104,11 @@ async def discuter(messages: List[Message]):
 
         contenus_prompt = []
 
-        # INJECTION CRUCIALE : Ajout des données Web dans le prompt
         if contexte_web and "indisponible" not in contexte_web:
             contenus_prompt.append(
                 f"INFORMATIONS WEB EN TEMPS RÉEL :\n{contexte_web}\n"
             )
 
-        # Construction de l'historique textuel
         historique_texte = "HISTORIQUE DE LA CONVERSATION :\n"
         for msg in historique_reduit:
             role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
@@ -89,7 +119,7 @@ async def discuter(messages: List[Message]):
 
         contenus_prompt.append(historique_texte)
 
-        # 3. GÉNÉRATION AVEC GEMINI 2.5 FLASH + SEARCH GROUNDING NORTATIF
+        # 3. GENERATION GEMINI 2.5 FLASH + SEARCH GROUNDING
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=contenus_prompt,
@@ -97,7 +127,7 @@ async def discuter(messages: List[Message]):
                 system_instruction=consignes_systeme,
                 temperature=0.3,
                 max_output_tokens=1024,
-                tools=[{"google_search": {}}],  # Recherche Google native
+                tools=[{"google_search": {}}],
             ),
         )
 
