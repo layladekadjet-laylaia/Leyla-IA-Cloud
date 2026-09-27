@@ -1,23 +1,44 @@
 import os
-import sqlite3
 import pandas as pd
 from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
 
-# Chargement des variables d'environnement
-load_dotenv("config.env")
+# Détection et lecture dynamique des accès depuis secrets.toml ou Streamlit
+def charger_configuration_db():
+    try:
+        import streamlit as st
+        if "database" in st.secrets:
+            return st.secrets["database"]
+    except Exception:
+        pass
+
+    # Fallback pour exécution hors Streamlit (script pur ou .exe)
+    chemin_secrets = os.path.join(".streamlit", "secrets.toml")
+    if os.path.exists(chemin_secrets):
+        try:
+            import tomllib  # Python 3.11+
+            with open(chemin_secrets, "rb") as f:
+                config = tomllib.load(f)
+                return config.get("database", {})
+        except ImportError:
+            import toml
+            with open(chemin_secrets, "r", encoding="utf-8") as f:
+                config = toml.load(f)
+                return config.get("database", {})
+
+    return {}
 
 def obtenir_chaine_connexion() -> str:
     """
-    Génère la chaîne de connexion SQLAlchemy à partir du fichier config.env.
-    Prend en charge : postgresql, mysql, mssql (SQL Server), oracle, sqlite.
+    Génère la chaîne de connexion SQLAlchemy à partir de la configuration database.
     """
-    db_type = os.getenv("DB_TYPE", "sqlite").lower()
-    host = os.getenv("DB_HOST", "localhost")
-    port = os.getenv("DB_PORT", "")
-    user = os.getenv("DB_USER", "")
-    password = os.getenv("DB_PASSWORD", "")
-    database = os.getenv("DB_NAME", "entreprise.db")
+    db_config = charger_configuration_db()
+
+    db_type = db_config.get("db_type", "sqlite").lower()
+    host = db_config.get("host", "localhost")
+    port = db_config.get("port", "")
+    user = db_config.get("user", "")
+    password = db_config.get("password", "")
+    database = db_config.get("database", "entreprise.db")
 
     if db_type == "sqlite":
         return f"sqlite:///{database}"
@@ -40,10 +61,10 @@ def interroger_base_donnees(requete_sql: str) -> str:
     Args:
         requete_sql (str): La requête SQL à exécuter (ex: SELECT * FROM stocks LIMIT 10)
     """
-    # Garde-fou de sécurité : Seules les requêtes SELECT sont autorisées
+    # Garde-fou de sécurité : Seules les requêtes SELECT et WITH sont autorisées
     requete_propre = requete_sql.strip().upper()
-    if not requete_propre.startswith("SELECT") and not requete_propre.startswith("WITH"):
-        return "Erreur de sécurité : Seules les requêtes de lecture (SELECT) sont autorisées."
+    if not (requete_propre.startswith("SELECT") or requete_propre.startswith("WITH")):
+        return "Erreur de sécurité : Seules les requêtes de lecture (SELECT / WITH) sont autorisées."
 
     try:
         url_connexion = obtenir_chaine_connexion()
@@ -55,7 +76,7 @@ def interroger_base_donnees(requete_sql: str) -> str:
             if df.empty:
                 return "La requête a été exécutée avec succès, mais aucun résultat n'a été trouvé."
             
-            # Limiter l'affichage à 50 lignes pour éviter d'inonder le contexte du modèle
+            # Limiter l'affichage à 50 lignes pour préserver le contexte du modèle
             if len(df) > 50:
                 aperçu = df.head(50).to_markdown(index=False)
                 return f"{aperçu}\n\n*(Note : Affichage limité aux 50 premières lignes sur {len(df)} au total)*"
@@ -73,10 +94,10 @@ def lister_tables_et_structure() -> str:
     try:
         url_connexion = obtenir_chaine_connexion()
         engine = create_engine(url_connexion)
+        db_config = charger_configuration_db()
+        db_type = db_config.get("db_type", "sqlite").lower()
 
         with engine.connect() as conn:
-            db_type = os.getenv("DB_TYPE", "sqlite").lower()
-            
             if db_type == "sqlite":
                 query = "SELECT name FROM sqlite_master WHERE type='table';"
             elif db_type in ["postgresql", "mysql"]:
