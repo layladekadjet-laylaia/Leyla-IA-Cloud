@@ -2,18 +2,24 @@ import io
 import os
 import re
 import uuid
+from PIL import Image, ImageDraw, ImageFont
+import streamlit as st
 from google import genai
 from google.genai import types
-from PIL import Image, ImageDraw, ImageFont
 
 # Importation de nos modules maison
 import utils_memoire
 import utils_systeme
 
-# Initialisation du client GenAI
-API_KEY = os.getenv(
-    "GOOGLE_API_KEY", "AQ.Ab8RN6JbqEcZXxikzFtPnxwUeqBobUqVMhxhtgvXRE7nE9fmLg"
+# Initialisation de la clé API via Streamlit Secrets ou variable d'environnement
+API_KEY = (
+    st.secrets.get("GOOGLE_API_KEY")
+    or st.secrets.get("GEMINI_API_KEY")
+    or os.getenv("GOOGLE_API_KEY")
+    or os.getenv("GEMINI_API_KEY")
 )
+
+# Initialisation du client GenAI
 client = genai.Client(api_key=API_KEY)
 
 # Dossier de sauvegarde local des créations graphiques
@@ -84,7 +90,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
         historique_reduit[-1]["content"] if historique_reduit else ""
     )
 
-    # 1. RECUPÉRATION DE LA MÉMOIRE LONG TERME
+    # 1. RÉCUPÉRATION DE LA MÉMOIRE LONG TERME
     contexte_memoire = utils_memoire.charger_contexte_memoire()
 
     # 2. CONSIGNES SYSTÈME (JARVIS)
