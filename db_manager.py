@@ -20,7 +20,7 @@ DEVICE_ID = get_device_id()
 
 
 def init_db():
-    """Initialise les tables de la base de données, effectue les migrations et crée les index."""
+    """Initialise les tables de la base de données, gère la migration sans erreur DEFAULT et crée les index."""
     with sqlite3.connect(DB_NAME) as conn:
         c = conn.cursor()
 
@@ -35,13 +35,11 @@ def init_db():
                       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""
         )
 
-        # MIGRATION AUTOMATIQUE : Vérifie si la colonne timestamp existe
+        # MIGRATION COMPATIBLE SQLITE : Ajout de la colonne sans valeur par défaut dynamique
         c.execute("PRAGMA table_info(messages)")
         colonnes = [col[1] for col in c.fetchall()]
         if "timestamp" not in colonnes:
-            c.execute(
-                "ALTER TABLE messages ADD COLUMN timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-            )
+            c.execute("ALTER TABLE messages ADD COLUMN timestamp TIMESTAMP")
 
         # Table des métadonnées des sessions
         c.execute(
@@ -142,7 +140,7 @@ def save_message(
     with sqlite3.connect(DB_NAME) as conn:
         c = conn.cursor()
 
-        # 1. Sauvegarde du message
+        # 1. Sauvegarde du message avec horodatage fourni par Python
         c.execute(
             "INSERT INTO messages (device_id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
             (dev_id, session_id, role, content, now),
