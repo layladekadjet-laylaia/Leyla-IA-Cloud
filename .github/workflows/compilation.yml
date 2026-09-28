@@ -36,11 +36,8 @@ jobs:
 
     - name: Copie explicite des fichiers source et ressources
       run: |
-        # Copie à la racine de dist/Leyla/
         Copy-Item -Path "*.py" -Destination "dist/Leyla/" -Force
         if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla/" -Force }
-        
-        # Copie de sécurité dans le dossier _internal s'il existe
         if (Test-Path -Path "dist/Leyla/_internal") {
             Copy-Item -Path "*.py" -Destination "dist/Leyla/_internal/" -Force
             if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla/_internal/" -Force }
