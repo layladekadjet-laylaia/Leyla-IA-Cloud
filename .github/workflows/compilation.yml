@@ -44,3 +44,4 @@ jobs:
       with:
         name: Leyla-Executable-Windows
         path: dist/Leyla/
+        
