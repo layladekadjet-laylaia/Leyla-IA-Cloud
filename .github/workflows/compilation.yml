@@ -32,7 +32,12 @@ jobs:
 
     - name: Compilation avec PyInstaller
       run: |
-        pyinstaller --noconfirm --onedir --copy-metadata streamlit --add-data ".streamlit;.streamlit" --add-data "*.py;." --add-data "LOGO LAYLA.png;." run_app.py --name Leyla
+        pyinstaller --noconfirm --onedir --copy-metadata streamlit --add-data ".streamlit;.streamlit" run_app.py --name Leyla
+
+    - name: Copie explicite des fichiers source et ressources
+      run: |
+        Copy-Item -Path "*.py" -Destination "dist/Leyla/" -Force
+        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla/" -Force }
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
