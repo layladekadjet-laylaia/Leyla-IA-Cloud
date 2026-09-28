@@ -31,7 +31,7 @@ jobs:
 
     - name: Compilation avec PyInstaller
       run: |
-        pyinstaller --noconfirm --onedir --windowed --add-data ".streamlit;.streamlit" run_app.py --name Leyla
+        pyinstaller --noconfirm --onedir --windowed --copy-metadata streamlit --add-data ".streamlit;.streamlit" run_app.py --name Leyla
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
