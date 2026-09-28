@@ -24,18 +24,18 @@ jobs:
         pip install pyinstaller streamlit
         pip install -r requirements.txt
 
-    - name: Preparation du dossier .streamlit
+    - name: Preparation du dossier .streamlit et secrets
       run: |
         if (!(Test-Path -Path ".streamlit")) { New-Item -ItemType Directory -Path ".streamlit" }
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
+        if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
     - name: Compilation avec PyInstaller
       run: |
-        pyinstaller --noconfirm --onedir --copy-metadata streamlit --add-data ".streamlit;.streamlit" run_app.py --name Leyla
+        pyinstaller --noconfirm --onedir --copy-metadata streamlit --add-data ".streamlit;.streamlit" --add-data "*.py;." --add-data "LOGO LAYLA.png;." run_app.py --name Leyla
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
       with:
         name: Leyla-Executable-Windows
         path: dist/Leyla/
-        
