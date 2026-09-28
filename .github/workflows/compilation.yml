@@ -31,10 +31,11 @@ jobs:
 
     - name: Compilation avec PyInstaller
       run: |
-        pyinstaller --noconfirm --onedir --windowed --copy-metadata streamlit --add-data ".streamlit;.streamlit" run_app.py --name Leyla
+        pyinstaller --noconfirm --onedir --copy-metadata streamlit --add-data ".streamlit;.streamlit" run_app.py --name Leyla
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
       with:
         name: Leyla-Executable-Windows
         path: dist/Leyla/
+        
