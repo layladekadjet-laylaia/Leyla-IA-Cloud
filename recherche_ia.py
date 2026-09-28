@@ -10,9 +10,13 @@ from google.genai import types
 # --- IMPORTATION DES MODULES HOUSE ET ÉTAPES JARVIS ---
 import utils_memoire
 import utils_systeme
-import utils_db  # <--- ÉTAPE 3 : Importation du module de gestion des bases de données d'entreprise
 
-# Importation sécurisée des modules d'étapes (avec gestion d'absence)
+try:
+    import utils_db
+except ImportError:
+    utils_db = None
+
+# Importation sécurisée des modules d'étapes
 try:
     import camera_leyla
 except ImportError:
@@ -32,7 +36,7 @@ API_KEY = (
 )
 
 # Initialisation du client GenAI
-client = genai.Client(api_key=API_KEY)
+client = genai.Client(api_key=API_KEY) if API_KEY else None
 
 # Dossier de sauvegarde local des créations graphiques
 DOSSIER_IMAGES = "images_generees"
@@ -113,6 +117,11 @@ def ajouter_signature_leyla(image_bytes: bytes) -> bytes:
 
 def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
     """Moteur de raisonnement central de Leyla (Text, Vision, Imagen 3, Function Calling, Search & Enterprise DB)."""
+    if not client:
+        return {
+            "texte": "Alerte : Clé API Google/Gemini non détectée. Veuillez configurer GOOGLE_API_KEY.",
+            "image_path": None
+        }
 
     historique_reduit = (
         historique[-10:] if len(historique) > 10 else historique
@@ -200,7 +209,6 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
 
         # --- MODE 2 : RAISONNEMENT + OUTILS JARVIS, SYSTÈME & BASES DE DONNÉES ---
         else:
-            # Regroupement de tous les outils
             outils_disponibles = [
                 {"google_search": {}},  # Recherche Web en temps réel
                 utils_systeme.lister_fichiers,
@@ -208,14 +216,16 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 utils_systeme.ecrire_fichier,
                 utils_systeme.organiser_fichiers_par_extension,
                 utils_systeme.executer_commande_python,
-                # Outillage des étapes JARVIS
                 analyser_flux_camera,
                 obtenir_briefing_matinal,
                 synchroniser_memoire_long_terme,
-                # Outillage Bases de Données d'Entreprise (Étape 3)
-                utils_db.interroger_base_donnees,
-                utils_db.lister_tables_et_structure,
             ]
+
+            if utils_db:
+                outils_disponibles.extend([
+                    utils_db.interroger_base_donnees,
+                    utils_db.lister_tables_et_structure,
+                ])
 
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
