@@ -10,10 +10,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Configuration de Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
@@ -21,14 +21,14 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pyinstaller
 
     - name: Compilation avec PyInstaller
       run: |
         pyinstaller --noconfirm --onedir --windowed --add-data ".streamlit;./.streamlit" run_app.py --name Leyla
 
     - name: Telecharger le fichier EXE
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Leyla-Executable-Windows
         path: dist/Leyla/
-        
