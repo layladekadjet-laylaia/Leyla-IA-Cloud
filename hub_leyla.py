@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 from typing import Dict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
@@ -7,7 +8,6 @@ from pydantic import BaseModel
 app = FastAPI(title="Leyla Multi-Device Hub")
 
 # Registre des appareils connectés en temps réel
-# Exemple : {"pc_bureau": WebSocket, "smartphone_android": WebSocket}
 appareils_connectes: Dict[str, WebSocket] = {}
 
 
@@ -35,12 +35,10 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
 
     try:
         while True:
-            # Réception des rapports d'état envoyés par les appareils
             data = await websocket.receive_text()
             message = json.loads(data)
             print(f"📩 Reçu de [{device_id}] : {message}")
 
-            # Accusé de réception du Hub
             await websocket.send_text(
                 json.dumps(
                     {"status": "received", "from": device_id, "data": message}
@@ -69,8 +67,18 @@ async def envoyer_ordre_appareil(
         return False
 
 
+def demarrer_hub_arriere_plan():
+    """Démarre le serveur FastAPI/Uvicorn sur un port dédié (8000) dans un thread séparé."""
+    import uvicorn
+
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="warning")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    # Lancement du serveur WebSockets sur le port 8000
+    # Lancement standalone du serveur WebSockets sur le port 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)
