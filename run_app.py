@@ -1,6 +1,15 @@
 import os
 import sys
 
+# Pré-importation explicite pour forcer l'inclusion par PyInstaller
+try:
+    import PIL
+    import PIL.Image
+    import PIL.ImageDraw
+    import PIL.ImageFont
+except ImportError:
+    pass
+
 if __name__ == "__main__":
     if getattr(sys, "frozen", False):
         base_dir = sys._MEIPASS
@@ -9,7 +18,7 @@ if __name__ == "__main__":
         base_dir = os.path.dirname(os.path.abspath(__file__))
         exe_dir = base_dir
 
-    # 1. Lancement du Hub sur le port 8000 en arrière-plan (nom exact en minuscules)
+    # 1. Lancement du Hub sur le port 8000 en arrière-plan
     try:
         import hub_leyla
 
