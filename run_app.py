@@ -1,12 +1,13 @@
 import os
 import sys
 
-# Pré-importation explicite pour forcer l'inclusion par PyInstaller
+# Pré-importations explicites pour forcer la détection par PyInstaller
 try:
     import PIL
     import PIL.Image
     import PIL.ImageDraw
     import PIL.ImageFont
+    from google import genai
 except ImportError:
     pass
 
