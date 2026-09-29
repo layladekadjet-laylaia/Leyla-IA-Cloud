@@ -27,20 +27,34 @@ try:
 except ImportError:
     briefing_leyla = None
 
-# Initialisation de la clé API via Streamlit Secrets ou variable d'environnement
-API_KEY = (
-    st.secrets.get("GOOGLE_API_KEY")
-    or st.secrets.get("GEMINI_API_KEY")
-    or os.getenv("GOOGLE_API_KEY")
-    or os.getenv("GEMINI_API_KEY")
-)
-
-# Initialisation du client GenAI
-client = genai.Client(api_key=API_KEY) if API_KEY else None
-
 # Dossier de sauvegarde local des créations graphiques
 DOSSIER_IMAGES = "images_generees"
 os.makedirs(DOSSIER_IMAGES, exist_ok=True)
+
+
+def obtenir_cle_api() -> str:
+    """Récupère la clé API en toute sécurité sans faire planter Streamlit."""
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if api_key:
+        return api_key
+
+    try:
+        if "GOOGLE_API_KEY" in st.secrets:
+            return st.secrets["GOOGLE_API_KEY"]
+        if "GEMINI_API_KEY" in st.secrets:
+            return st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        pass
+
+    return ""
+
+
+def obtenir_client() -> genai.Client:
+    """Instancie le client GenAI à la demande."""
+    api_key = obtenir_cle_api()
+    if api_key:
+        return genai.Client(api_key=api_key)
+    return None
 
 
 # --- DÉFINITION DES OUTILS/FONCTIONS POUR LES ÉTAPES JARVIS & ENTREPRISE ---
@@ -51,11 +65,13 @@ def analyser_flux_camera(rtsp_url: str) -> str:
         return camera_leyla.capturer_et_analyser_camera_externe(rtsp_url)
     return "Le module camera_leyla n'est pas disponible."
 
+
 def obtenir_briefing_matinal() -> str:
     """Outil pour l'étape Briefing Matinal Proactif : Génère un rapport complet pour la journée."""
     if briefing_leyla:
         return briefing_leyla.generer_briefing_matinal()
     return "Le module briefing_leyla n'est pas disponible."
+
 
 def synchroniser_memoire_long_terme() -> str:
     """Outil pour l'étape Mémoire : Force l'extraction et l'enregistrement des faits récents."""
@@ -117,10 +133,12 @@ def ajouter_signature_leyla(image_bytes: bytes) -> bytes:
 
 def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
     """Moteur de raisonnement central de Leyla (Text, Vision, Imagen 3, Function Calling, Search & Enterprise DB)."""
+    client = obtenir_client()
+
     if not client:
         return {
             "texte": "Alerte : Clé API Google/Gemini non détectée. Veuillez configurer GOOGLE_API_KEY.",
-            "image_path": None
+            "image_path": None,
         }
 
     historique_reduit = (
@@ -177,7 +195,9 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
         if is_image_mode:
             prompt_image = derniere_requete
             if image_file is not None:
-                prompt_image = f"Adaptation visuelle de l'image : {derniere_requete}"
+                prompt_image = (
+                    f"Adaptation visuelle de l'image : {derniere_requete}"
+                )
 
             result_image = client.models.generate_images(
                 model="imagen-3.0-generate-002",
@@ -210,7 +230,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
         # --- MODE 2 : RAISONNEMENT + OUTILS JARVIS, SYSTÈME & BASES DE DONNÉES ---
         else:
             outils_disponibles = [
-                {"google_search": {}},  # Recherche Web en temps réel
+                {"google_search": {}},
                 utils_systeme.lister_fichiers,
                 utils_systeme.lire_fichier,
                 utils_systeme.ecrire_fichier,
@@ -222,10 +242,12 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
             ]
 
             if utils_db:
-                outils_disponibles.extend([
-                    utils_db.interroger_base_donnees,
-                    utils_db.lister_tables_et_structure,
-                ])
+                outils_disponibles.extend(
+                    [
+                        utils_db.interroger_base_donnees,
+                        utils_db.lister_tables_et_structure,
+                    ]
+                )
 
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
