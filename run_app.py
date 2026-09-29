@@ -9,11 +9,11 @@ if __name__ == "__main__":
         base_dir = os.path.dirname(os.path.abspath(__file__))
         exe_dir = base_dir
 
-    # 1. Lancement du Hub sur le port 8000 en arrière-plan
+    # 1. Lancement du Hub sur le port 8000 en arrière-plan (nom exact en minuscules)
     try:
-        import Hub_leyla
+        import hub_leyla
 
-        Hub_leyla.demarrer_hub_arriere_plan()
+        hub_leyla.demarrer_hub_arriere_plan()
         print("✅ Hub Leyla démarré sur le port 8000.")
     except Exception as e:
         print(f"⚠️ Lancement du Hub ignoré : {e}")
@@ -34,7 +34,6 @@ if __name__ == "__main__":
         "--browser.serverAddress=localhost",
     ]
 
-    # Importation retardée de Streamlit CLI pour isoler les arguments
     import streamlit.web.cli as stcli
 
     sys.exit(stcli.main())
