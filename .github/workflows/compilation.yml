@@ -32,7 +32,7 @@ jobs:
 
     - name: Compilation avec PyInstaller
       run: |
-        pyinstaller --noconfirm --onedir --collect-all streamlit --collect-all uvicorn --collect-all Pillow --add-data ".streamlit;.streamlit" --add-data "*.py;." run_app.py --name Leyla
+        pyinstaller --noconfirm --onedir --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all pillow --hidden-import=PIL --hidden-import=PIL.Image --hidden-import=PIL.ImageDraw --hidden-import=PIL.ImageFont --add-data ".streamlit;.streamlit" --add-data "*.py;." run_app.py --name Leyla
 
     - name: Copie explicite des fichiers source et ressources
       run: |
