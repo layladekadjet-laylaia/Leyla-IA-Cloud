@@ -3,13 +3,32 @@ from google import genai
 from google.genai import types
 import utils_memoire
 
-# Initialisation du client
-API_KEY = os.getenv("GOOGLE_API_KEY")
-client = genai.Client(api_key=API_KEY)
+
+def obtenir_client_genai():
+    """Récupère dynamiquement la clé API depuis Streamlit Secrets ou l'environnement système."""
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        try:
+            import streamlit as st
+
+            api_key = st.secrets.get("GOOGLE_API_KEY") or st.secrets.get(
+                "GEMINI_API_KEY"
+            )
+        except Exception:
+            pass
+
+    if api_key:
+        return genai.Client(api_key=api_key)
+    return None
 
 
 def generer_briefing_matinal() -> str:
     """Génère un rapport proactif complet pour Mon Professeur (Météo, Projets, Rappels)."""
+    client = obtenir_client_genai()
+
+    if not client:
+        return "Bonjour Mon Professeur. Aucune clé API Google (GOOGLE_API_KEY) n'a été détectée. Veuillez configurer votre clé dans l'environnement ou dans .streamlit/secrets.toml."
 
     contexte_memoire = utils_memoire.charger_contexte_memoire()
 
@@ -30,7 +49,7 @@ def generer_briefing_matinal() -> str:
             contents=prompt_briefing,
             config=types.GenerateContentConfig(
                 temperature=0.4,
-                tools=[{"google_search": {}}],  # Recherche pour actualités/infos en temps réel
+                tools=[{"google_search": {}}],
             ),
         )
         return response.text
