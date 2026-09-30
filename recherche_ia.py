@@ -250,7 +250,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 )
 
             response = client.models.generate_content(
-                model=​"gemini-1.5-flash",
+                model=​"gemini-1.5-flash" ,
                 contents=contenus_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=consignes_systeme,
