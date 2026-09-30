@@ -1,6 +1,7 @@
 import io
 import os
 import re
+import time
 import uuid
 from PIL import Image, ImageDraw, ImageFont
 import streamlit as st
@@ -249,15 +250,27 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                     ]
                 )
 
-            response = client.models.generate_content(
-                model="gemini-3.8-flash",
-                contents=contenus_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=consignes_systeme,
-                    temperature=0.3,
-                    tools=outils_disponibles,
-                ),
-            )
+            tentatives = 4
+            response = None
+            
+            for essai in range(tentatives):
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-3.8-flash",
+                        contents=contenus_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=consignes_systeme,
+                            temperature=0.3,
+                            tools=outils_disponibles,
+                        ),
+                    )
+                    break
+                except Exception as err:
+                    err_str = str(err)
+                    if "429" in err_str and essai < tentatives - 1:
+                        time.sleep(3 * (essai + 1)) # Attente progressive (3s, puis 6s, puis 9s)
+                        continue
+                    raise err
 
             return {
                 "texte": nettoyer_reponse(response.text),
@@ -270,6 +283,11 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
             message_douceur = (
                 "Oups, Mon Professeur ! Les serveurs connaissent un pic de charge momentané. "
                 "Relancez dans un instant, je suis prête !"
+            )
+        elif "429" in erreur_str or "RESOURCE_EXHAUSTED" in erreur_str:
+            message_douceur = (
+                "Mon Professeur, le quota de requêtes gratuit de l'API est temporairement saturé. "
+                "Veuillez patienter quelques secondes avant de relancer votre message."
             )
         else:
             message_douceur = f"Une perturbation technique est survenue, Mon Professeur : {erreur_str}"
