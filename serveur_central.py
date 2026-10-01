@@ -613,13 +613,16 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     st.markdown("#### 📄 Document Officiel du PDC (Généré sur le Terrain)")
 
     # Récupération de l'URL publique stockée dans Supabase lors de la synchro
-    url_pdf = (
+    raw_url = (
         donnees_producteur.get("url_pdf_pdc")
         or donnees_producteur.get("pdf_url")
         or p.get("url_pdf_pdc")
     )
 
-    if url_pdf:
+    # Sécurisation du type pour s'assurer d'avoir un string valide
+    url_pdf = str(raw_url).strip() if raw_url and str(raw_url).strip().lower() != "none" else None
+
+    if url_pdf and (url_pdf.startswith("http://") or url_pdf.startswith("https://")):
         st.success("✅ Le PDF original généré par la tablette est disponible.")
 
         col_btn1, col_btn2 = st.columns(2)
@@ -636,11 +639,12 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
                 st.components.v1.iframe(url_pdf, height=600, scrolling=True)
     else:
         st.warning(
-            "⚠️ Aucun fichier PDF original n'a été transmis pour ce producteur."
+            "⚠️ Aucun fichier PDF original valide n'a été transmis pour ce producteur."
         )
         st.info(
             "💡 Vérifiez que la tablette a correctement téléversé le fichier vers le bucket `pdc-rapports` de Supabase Storage lors de la synchronisation."
         )
+
 
 
     # 0. AUDIT AUTOMATIQUE QUALITÉ DES DONNÉES
