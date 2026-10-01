@@ -388,14 +388,14 @@ def generer_synthese_narrative_leila(p: dict, score_global: int, ratio_arbres_ha
 def leila_analyse_pdc_metier(donnees_producteur: dict):
     """Moteur Décisionnel L.E.Y.L.A. 3.0 - Analyse Expert, Credit Scoring, Projection ROI & Visualisation PDF Cloud."""
     if not isinstance(donnees_producteur, dict):
-        st.error("⚠️ Données invalides pour l'analyse LEÏLA.")
+        st.error("⚠️ Données invalides pour l'analyse LEYLA.")
         return
 
     # 1. EXTRACTION DES DONNÉES DU PRODUCTEUR
     p = extraire_etapes_pdc_avancees(donnees_producteur)
 
     # Header Profil
-    st.markdown(f"### 🤖 Diagnostic Expert L.E.Ï.L.A. — **{p['nom_producteur']}**")
+    st.markdown(f"### 🤖 Diagnostic Expert L.E.Y.L.A. — **{p['nom_producteur']}**")
     st.caption(
         f"🆔 **Code CCC :** `{p['code_ccc']}` | 📍 **Localisation :** {p['localite']} | 🛰️ **GPS :** {p['waypoint_gps']}"
     )
