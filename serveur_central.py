@@ -1,9 +1,9 @@
 import json
 from typing import Optional
-import urllib.parse
 import pandas as pd
 import streamlit as st
 from supabase import Client, create_client
+import urllib.parse
 
 # ==========================================
 # 0. CONFIGURATION DE LA PAGE STREAMLIT
@@ -23,22 +23,15 @@ if "cabinet_actif" not in st.session_state:
     st.session_state["cabinet_actif"] = None
 if "cooperatives_accessibles" not in st.session_state:
     st.session_state["cooperatives_accessibles"] = []
-if "nom_producteur_selectionne" not in st.session_state:
-    st.session_state["nom_producteur_selectionne"] = "Producteur"
-if "code_producteur_selectionne" not in st.session_state:
-    st.session_state["code_producteur_selectionne"] = "CCC-001"
+if "producteur_courant" not in st.session_state:
+    st.session_state["producteur_courant"] = None
 
 # Import sécurisé du module de recherche satellite / IA
 try:
     from recherche_ia import rechercher_sur_le_web
 except ImportError:
-
     def rechercher_sur_le_web(historique):
-        return {
-            "texte": (
-                "Module satellite indisponible temporairement, Mon Professeur."
-            )
-        }
+        return {"texte": "Module satellite indisponible temporairement, Mon Professeur."}
 
 
 # ==========================================
@@ -54,7 +47,6 @@ def init_supabase() -> Optional[Client]:
     except Exception as e:
         st.error(f"Erreur de configuration des secrets Supabase : {e}")
         return None
-
 
 supabase = init_supabase()
 
@@ -80,26 +72,18 @@ if not st.session_state.get("user"):
             try:
                 # 1. Authentification Supabase Auth
                 auth_resp = supabase.auth.sign_in_with_password({
-                    "email": email_input.strip(),
-                    "password": password_input.strip(),
+                    "email": email_input.strip(), 
+                    "password": password_input.strip()
                 })
                 user = auth_resp.user
 
                 # 2. Récupération du profil utilisateur
-                profile_resp = (
-                    supabase.table("profiles")
-                    .select("*")
-                    .eq("id", user.id)
-                    .execute()
-                )
-
+                profile_resp = supabase.table("profiles").select("*").eq("id", user.id).execute()
+                
                 if not profile_resp.data:
-                    st.error(
-                        "Profil utilisateur introuvable dans la base de"
-                        " données."
-                    )
+                    st.error("Profil utilisateur introuvable dans la base de données.")
                     st.stop()
-
+                    
                 profile = profile_resp.data[0]
 
                 if not profile.get("cabinet_id"):
@@ -109,59 +93,36 @@ if not st.session_state.get("user"):
                 cabinet_id = profile["cabinet_id"]
 
                 # 3. Récupération des informations du cabinet
-                cabinet_resp = (
-                    supabase.table("cabinets")
-                    .select("*")
-                    .eq("id", cabinet_id)
-                    .execute()
-                )
-                cabinet = (
-                    cabinet_resp.data[0]
-                    if cabinet_resp.data
-                    else {"nom": "Cabinet L.E.Y.L.A."}
-                )
+                cabinet_resp = supabase.table("cabinets").select("*").eq("id", cabinet_id).execute()
+                cabinet = cabinet_resp.data[0] if cabinet_resp.data else {"nom": "Cabinet L.E.Y.L.A."}
 
                 # 4. Récupération des coopératives accessibles selon le RÔLE
-                if profile.get("role") == "CHEF_COOP" and profile.get(
-                    "code_cooperative"
-                ):
-                    coops_resp = (
-                        supabase.table("cooperatives")
-                        .select("*")
-                        .eq("cabinet_id", cabinet_id)
-                        .eq("code_db", profile["code_cooperative"])
+                if profile.get("role") == "CHEF_COOP" and profile.get("code_cooperative"):
+                    coops_resp = supabase.table("cooperatives")\
+                        .select("*")\
+                        .eq("cabinet_id", cabinet_id)\
+                        .eq("code_db", profile["code_cooperative"])\
                         .execute()
-                    )
                 else:
-                    coops_resp = (
-                        supabase.table("cooperatives")
-                        .select("*")
-                        .eq("cabinet_id", cabinet_id)
+                    coops_resp = supabase.table("cooperatives")\
+                        .select("*")\
+                        .eq("cabinet_id", cabinet_id)\
                         .execute()
-                    )
 
                 # Stockage en session Streamlit
                 st.session_state["user"] = user
                 st.session_state["profile"] = profile
                 st.session_state["cabinet_actif"] = cabinet
-                st.session_state["cooperatives_accessibles"] = (
-                    coops_resp.data or []
-                )
+                st.session_state["cooperatives_accessibles"] = coops_resp.data or []
 
-                st.success(
-                    f"Bienvenue {profile.get('nom_utilisateur', '')} —"
-                    f" Cabinet : {cabinet['nom']}"
-                )
+                st.success(f"Bienvenue {profile.get('nom_utilisateur', '')} — Cabinet : {cabinet['nom']}")
                 st.rerun()
 
             except Exception as e:
-                st.error(
-                    "Échec d'authentification : Identifiants ou accès"
-                    f" invalides. ({e})"
-                )
+                st.error(f"Échec d'authentification : Identifiants ou accès invalides. ({e})")
         else:
             st.warning("Veuillez saisir votre email et votre mot de passe.")
-
+            
     st.stop()
 
 
@@ -182,12 +143,7 @@ def verifier_et_incrementer_quota(cabinet_id: str) -> bool:
         return True
 
     try:
-        res = (
-            supabase.table("credits_ia")
-            .select("*")
-            .eq("cabinet_id", cabinet_id)
-            .execute()
-        )
+        res = supabase.table("credits_ia").select("*").eq("cabinet_id", cabinet_id).execute()
 
         if not res.data:
             return True
@@ -210,19 +166,12 @@ def verifier_et_incrementer_quota(cabinet_id: str) -> bool:
         return True
 
 
-def charger_donnees_isolees(
-    module_choisi: str, cabinet_id: str, code_coop_filtre: str
-) -> pd.DataFrame:
-    """Isole et filtre strictement les données par cabinet et module métier."""
+def charger_donnees_isolees(module_choisi: str, cabinet_id: str, code_coop_filtre: str) -> pd.DataFrame:
+    """Isole et filtre strictly les données par module métier."""
     if not supabase:
         return pd.DataFrame()
     try:
-        # Filtrage natif au niveau Supabase pour des raisons de sécurité & performance
-        query = supabase.table("producteurs_parcelles").select("*")
-        if cabinet_id:
-            query = query.eq("cabinet_id", cabinet_id)
-
-        response = query.execute()
+        response = supabase.table("producteurs_parcelles").select("*").execute()
         data = response.data or []
 
         if not data:
@@ -231,20 +180,9 @@ def charger_donnees_isolees(
         df = pd.DataFrame(data)
 
         # Filtrage par coopérative
-        col_coop = (
-            "cooperative_id"
-            if "cooperative_id" in df.columns
-            else "code_cooperative"
-        )
-        if (
-            col_coop in df.columns
-            and code_coop_filtre
-            and code_coop_filtre != "ALL"
-        ):
-            df = df[
-                df[col_coop].astype(str).str.strip().str.upper()
-                == code_coop_filtre.strip().upper()
-            ]
+        col_coop = "cooperative_id" if "cooperative_id" in df.columns else "code_cooperative"
+        if col_coop in df.columns and code_coop_filtre and code_coop_filtre != "ALL":
+            df = df[df[col_coop].astype(str).str.strip().str.upper() == code_coop_filtre.strip().upper()]
 
         if df.empty:
             return pd.DataFrame()
@@ -252,28 +190,20 @@ def charger_donnees_isolees(
         # Mots-clés stricts et exclusifs par module
         MOTIFS_SQL = {
             "Plan de Développement (PDC)": ["pdc"],
-            "Géolocalisation & RDUE (Parcelles)": [
-                "géo",
-                "rdue",
-                "geolocalisation",
-            ],
+            "Géolocalisation & RDUE (Parcelles)": ["géo", "rdue", "geolocalisation"],
             "Diagnostic Phytosanitaire": ["diagnostic", "phyto", "phytosanitaire"],
-            "Estimation de Rendement": ["rendement", "estimation"],
+            "Estimation de Rendement": ["rendement", "estimation"]
         }
 
         mots_cles = MOTIFS_SQL.get(module_choisi, [module_choisi.lower()])
-        cols_a_verifier = [
-            c for c in ["module_type", "module_execute"] if c in df.columns
-        ]
-
+        cols_a_verifier = [c for c in ["module_type", "module_execute"] if c in df.columns]
+        
         if cols_a_verifier:
             masque = False
             for col in cols_a_verifier:
                 for mc in mots_cles:
-                    masque |= (
-                        df[col].astype(str).str.lower().str.contains(mc, na=False)
-                    )
-
+                    masque |= df[col].astype(str).str.lower().str.contains(mc, na=False)
+            
             return df[masque].reset_index(drop=True)
 
         return pd.DataFrame()
@@ -335,36 +265,16 @@ def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
     if not isinstance(desc_expl, dict):
         desc_expl = {}
 
-    cultures = (
-        raw_pdc.get("cultures_et_revenus")
-        or raw_pdc.get("tableau_cultures")
-        or []
-    )
-    arbres = (
-        raw_pdc.get("inventaire_arbres") or raw_pdc.get("tableau_arbres") or []
-    )
+    cultures = raw_pdc.get("cultures_et_revenus") or raw_pdc.get("tableau_cultures") or []
+    arbres = raw_pdc.get("inventaire_arbres") or raw_pdc.get("tableau_arbres") or []
     sante = raw_pdc.get("sante_cacaoyere") or []
     densite_carres = raw_pdc.get("donnees_densite") or []
-    sol_caract = (
-        raw_pdc.get("caracteristiques_sol")
-        or raw_pdc.get("df_sol_caract")
-        or []
-    )
+    sol_caract = raw_pdc.get("caracteristiques_sol") or raw_pdc.get("df_sol_caract") or []
     depenses_foyer = raw_pdc.get("depenses_foyer") or []
-    prod_historique = (
-        raw_pdc.get("prod_historique")
-        or raw_pdc.get("df_prod_historique")
-        or []
-    )
-    plan_action = (
-        raw_pdc.get("plan_quinquennal")
-        or raw_pdc.get("plan_quinquennal_detail")
-        or []
-    )
+    prod_historique = raw_pdc.get("prod_historique") or raw_pdc.get("df_prod_historique") or []
+    plan_action = raw_pdc.get("plan_quinquennal") or raw_pdc.get("plan_quinquennal_detail") or []
 
-    surf_totale = to_float(
-        desc_expl.get("superficie_totale", raw_pdc.get("superficie", 0.0))
-    )
+    surf_totale = to_float(desc_expl.get("superficie_totale", raw_pdc.get("superficie", 0.0)))
     surf_cacao_prod = to_float(desc_expl.get("superficie_cacao_productif", 0.0))
     surf_cacao_jeune = to_float(desc_expl.get("superficie_cacao_immature", 0.0))
 
@@ -391,6 +301,13 @@ def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
             total_depenses_foyer_an += m * 6
         else:
             total_depenses_foyer_an += m
+
+    raw_url = (
+        donnees_producteur.get("url_pdf_pdc")
+        or donnees_producteur.get("pdf_url")
+        or raw_pdc.get("url_pdf_pdc")
+    )
+    url_pdf = str(raw_url).strip() if raw_url and str(raw_url).strip().lower() != "none" else ""
 
     return {
         "nom_producteur": str(
@@ -421,86 +338,58 @@ def extraire_etapes_pdc_avancees(donnees_producteur: dict) -> dict:
         "sante_cacaoyere": sante,
         "caracteristiques_sol": sol_caract,
         "inventaire_arbres": arbres,
-        "total_arbres_ombrage": to_int(
-            raw_pdc.get("total_arbres_ombrage", len(arbres))
-        ),
+        "total_arbres_ombrage": to_int(raw_pdc.get("total_arbres_ombrage", len(arbres))),
         "revenu_total_estime": to_float(raw_pdc.get("revenu_total_estime", 0.0)),
-        "charges_totales_estimees": to_float(
-            raw_pdc.get("charges_totales_estimees", 0.0)
-        ),
+        "charges_totales_estimees": to_float(raw_pdc.get("charges_totales_estimees", 0.0)),
         "solde_net_estime": to_float(raw_pdc.get("solde_net_estime", 0.0)),
         "depenses_foyer_annuelles": total_depenses_foyer_an,
         "prod_historique": prod_historique,
         "cultures_et_revenus": cultures,
-        "budget_total_5ans": to_float(
-            raw_pdc.get(
-                "budget_total_5ans", raw_pdc.get("budget_fiche8_total", 0.0)
-            )
-        ),
-        "decision_retenue": str(
-            raw_pdc.get("decision_retenue", "Non déterminée")
-        ),
+        "budget_total_5ans": to_float(raw_pdc.get("budget_total_5ans", raw_pdc.get("budget_fiche8_total", 0.0))),
+        "decision_retenue": str(raw_pdc.get("decision_retenue", "Non déterminée")),
         "plan_quinquennal": plan_action,
-        "texte_synthese_auto": str(
-            desc_expl.get(
-                "texte_synthese_auto", raw_pdc.get("texte_synthese_auto", "")
-            )
-        ),
+        "texte_synthese_auto": str(desc_expl.get("texte_synthese_auto", raw_pdc.get("texte_synthese_auto", ""))),
+        "url_pdf_pdc": url_pdf,
     }
 
 
-def generer_synthese_narrative_leila(
-    p: dict, score_global: int, ratio_arbres_ha: float, roi_5ans: float
-) -> str:
+def generer_synthese_narrative_leila(p: dict, score_global: int, ratio_arbres_ha: float, roi_5ans: float) -> str:
     """Génère une synthèse narrative métier 100% cohérente avec l'analyse LEÏLA."""
-    surf_cacao = max(
-        0.1, p["superficie_cacao_prod"] + p["superficie_cacao_jeune"]
-    )
+    surf_cacao = max(0.1, p["superficie_cacao_prod"] + p["superficie_cacao_jeune"])
 
     intro = (
-        f"L'exploitation de M./Mme {p['nom_producteur']} (Code CCC :"
-        f" {p['code_ccc']}), localisée à {p['localite']}, couvre une superficie"
-        f" totale de {p['superficie_totale']:.1f} ha, dont"
-        f" {surf_cacao:.1f} ha dédiés à la culture du cacao"
-        f" ({p['statut_foncier']}). "
+        f"L'exploitation de M./Mme {p['nom_producteur']} (Code CCC : {p['code_ccc']}), "
+        f"localisée à {p['localite']}, couvre une superficie totale de {p['superficie_totale']:.1f} ha, "
+        f"dont {surf_cacao:.1f} ha dédiés à la culture du cacao ({p['statut_foncier']}). "
     )
 
     if ratio_arbres_ha >= 18.0:
         agro = (
-            "Sur le plan environnemental, la parcelle présente une densité"
-            " d'ombrage conforme aux normes RDUE"
-            f" ({ratio_arbres_ha:.1f} arbres/ha). "
+            "Sur le plan environnemental, la parcelle présente une densité d'ombrage conforme aux normes RDUE "
+            f"({ratio_arbres_ha:.1f} arbres/ha). "
         )
     else:
         manque = int((18.0 * surf_cacao) - p["total_arbres_ombrage"])
         agro = (
-            "Sur le plan environnemental, un déficit agroforestier est"
-            f" identifié ({ratio_arbres_ha:.1f} arbres/ha). L'introduction de"
-            f" {manque} plants d'ombrage est obligatoire pour la conformité"
-            " RDUE. "
+            f"Sur le plan environnemental, un déficit agroforestier est identifié ({ratio_arbres_ha:.1f} arbres/ha). "
+            f"L'introduction de {manque} plants d'ombrage est obligatoire pour la conformité RDUE. "
         )
 
-    orient = (
-        f"L'orientation stratégique retenue est la **{p['decision_retenue']}**."
-        " "
-    )
+    orient = f"L'orientation stratégique retenue est la **{p['decision_retenue']}**. "
 
     if score_global >= 75:
         finance = (
-            "Le profil financier du ménage est solide avec un gain net estimé"
-            f" à {roi_5ans:,.0f} FCFA sur 5 ans, rendant le projet hautement"
-            " bancable."
+            f"Le profil financier du ménage est solide avec un gain net estimé à {roi_5ans:,.0f} FCFA sur 5 ans, "
+            "rendant le projet hautement bancable."
         )
     elif score_global >= 50:
         finance = (
-            "Le plan quinquennal nécessite un accompagnement financier partiel"
-            f" pour couvrir le budget de {p['budget_total_5ans']:,.0f} FCFA."
+            f"Le plan quinquennal nécessite un accompagnement financier partiel pour couvrir le budget de {p['budget_total_5ans']:,.0f} FCFA."
         )
     else:
         finance = (
-            "La capacité d'autofinancement actuelle est critique. Un"
-            " préfinancement ou une restructuration des charges est"
-            " indispensable."
+            "La capacité d'autofinancement actuelle est critique. Un préfinancement ou une restructuration des charges "
+            "est indispensable."
         )
 
     return intro + agro + orient + finance
@@ -515,17 +404,13 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     # 1. EXTRACTION DES DONNÉES DU PRODUCTEUR
     p = extraire_etapes_pdc_avancees(donnees_producteur)
 
-    # Mise à jour du state pour l'outil de partage d'e-mail dans le sidebar
-    st.session_state["nom_producteur_selectionne"] = p["nom_producteur"]
-    st.session_state["code_producteur_selectionne"] = p["code_ccc"]
+    # Sauvegarde dans le session_state pour la barre latérale d'e-mail
+    st.session_state["producteur_courant"] = p
 
     # Header Profil
-    st.markdown(
-        f"### 🤖 Diagnostic Expert L.E.Y.L.A. — **{p['nom_producteur']}**"
-    )
+    st.markdown(f"### 🤖 Diagnostic Expert L.E.Y.L.A. — **{p['nom_producteur']}**")
     st.caption(
-        f"🆔 **Code CCC :** `{p['code_ccc']}` | 📍 **Localisation :**"
-        f" {p['localite']} | 🛰️ **GPS :** {p['waypoint_gps']}"
+        f"🆔 **Code CCC :** `{p['code_ccc']}` | 📍 **Localisation :** {p['localite']} | 🛰️ **GPS :** {p['waypoint_gps']}"
     )
     st.markdown("---")
 
@@ -741,21 +626,9 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
     st.markdown("---")
     st.markdown("#### 📄 Document Officiel du PDC (Généré sur le Terrain)")
 
-    raw_url = (
-        donnees_producteur.get("url_pdf_pdc")
-        or donnees_producteur.get("pdf_url")
-        or p.get("url_pdf_pdc")
-    )
+    url_pdf = p.get("url_pdf_pdc")
 
-    url_pdf = (
-        str(raw_url).strip()
-        if raw_url and str(raw_url).strip().lower() != "none"
-        else None
-    )
-
-    if url_pdf and (
-        url_pdf.startswith("http://") or url_pdf.startswith("https://")
-    ):
+    if url_pdf and (url_pdf.startswith("http://") or url_pdf.startswith("https://")):
         st.success("✅ Le PDF original généré par la tablette est disponible.")
 
         col_btn1, col_btn2 = st.columns(2)
@@ -768,19 +641,14 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
             )
 
         with col_btn2:
-            with st.expander(
-                "👁️ Prévisualiser le PDF directement dans le dashboard"
-            ):
+            with st.expander("👁️ Prévisualiser le PDF directement dans le dashboard"):
                 st.components.v1.iframe(url_pdf, height=600, scrolling=True)
     else:
         st.warning(
-            "⚠️️ Aucun fichier PDF original valide n'a été transmis pour ce"
-            " producteur."
+            "⚠️ Aucun fichier PDF original valide n'a été transmitted pour ce producteur."
         )
         st.info(
-            "💡 Vérifiez que la tablette a correctement téléversé le fichier"
-            " vers le bucket `pdc-rapports` de Supabase Storage lors de la"
-            " synchronisation."
+            "💡 Vérifiez que la tablette a correctement téléversé le fichier vers le bucket `pdc-rapports` de Supabase Storage lors de la synchronisation."
         )
 
 
@@ -807,8 +675,7 @@ ANNUAIRE_DESTINATAIRES = {
 # ==========================================
 st.sidebar.title(f"🏢 {cabinet_courant['nom']}")
 st.sidebar.caption(
-    f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisateur')}"
-    f" ({user_profile.get('role', '')})"
+    f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisateur')} ({user_profile.get('role', '')})"
 )
 
 options_coop = {}
@@ -835,10 +702,11 @@ if st.sidebar.button("🚪 Déconnexion", key="btn_logout_sidebar"):
     st.session_state.clear()
     st.rerun()
 
+# Module fixé sur le PDC uniquement
 module_choisi = "Plan de Développement (PDC)"
 
 # ==========================================
-# MODULE INTÉGRÉ : TRANSMISSION VIA GMAIL (BARRE LATÉRALE)
+# MODULE INTÉGRÉ : TRANSMISSION VIA E-MAIL (BARRE LATÉRALE DYNAMIQUE)
 # ==========================================
 st.sidebar.divider()
 st.sidebar.subheader("✉️ Partage par E-mail")
@@ -856,27 +724,50 @@ entite_choisie = st.sidebar.selectbox(
 
 email_cible = ANNUAIRE_DESTINATAIRES[type_dest][entite_choisie]
 
-nom_prod_mail = st.session_state.get("nom_producteur_selectionne", "Producteur")
-code_prod_mail = st.session_state.get("code_producteur_selectionne", "CCC-001")
+# Récupération dynamique des données du producteur actuellement analysé
+prod_actuel = st.session_state.get("producteur_courant") or {}
 
-sujet_mail = urllib.parse.quote(
-    f"Rapport PDC - {nom_prod_mail} ({code_prod_mail}) - {entite_choisie}"
-)
-corps_mail = urllib.parse.quote(
-    f"Bonjour,\n\nVeuillez trouver ci-joint le rapport Plan de Développement"
-    f" de la Cacaoyère (PDC) pour le producteur {nom_prod_mail} (Code:"
-    f" {code_prod_mail}).\n\nCe document a été transmis et validé sur le"
-    " serveur central Leyla Agri.\n\nCordialement,\n"
-    f"{user_profile.get('nom_utilisateur', 'L\'Administration')}"
+nom_prod_mail = prod_actuel.get("nom_producteur", "Producteur non sélectionné")
+code_prod_mail = prod_actuel.get("code_ccc", "CCC-N/A")
+pdf_prod_mail = prod_actuel.get("url_pdf_pdc", "")
+
+# Note d'accompagnement personnalisable par l'agent
+note_perso = st.sidebar.text_area(
+    "Note de transmission (Optionnel) :",
+    value="Veuillez trouver ci-joint l'analyse et le rapport du Plan de Développement de la Cacaoyère.",
+    key="sb_note_perso_email"
 )
 
-lien_mailto = f"mailto:{email_cible}?subject={sujet_mail}&body={corps_mail}"
+# Construction dynamique du sujet et du corps du mail
+sujet_mail_str = f"Rapport PDC - {nom_prod_mail} ({code_prod_mail}) - {entite_choisie}"
+
+corps_mail_str = (
+    f"Bonjour,\n\n"
+    f"{note_perso}\n\n"
+    f"📌 INFORMATIONS DU DOSSIER :\n"
+    f"• Producteur : {nom_prod_mail}\n"
+    f"• Code CCC : {code_prod_mail}\n"
+    f"• Cabinet Émetteur : {cabinet_courant['nom']}\n"
+    f"• Traité par : {user_profile.get('nom_utilisateur', 'Administration')}\n"
+)
+
+if pdf_prod_mail:
+    corps_mail_str += f"\n📄 Consulter / Télécharger le document PDF original :\n{pdf_prod_mail}\n"
+
+corps_mail_str += "\n\nCordialement,\n L.E.Y.L.A. Agri Platform"
+
+# Encodage URL sécurisé pour lien mailto:
+sujet_encoded = urllib.parse.quote(sujet_mail_str)
+corps_encoded = urllib.parse.quote(corps_mail_str)
+
+lien_mailto = f"mailto:{email_cible}?subject={sujet_encoded}&body={corps_encoded}"
 
 st.sidebar.caption(f"📩 Destinataire : `{email_cible}`")
 st.sidebar.link_button(
-    label=f"📧 Envoyer à {entite_choisie}",
+    label=f"📧 Transmettre à {entite_choisie}",
     url=lien_mailto,
     use_container_width=True,
+    type="primary"
 )
 
 
@@ -888,6 +779,7 @@ st.markdown(f"*Espace de travail connecté : **{cabinet_courant['nom']}***")
 
 cabinet_id_actif = cabinet_courant["id"]
 
+# Chargement isolé et filtré des données de la table
 df_filtered = charger_donnees_isolees(
     module_choisi=module_choisi,
     cabinet_id=cabinet_id_actif,
@@ -896,18 +788,11 @@ df_filtered = charger_donnees_isolees(
 
 st.subheader(f"📊 Module actif : {module_choisi} ({coop_selectionnee_label})")
 
-with st.expander(
-    f"📁 Afficher / Masquer les données brutes ({len(df_filtered)}"
-    " enregistrement(s))",
-    expanded=False,
-):
+with st.expander(f"📁 Afficher / Masquer les données brutes ({len(df_filtered)} enregistrement(s))", expanded=False):
     if not df_filtered.empty:
         st.dataframe(df_filtered, use_container_width=True)
     else:
-        st.info(
-            "Aucune donnée enregistrée pour le module"
-            f" {module_choisi} dans cette sélection."
-        )
+        st.info(f"Aucune donnée enregistrée pour le module {module_choisi} dans cette sélection.")
 
 st.divider()
 
@@ -922,40 +807,25 @@ if "PDC" in module_choisi:
         st.subheader("🔍 Consultation Approfondie d'un PDC Synchronisé")
 
     with col_reset:
-        if st.button(
-            "🔄 Réinitialiser l'affichage PDC",
-            use_container_width=True,
-            key="btn_reset_pdc",
-        ):
+        if st.button("🔄 Réinitialiser l'affichage PDC", use_container_width=True, key="btn_reset_pdc"):
             st.cache_data.clear()
             st.cache_resource.clear()
             if "pdc_select_box" in st.session_state:
                 del st.session_state["pdc_select_box"]
+            st.session_state["producteur_courant"] = None
             st.success("Interface réinitialisée !")
             st.rerun()
 
     if df_filtered.empty:
-        st.info(
-            "ℹ️ Aucun enregistrement PDC disponible. La base de données est"
-            " propre."
-        )
+        st.info("ℹ️ Aucun enregistrement PDC disponible. La base de données est propre.")
     else:
         df_pdc = df_filtered.copy()
 
-        col_nom = (
-            "nom_producteur"
-            if "nom_producteur" in df_pdc.columns
-            else df_pdc.columns[0]
-        )
-        col_code = (
-            "code_producteur" if "code_producteur" in df_pdc.columns else None
-        )
+        col_nom = "nom_producteur" if "nom_producteur" in df_pdc.columns else df_pdc.columns[0]
+        col_code = "code_producteur" if "code_producteur" in df_pdc.columns else None
         col_id = "id" if "id" in df_pdc.columns else None
 
-        df_pdc = df_pdc[
-            df_pdc[col_nom].notna()
-            & (df_pdc[col_nom].astype(str).str.strip() != "")
-        ].copy()
+        df_pdc = df_pdc[df_pdc[col_nom].notna() & (df_pdc[col_nom].astype(str).str.strip() != "")].copy()
 
         if not df_pdc.empty:
 
@@ -963,16 +833,10 @@ if "PDC" in module_choisi:
                 nom_str = str(row[col_nom]).strip()
                 code_str = (
                     f" | Code: {row[col_code]}"
-                    if col_code
-                    and pd.notna(row[col_code])
-                    and str(row[col_code]).strip() != ""
+                    if col_code and pd.notna(row[col_code]) and str(row[col_code]).strip() != ""
                     else ""
                 )
-                id_str = (
-                    f" | ID #{row[col_id]}"
-                    if col_id and pd.notna(row[col_id])
-                    else ""
-                )
+                id_str = f" | ID #{row[col_id]}" if col_id and pd.notna(row[col_id]) else ""
                 return f"{nom_str}{code_str}{id_str}"
 
             df_pdc["cle_unique"] = df_pdc.apply(construire_libelle, axis=1)
@@ -995,10 +859,7 @@ if "PDC" in module_choisi:
 
             if soumis:
                 if choix_utilisateur == OPTION_DEFAUT:
-                    st.warning(
-                        "Veuillez sélectionner un producteur valide dans la"
-                        " liste."
-                    )
+                    st.warning("Veuillez sélectionner un producteur valide dans la liste.")
                 else:
                     if verifier_et_incrementer_quota(cabinet_id_actif):
                         ligne_selectionnee = (
@@ -1008,19 +869,10 @@ if "PDC" in module_choisi:
                         )
                         leila_analyse_pdc_metier(ligne_selectionnee)
                     else:
-                        st.error(
-                            "🚫 **Quota d'analyses IA mensuel atteint pour votre"
-                            " cabinet.**"
-                        )
-                        st.info(
-                            "Veuillez contacter le **Cabinet AGRIFORCE** pour"
-                            " recharger votre forfait de requetes L.E.Y.L.A."
-                        )
+                        st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
+                        st.info("Veuillez contacter le **Cabinet AGRIFORCE** pour recharger votre forfait de requetes L.E.Y.L.A.")
         else:
-            st.warning(
-                "Aucun nom de producteur valide trouvé dans les"
-                " enregistrements."
-            )
+            st.warning("Aucun nom de producteur valide trouvé dans les enregistrements.")
 
     st.divider()
 
@@ -1029,21 +881,15 @@ if "PDC" in module_choisi:
 # 9. ASSISTANT SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
 st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
-st.markdown(
-    f"Posez vos questions en lien direct avec le module **{module_choisi}**."
-)
+st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
 
-user_query = st.text_input(
-    "Votre requête pour le satellite :", key="input_satellite_query"
-)
+user_query = st.text_input("Votre requête pour le satellite :", key="input_satellite_query")
 
 if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
     if not user_query:
         st.warning("Veuillez saisir une question ou une consigne.")
     elif verifier_et_incrementer_quota(cabinet_id_actif):
-        with st.spinner(
-            f"Le satellite analyse exclusivement les données de {module_choisi}..."
-        ):
+        with st.spinner(f"Le satellite analyse exclusivement les données de {module_choisi}..."):
             try:
                 contexte_donnees = (
                     df_filtered.to_string(index=False)
@@ -1052,15 +898,13 @@ if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
                 )
 
                 prompt_complet = (
-                    "Tu es L.E.Y.L.A., l'intelligence artificielle centrale"
-                    " pour la gestion agricole.\n"
+                    "Tu es L.E.Y.L.A., l'intelligence artificielle centrale pour la gestion agricole.\n"
                     f"Cabinet actif : {cabinet_courant['nom']}\n"
                     f"Module en cours d'analyse : {module_choisi}\n"
                     "Données brutes exclusives à ce module :\n"
                     f"{contexte_donnees}\n\n"
                     f"Consigne / Question de l'administrateur : {user_query}\n\n"
-                    "Fournis une analyse professionnelle, claire et axée"
-                    " uniquement sur ce module."
+                    "Fournis une analyse professionnelle, claire et axée uniquement sur ce module."
                 )
 
                 historique_fictif = [{"role": "user", "content": prompt_complet}]
@@ -1070,14 +914,7 @@ if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
                 st.write(reponse_satellite.get("texte", ""))
 
             except Exception as e:
-                st.error(
-                    f"Erreur lors de la communication avec le satellite : {e}"
-                )
+                st.error(f"Erreur lors de la communication avec le satellite : {e}")
     else:
-        st.error(
-            "🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**"
-        )
-        st.info(
-            "Veuillez contacter votre **Fournisseur** pour recharger votre"
-            " forfait de requêtes L.E.Y.L.A."
-        )
+        st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
+        st.info("Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A.")
