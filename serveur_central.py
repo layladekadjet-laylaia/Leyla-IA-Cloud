@@ -3,6 +3,7 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 from supabase import Client, create_client
+import urllib.parse
 
 # ==========================================
 # 0. CONFIGURATION DE LA PAGE STREAMLIT
@@ -645,11 +646,32 @@ def leila_analyse_pdc_metier(donnees_producteur: dict):
             "💡 Vérifiez que la tablette a correctement téléversé le fichier vers le bucket `pdc-rapports` de Supabase Storage lors de la synchronisation."
         )
 
+ 
+# ==========================================
+# ANNUAIRE DES DESTINATAIRES (COOPÉRATIVES ET CABINETS)
+# ==========================================
+ANNUAIRE_DESTINATAIRES = {
+    "Coopératives": {
+        "SOCOAMO": "directionsocoamo@gmail.com",
+        "COPALBA": "directioncopalba@gmail.com",
+        "SOCAGNIPI": "directionsocagnipi@gmail.com",
+        "ECAPR": "directionecapr@gmail.com",
+        "NECAB": "directionnecab@gmail.com",
+    },
+    "Cabinets de Conseil": {
+        "Cabinet AgriForce": "agriforce@gmail.com",
+        "Cabinet Audit & Agro": "direction@audit-agro.ci",
+        "Cabinet Conseils & Developpement": "contact@ccd.ci",
+    },
+}
+
 # ==========================================
 # 6. BARRE LATÉRALE & FILTRES CENTRALISÉS
 # ==========================================
 st.sidebar.title(f"🏢 {cabinet_courant['nom']}")
-st.sidebar.caption(f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisateur')} ({user_profile.get('role', '')})")
+st.sidebar.caption(
+    f"Connecté : {user_profile.get('nom_utilisateur', 'Utilisateur')} ({user_profile.get('role', '')})"
+)
 
 options_coop = {}
 if user_profile.get("role") == "ADMIN_CABINET":
@@ -659,7 +681,11 @@ for coop in liste_cooperatives:
     options_coop[coop.get("nom", "Coopérative")] = coop.get("code_db", "")
 
 if options_coop:
-    coop_selectionnee_label = st.sidebar.selectbox("Sélectionner la Coopérative :", list(options_coop.keys()), key="select_coop_sidebar")
+    coop_selectionnee_label = st.sidebar.selectbox(
+        "Sélectionner la Coopérative :",
+        list(options_coop.keys()),
+        key="select_coop_sidebar",
+    )
     code_coop_filtre = options_coop[coop_selectionnee_label]
 else:
     code_coop_filtre = "ALL"
@@ -671,48 +697,46 @@ if st.sidebar.button("🚪 Déconnexion", key="btn_logout_sidebar"):
     st.session_state.clear()
     st.rerun()
 
-st.sidebar.divider()
-st.sidebar.header("🎛️ Sélection du Module")
-module_choisi = st.sidebar.selectbox(
-    "Choisir le domaine d'analyse",
-    [
-        "Plan de Développement (PDC)",
-        "Géolocalisation & RDUE (Parcelles)",
-        "Diagnostic Phytosanitaire",
-        "Estimation de Rendement",
-    ],
-    key="select_module_serveur_central"
-)
+# Module fixé sur le PDC uniquement
+module_choisi = "Plan de Développement (PDC)"
 
 # ==========================================
-# MODULE INTEGRÉ : TRANSMISSION VIA GMAIL (BARRE LATÉRALE)
+# MODULE INTÉGRÉ : TRANSMISSION VIA GMAIL (BARRE LATÉRALE)
 # ==========================================
 st.sidebar.divider()
 st.sidebar.subheader("✉️ Partage par E-mail")
 
 type_dest = st.sidebar.radio(
-    "Type de structure :", 
-    ["Coopératives", "Cabinets de Conseil"], 
-    key="sb_radio_type_dest"
+    "Type de structure :",
+    ["Coopératives", "Cabinets de Conseil"],
+    key="sb_radio_type_dest",
 )
 
 entreprises_dispos = list(ANNUAIRE_DESTINATAIRES[type_dest].keys())
 entite_choisie = st.sidebar.selectbox(
-    "Sélectionner la structure :", 
-    entreprises_dispos, 
-    key="sb_select_entite"
+    "Sélectionner la structure :", entreprises_dispos, key="sb_select_entite"
 )
 
 email_cible = ANNUAIRE_DESTINATAIRES[type_dest][entite_choisie]
 
-# Récupération dynamique depuis la session du serveur central (ou valeurs par défaut)
-nom_prod_mail = st.session_state.get("nom_producteur_selectionne") or st.session_state.get("nom_producteur") or "Producteur"
-code_prod_mail = st.session_state.get("code_producteur_selectionne") or st.session_state.get("code_ccc") or "CCC-001"
+# Récupération dynamique du producteur sélectionné sur le dashboard
+nom_prod_mail = (
+    st.session_state.get("nom_producteur_selectionne")
+    or st.session_state.get("nom_producteur")
+    or "Producteur"
+)
+code_prod_mail = (
+    st.session_state.get("code_producteur_selectionne")
+    or st.session_state.get("code_ccc")
+    or "CCC-001"
+)
 
-sujet_mail = urllib.parse.quote(f"Rapport PDC - {nom_prod_mail} ({code_prod_mail}) - {entite_choisie}")
+sujet_mail = urllib.parse.quote(
+    f"Rapport PDC - {nom_prod_mail} ({code_prod_mail}) - {entite_choisie}"
+)
 corps_mail = urllib.parse.quote(
     f"Bonjour,\n\n"
-    f"Veuillez trouver ci-joint le rapport Plan de Développement de Conseil (PDC) pour le producteur {nom_prod_mail} (Code: {code_prod_mail}).\n\n"
+    f"Veuillez trouver ci-joint le rapport Plan de Développement de la Cacaoyère (PDC) pour le producteur {nom_prod_mail} (Code: {code_prod_mail}).\n\n"
     f"Ce document a été transmis et validé sur le serveur central Leyla Agri.\n\n"
     f"Cordialement,\n"
     f"{user_profile.get('nom_utilisateur', 'L\'Administration')}"
@@ -724,7 +748,7 @@ st.sidebar.caption(f"📩 Destinataire : `{email_cible}`")
 st.sidebar.link_button(
     label=f"📧 Envoyer à {entite_choisie}",
     url=lien_mailto,
-    use_container_width=True
+    use_container_width=True,
 )
 
 
