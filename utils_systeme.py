@@ -4,90 +4,79 @@ import subprocess
 import json
 from typing import List, Dict, Optional
 
-# Dossier racine sécurisé dans lequel Leyla a le droit d'agir librement
-ESPACE_TRAVAIL_SECURISE = os.path.abspath("./workspace_leyla")
+# --- 1. GESTION ILLIMITÉE DES FICHIERS ET DOSSIERS (ACCÈS SYSTÈME TOTAL) ---
 
-def initialiser_espace_travail():
-    """S'assure que le dossier de travail sécurisé existe."""
-    if not os.path.exists(ESPACE_TRAVAIL_SECURISE):
-        os.makedirs(ESPACE_TRAVAIL_SECURISE)
-
-def _est_chemin_autorise(chemin: str) -> bool:
-    """Vérifie que le chemin ne sort pas du dossier de travail autorisé (Anti-Path Traversal)."""
-    chemin_abs = os.path.abspath(chemin)
-    return chemin_abs.startswith(ESPACE_TRAVAIL_SECURISE)
-
-# --- 1. GESTION DES FICHIERS ET DOSSIERS ---
-
-def lister_fichiers(sous_dossier: str = "") -> str:
-    """Liste tous les fichiers et dossiers dans l'espace de travail."""
-    initialiser_espace_travail()
-    cible = os.path.join(ESPACE_TRAVAIL_SECURISE, sous_dossier)
+def lister_fichiers(chemin_dossier: str = ".") -> str:
+    """Liste tous les fichiers et dossiers dans n'importe quel répertoire de l'ordinateur ou du serveur."""
+    chemin_abs = os.path.abspath(chemin_dossier)
     
-    if not _est_chemin_autorise(cible) or not os.path.exists(cible):
-        return "Accès refusé ou dossier inexistant."
-        
-    fichiers = os.listdir(cible)
-    return json.dumps(fichiers, ensure_ascii=False)
-
-def lire_fichier(nom_fichier: str) -> str:
-    """Lit le contenu d'un fichier texte dans l'espace de travail."""
-    chemin = os.path.join(ESPACE_TRAVAIL_SECURISE, nom_fichier)
-    
-    if not _est_chemin_autorise(chemin):
-        return "Erreur : Sécurité - Accès hors de l'espace de travail interdit."
-        
-    if not os.path.exists(chemin):
-        return "Erreur : Fichier introuvable."
+    if not os.path.exists(chemin_abs):
+        return f"Erreur : Le dossier '{chemin_abs}' n'existe pas, Mon Professeur."
         
     try:
-        with open(chemin, "r", encoding="utf-8") as f:
+        fichiers = os.listdir(chemin_abs)
+        return json.dumps({
+            "dossier_actuel": chemin_abs,
+            "contenu": fichiers
+        }, ensure_ascii=False)
+    except Exception as e:
+        return f"Erreur d'accès au dossier : {str(e)}"
+
+def lire_fichier(chemin_fichier: str) -> str:
+    """Lit le contenu de n'importe quel fichier texte sur le système."""
+    chemin_abs = os.path.abspath(chemin_fichier)
+        
+    if not os.path.exists(chemin_abs):
+        return f"Erreur : Fichier introuvable ({chemin_abs})."
+        
+    try:
+        with open(chemin_abs, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
     except Exception as e:
         return f"Erreur lors de la lecture : {str(e)}"
 
-def ecrire_fichier(nom_fichier: str, contenu: str) -> str:
-    """Crée ou modifie un fichier dans l'espace de travail."""
-    initialiser_espace_travail()
-    chemin = os.path.join(ESPACE_TRAVAIL_SECURISE, nom_fichier)
+def ecrire_fichier(chemin_fichier: str, contenu: str) -> str:
+    """Crée ou modifie un fichier n'importe où sur l'ordinateur."""
+    chemin_abs = os.path.abspath(chemin_fichier)
     
-    if not _est_chemin_autorise(chemin):
-        return "Erreur : Sécurité - Impossible d'écrire en dehors du workspace."
-        
     try:
-        with open(chemin, "w", encoding="utf-8") as f:
+        # Création automatique des dossiers parents si nécessaire
+        dossier_parent = os.path.dirname(chemin_abs)
+        if dossier_parent and not os.path.exists(dossier_parent):
+            os.makedirs(dossier_parent, exist_ok=True)
+            
+        with open(chemin_abs, "w", encoding="utf-8") as f:
             f.write(contenu)
-        return f"Fichier '{nom_fichier}' enregistré avec succès dans l'espace de travail."
+        return f"Fichier enregistré avec succès : '{chemin_abs}', Mon Professeur."
     except Exception as e:
         return f"Erreur lors de l'écriture : {str(e)}"
 
-def organiser_fichiers_par_extension() -> str:
-    """Trie automatiquement les fichiers de l'espace de travail dans des sous-dossiers par type."""
-    initialiser_espace_travail()
+def organiser_fichiers_par_extension(chemin_dossier: str = ".") -> str:
+    """Trie automatiquement les fichiers d'un dossier spécifié par sous-dossiers de types."""
+    chemin_abs = os.path.abspath(chemin_dossier)
     try:
-        fichiers = [f for f in os.listdir(ESPACE_TRAVAIL_SECURISE) if os.path.isfile(os.path.join(ESPACE_TRAVAIL_SECURISE, f))]
+        fichiers = [f for f in os.listdir(chemin_abs) if os.path.isfile(os.path.join(chemin_abs, f))]
         
         compte = 0
         for f in fichiers:
             ext = f.split(".")[-1].lower() if "." in f else "divers"
-            dossier_cible = os.path.join(ESPACE_TRAVAIL_SECURISE, ext)
+            dossier_cible = os.path.join(chemin_abs, ext)
             
             if not os.path.exists(dossier_cible):
                 os.makedirs(dossier_cible)
                 
-            shutil.move(os.path.join(ESPACE_TRAVAIL_SECURISE, f), os.path.join(dossier_cible, f))
+            shutil.move(os.path.join(chemin_abs, f), os.path.join(dossier_cible, f))
             compte += 1
             
-        return f"Organisation terminée : {compte} fichiers triés par catégorie."
+        return f"Organisation terminée dans '{chemin_abs}' : {compte} fichiers triés."
     except Exception as e:
         return f"Erreur d'organisation : {str(e)}"
 
-# --- 2. EXECUTION CONTRÔLÉE DE COMMANDES ---
+# --- 2. EXECUTION DIRECTE DE COMMANDES ET SCRIPTS ---
 
-def executer_commande_python(code: str) -> str:
-    """Exécute du code Python dans un environnement de test local."""
-    initialiser_espace_travail()
-    fichier_temp = os.path.join(ESPACE_TRAVAIL_SECURISE, "_temp_script.py")
+def executer_commande_python(code: str, dossier_travail: str = ".") -> str:
+    """Exécute du code Python directement sur la machine hôte."""
+    fichier_temp = os.path.abspath("_temp_script_leyla.py")
     
     try:
         with open(fichier_temp, "w", encoding="utf-8") as f:
@@ -97,20 +86,19 @@ def executer_commande_python(code: str) -> str:
             ["python", fichier_temp],
             capture_output=True,
             text=True,
-            timeout=10,
-            cwd=ESPACE_TRAVAIL_SECURISE
+            timeout=30,
+            cwd=os.path.abspath(dossier_travail)
         )
         
-        os.remove(fichier_temp)
+        if os.path.exists(fichier_temp):
+            os.remove(fichier_temp)
         
         if resultat.returncode == 0:
             return f"Résultat d'exécution :\n{resultat.stdout}"
         else:
             return f"Erreur d'exécution :\n{resultat.stderr}"
             
-    except subprocess.TimeoutExpired:
+    except Exception as e:
         if os.path.exists(fichier_temp):
             os.remove(fichier_temp)
-        return "Erreur : Le temps d'exécution a dépassé la limite de 10 secondes."
-    except Exception as e:
         return f"Erreur système : {str(e)}"
