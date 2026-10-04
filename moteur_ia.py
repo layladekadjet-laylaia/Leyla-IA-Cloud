@@ -1,12 +1,32 @@
 import base64
 import os
 import re
+import socket
 import uuid
 import db_manager
 from recherche_ia import rechercher_sur_le_web
 import streamlit as st
 import streamlit.components.v1 as components
 import utils_memoire
+
+# --- CONFIGURATION DU SERVEUR HUB (RÉSEAU LOCAL WI-FI PC) ---
+# IP IPv4 exacte de votre PC sur le réseau Wi-Fi : 192.168.100.75
+IP_SERVEUR_HUB = "192.168.100.75"
+PORT_SERVEUR_HUB = 8000
+URL_HUB_WEBSOCKET = f"ws://{IP_SERVEUR_HUB}:{PORT_SERVEUR_HUB}/ws"
+
+
+def verifier_hub_disponible(ip: str, port: int, timeout: float = 1.0) -> bool:
+    """Vérifie si le serveur Hub est joignable sur le réseau local sans bloquer l'application."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        resultat = sock.connect_ex((ip, port))
+        sock.close()
+        return resultat == 0
+    except Exception:
+        return False
+
 
 # --- IMPORTATION DES MODULES JARVIS ---
 try:
@@ -78,7 +98,7 @@ if "session_id" not in st.session_state:
 if "message_en_cours" not in st.session_state:
     st.session_state.message_en_cours = ""
 
-# --- BARRE LATÉRALE (SIDEBAR - CONTROLEUR JARVIS) ---
+# --- BARRE LATÉRALE (SIDEBAR - CONTRÔLEUR JARVIS) ---
 with st.sidebar:
     st.title("⚡ Leyla Control")
     if st.button("➕ Nouvelle Discussion", use_container_width=True):
@@ -89,13 +109,15 @@ with st.sidebar:
 
     activer_voix = st.checkbox("🔊 Réponse vocale automatique", value=True)
 
-    # --- NOUVELLE SECTION : FONCTIONNALITÉS JARVIS ---
+    # --- FONCTIONNALITÉS JARVIS ---
     st.markdown("---")
     st.markdown("### 👑 Fonctions JARVIS")
 
     # Étape 1 : Wake Word
     if st.button("🎧 Écoute Passive (Wake Word)", use_container_width=True):
-        st.toast("Pour activer l'écoute passive sur mobile, utilisez ecoute_leyla_mobile.py")
+        st.toast(
+            "Pour activer l'écoute passive sur mobile, utilisez ecoute_leyla_mobile.py"
+        )
 
     # Étape 2 : Briefing Matinal
     if st.button("🌅 Briefing Matinal Proactif", use_container_width=True):
@@ -113,9 +135,19 @@ with st.sidebar:
         utils_memoire.extraire_et_sauvegarder_faits(messages)
         st.toast("Mémoire de Leyla synchronisée !")
 
-    # Étape 5 : Hub Multi-Appareils
+    # Étape 5 : Hub Multi-Appareils (AJUSTÉ AVEC L'IP PC 192.168.100.75)
     if st.button("📱 État Hub Multi-Appareils", use_container_width=True):
-        st.info("Serveur Hub : ws://localhost:8000/ws")
+        with st.spinner("Vérification de la connexion au Hub PC..."):
+            est_actif = verifier_hub_disponible(
+                IP_SERVEUR_HUB, PORT_SERVEUR_HUB, timeout=1.0
+            )
+            if est_actif:
+                st.success(f"Connecté au Hub Leyla : {URL_HUB_WEBSOCKET}")
+            else:
+                st.warning(
+                    f"Hub hors ligne ou inatteignable sur {URL_HUB_WEBSOCKET}.\n"
+                    f"Vérifiez que le serveur WebSocket tourne sur le PC."
+                )
 
     # --- SECTION SOURCING MÉDIA & CAMÉRAS ---
     st.markdown("---")
@@ -138,11 +170,13 @@ with st.sidebar:
             "URL du flux (RTSP/HTTP) :",
             placeholder="rtsp://admin:12345@192.168.1.50:554/live",
         )
-        if st.button("👁️ Analyser le Flux Caméra", use_container_width=True):
+        if st.button("👁️️ Analyser le Flux Caméra", use_container_width=True):
             if rtsp_url and capturer_et_analyser_camera_externe:
                 with st.spinner("Analyse du flux réseau..."):
                     rapport = capturer_et_analyser_camera_externe(rtsp_url)
-                    st.session_state.message_en_cours = f"[ANALYSE CAMÉRA DISTANTE]\n{rapport}"
+                    st.session_state.message_en_cours = (
+                        f"[ANALYSE CAMÉRA DISTANTE]\n{rapport}"
+                    )
                     st.rerun()
 
     st.markdown("---")
@@ -210,7 +244,7 @@ for m in messages:
 # --- CONTRÔLES VOCAUX INTERACTIFS ---
 col_v1, col_v2, col_v3, col_v4 = st.columns([1, 1, 1, 5])
 with col_v1:
-    btn_parler = st.button("🎙️", help="Dictée vocale (Micro)")
+    btn_parler = st.button("🎙️️", help="Dictée vocale (Micro)")
 with col_v2:
     btn_stop = st.button("⏹️", help="Arrêter la parole")
 with col_v3:
