@@ -22,8 +22,12 @@ pillow>=10.2.0
 pandas>=2.2.0
 requests>=2.31.0
 opencv-python-headless
+scipy>=1.12.0
+numpy>=1.26.0
 
-# --- TRAITEMENT VOCAL (Mobile Compatible) ---
+# --- CAPTURE AUDIO & SECRÉTARIAT DE RÉUNION ---
+sounddevice>=0.4.6
+pygetwindow>=0.0.1
 speechrecognition>=3.10.0
 pydub>=0.25.1
 
