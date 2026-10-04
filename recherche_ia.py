@@ -252,7 +252,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
 
             tentatives = 4
             response = None
-            
+
             for essai in range(tentatives):
                 try:
                     response = client.models.generate_content(
@@ -262,13 +262,16 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                             system_instruction=consignes_systeme,
                             temperature=0.3,
                             tools=outils_disponibles,
+                            tool_config={
+                                "include_server_side_tool_invocations": True
+                            },
                         ),
                     )
                     break
                 except Exception as err:
                     err_str = str(err)
                     if "429" in err_str and essai < tentatives - 1:
-                        time.sleep(3 * (essai + 1)) # Attente progressive (3s, puis 6s, puis 9s)
+                        time.sleep(3 * (essai + 1))  # Attente progressive (3s, 6s, 9s)
                         continue
                     raise err
 
