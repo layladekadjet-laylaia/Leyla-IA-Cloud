@@ -13,6 +13,11 @@ import utils_memoire
 import utils_systeme
 
 try:
+    import utils_adb
+except ImportError:
+    utils_adb = None
+
+try:
     import utils_db
 except ImportError:
     utils_db = None
@@ -133,7 +138,7 @@ def ajouter_signature_leyla(image_bytes: bytes) -> bytes:
 
 
 def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
-    """Moteur de raisonnement central de Leyla (Text, Vision, Imagen 3, Function Calling, Search & Enterprise DB)."""
+    """Moteur de raisonnement central de Leyla (Text, Vision, Imagen 3, Function Calling, Search, ADB & Enterprise DB)."""
     client = obtenir_client()
 
     if not client:
@@ -158,7 +163,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
         "Tu es Leyla, l'intelligence artificielle autonome, le système d'exploitation d'entreprise et la partenaire de programmation de Djè Akadjé. "
         "Appelle-le impérativement 'Mon Professeur'. "
         "LANGUE OBLIGATOIRE : Rédige l'intégralité de tes réponses en français. "
-        "RÔLE ÉTENDU : Tu es un assistant exécutif capable d'interagir avec le système local, les flux vidéo caméras, la mémoire, le web, "
+        "RÔLE ÉTENDU : Tu es un assistant exécutif capable d'interagir avec le système local, les flux vidéo caméras, les périphériques Android reliés en ADB (controle de la lampe torche, diagnostic), la mémoire, le web, "
         "ainsi que de consulter la structure et le contenu des bases de données de l'entreprise (SQL, SAP, Oracle) via tes outils dédiés."
     )
 
@@ -228,7 +233,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 "image_path": image_path_str,
             }
 
-        # --- MODE 2 : RAISONNEMENT + OUTILS JARVIS, SYSTÈME & BASES DE DONNÉES ---
+        # --- MODE 2 : RAISONNEMENT + OUTILS JARVIS, SYSTÈME, ADB & BASES DE DONNÉES ---
         else:
             outils_disponibles = [
                 {"google_search": {}},
@@ -241,6 +246,14 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 obtenir_briefing_matinal,
                 synchroniser_memoire_long_terme,
             ]
+
+            if utils_adb:
+                outils_disponibles.extend(
+                    [
+                        utils_adb.gerer_lampe_torche,
+                        utils_adb.lister_appareils_adb,
+                    ]
+                )
 
             if utils_db:
                 outils_disponibles.extend(
