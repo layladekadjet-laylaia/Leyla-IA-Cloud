@@ -881,6 +881,10 @@ import re
 import streamlit as st
 import streamlit.components.v1 as components
 
+import re
+import streamlit as st
+import streamlit.components.v1 as components
+
 # ==========================================
 # 9. ASSISTANT SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
@@ -905,43 +909,48 @@ if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
                     else "Aucune donnée disponible pour ce module."
                 )
 
+                # Prompt renforcé : exige du SVG explicite et interdit les données externes parasites
                 prompt_complet = (
-                    "Tu es L.E.Y.L.A., l'intelligence artificielle centrale pour la gestion agricole.\n"
+                    "Tu es L.E.Y.L.A., l'intelligence artificielle centrale de gestion agricole.\n"
                     f"Cabinet actif : {cabinet_courant['nom']}\n"
                     f"Module en cours d'analyse : {module_choisi}\n"
                     "Données brutes exclusives à ce module :\n"
                     f"{contexte_donnees}\n\n"
-                    f"Consigne / Question de l'administrateur : {user_query}\n\n"
-                    "Fournis une analyse professionnelle, claire et axée uniquement sur ce module."
+                    f"Consigne de l'administrateur : {user_query}\n\n"
+                    "CONSIGNES STRICTES DE RENDU :\n"
+                    "1. Réponds EXCLUSIVEMENT en Français professionnel.\n"
+                    "2. Si un croquis ou une carte de parcelle est demandé, tu DOIS générer le dessin directement sous forme d'un bloc de code vectoriel SVG valide (<svg>...</svg>).\n"
+                    "3. N'ajoute AUCUNE donnée externe non liée au dossier agricole."
                 )
 
                 historique_fictif = [{"role": "user", "content": prompt_complet}]
+
+                # Appel à l'IA
                 reponse_satellite = rechercher_sur_le_web(historique_fictif)
 
                 st.success("Rapport du Satellite L.E.Y.L.A. :")
-
-                # --- TRAITEMENT DU RENDU GRAPHIQUE (SVG OU TEXTE) ---
                 texte_brut = reponse_satellite.get("texte", "")
 
-                # Recherche d'un schéma SVG dans le texte de réponse
+                # Nettoyage automatique au cas où du texte parasite subsiste
+                if "若き大将が作る絶品料理" in texte_brut or "鮨" in texte_brut:
+                    texte_brut = texte_brut.split("---")[0]
+
+                # --- RENDU DU CROQUIS SVG ---
                 svg_match = re.search(r"(<svg.*?</svg>)", texte_brut, re.DOTALL)
 
                 if svg_match:
                     code_svg = svg_match.group(1)
                     parties = texte_brut.split(code_svg)
 
-                    # 1. Texte avant le croquis
                     if parties[0].strip():
                         st.markdown(parties[0])
 
-                    # 2. Rendu visuel du croquis SVG
+                    # Affichage graphique du dessin vectoriel SVG
                     components.html(code_svg, height=600, scrolling=True)
 
-                    # 3. Texte après le croquis
                     if len(parties) > 1 and parties[1].strip():
                         st.markdown(parties[1])
                 else:
-                    # Affichage Markdown standard s'il n'y a pas de schéma SVG
                     st.markdown(texte_brut)
 
             except Exception as e:
@@ -955,4 +964,5 @@ if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
         st.info(
             "Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A."
         )
+
 
