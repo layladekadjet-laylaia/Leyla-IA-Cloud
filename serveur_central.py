@@ -877,19 +877,27 @@ if "PDC" in module_choisi:
     st.divider()
 
 
+import re
+import streamlit as st
+import streamlit.components.v1 as components
+
 # ==========================================
 # 9. ASSISTANT SATELLITE IA (HUB UNIVERSEL)
 # ==========================================
 st.subheader("🤖 Assistant IA L.E.Y.L.A. (Analyse Experte Ciblée)")
 st.markdown(f"Posez vos questions en lien direct avec le module **{module_choisi}**.")
 
-user_query = st.text_input("Votre requête pour le satellite :", key="input_satellite_query")
+user_query = st.text_input(
+    "Votre requête pour le satellite :", key="input_satellite_query"
+)
 
 if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
     if not user_query:
         st.warning("Veuillez saisir une question ou une consigne.")
     elif verifier_et_incrementer_quota(cabinet_id_actif):
-        with st.spinner(f"Le satellite analyse exclusivement les données de {module_choisi}..."):
+        with st.spinner(
+            f"Le satellite analyse exclusivement les données de {module_choisi}..."
+        ):
             try:
                 contexte_donnees = (
                     df_filtered.to_string(index=False)
@@ -911,10 +919,40 @@ if st.button("Lancer l'analyse du satellite", key="btn_run_satellite_analysis"):
                 reponse_satellite = rechercher_sur_le_web(historique_fictif)
 
                 st.success("Rapport du Satellite L.E.Y.L.A. :")
-                st.write(reponse_satellite.get("texte", ""))
+
+                # --- TRAITEMENT DU RENDU GRAPHIQUE (SVG OU TEXTE) ---
+                texte_brut = reponse_satellite.get("texte", "")
+
+                # Recherche d'un schéma SVG dans le texte de réponse
+                svg_match = re.search(r"(<svg.*?</svg>)", texte_brut, re.DOTALL)
+
+                if svg_match:
+                    code_svg = svg_match.group(1)
+                    parties = texte_brut.split(code_svg)
+
+                    # 1. Texte avant le croquis
+                    if parties[0].strip():
+                        st.markdown(parties[0])
+
+                    # 2. Rendu visuel du croquis SVG
+                    components.html(code_svg, height=600, scrolling=True)
+
+                    # 3. Texte après le croquis
+                    if len(parties) > 1 and parties[1].strip():
+                        st.markdown(parties[1])
+                else:
+                    # Affichage Markdown standard s'il n'y a pas de schéma SVG
+                    st.markdown(texte_brut)
 
             except Exception as e:
-                st.error(f"Erreur lors de la communication avec le satellite : {e}")
+                st.error(
+                    f"Erreur lors de la communication avec le satellite : {e}"
+                )
     else:
-        st.error("🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**")
-        st.info("Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A.")
+        st.error(
+            "🚫 **Quota d'analyses IA mensuel atteint pour votre cabinet.**"
+        )
+        st.info(
+            "Veuillez contacter votre **Fournisseur** pour recharger votre forfait de requêtes L.E.Y.L.A."
+        )
+
