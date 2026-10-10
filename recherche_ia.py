@@ -309,3 +309,4 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
             message_douceur = f"Une perturbation technique est survenue, Mon Professeur : {erreur_str}"
 
         return {"texte": message_douceur, "image_path": None}
+
