@@ -1,48 +1,19 @@
+import asyncio
 import base64
 import os
 import re
-import socket
 import uuid
 import db_manager
 from recherche_ia import rechercher_sur_le_web
 import streamlit as st
 import streamlit.components.v1 as components
 import utils_memoire
-
-# --- CONFIGURATION DU SERVEUR HUB (RÉSEAU LOCAL WI-FI PC) ---
-# IP IPv4 exacte de votre PC sur le réseau Wi-Fi : 192.168.100.75
-IP_SERVEUR_HUB = "192.168.100.75"
-PORT_SERVEUR_HUB = 8000
-URL_HUB_WEBSOCKET = f"ws://{IP_SERVEUR_HUB}:{PORT_SERVEUR_HUB}/ws"
-
-
-def verifier_hub_disponible(ip: str, port: int, timeout: float = 1.0) -> bool:
-    """Vérifie si le serveur Hub est joignable sur le réseau local sans bloquer l'application."""
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        resultat = sock.connect_ex((ip, port))
-        sock.close()
-        return resultat == 0
-    except Exception:
-        return False
-
-
-# --- IMPORTATION DES MODULES JARVIS ---
-try:
-    from camera_leyla import capturer_et_analyser_camera_externe
-except ImportError:
-    capturer_et_analyser_camera_externe = None
-
-try:
-    from briefing_leyla import generer_briefing_matinal
-except ImportError:
-    generer_briefing_matinal = None
+import utils_scan
 
 # --- INITIALISATION ET CONFIGURATION ---
 db_manager.init_db()
 st.set_page_config(
-    page_title="Leyla IA - Assistant Personnel", page_icon="🤖", layout="centered"
+    page_title="Leyla IA - Edge Agent", page_icon="🤖", layout="centered"
 )
 
 
@@ -81,6 +52,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# --- IMPORTATION DES MODULES JARVIS ---
+try:
+    from camera_leyla import capturer_et_analyser_camera_externe
+except ImportError:
+    capturer_et_analyser_camera_externe = None
+
+try:
+    from briefing_leyla import generer_briefing_matinal
+except ImportError:
+    generer_briefing_matinal = None
+
 # --- IDENTIFICATION UTILISATEUR ---
 user_name = db_manager.get_user_name()
 if not user_name:
@@ -98,13 +80,11 @@ if "session_id" not in st.session_state:
 if "message_en_cours" not in st.session_state:
     st.session_state.message_en_cours = ""
 
-# --- BARRE LATÉRALE (SIDEBAR - CONTRÔLEUR JARVIS) ---
+# --- BARRE LATÉRALE (SIDEBAR - CONTRÔLEUR LEYLA) ---
 with st.sidebar:
     st.title("⚡ Leyla Control")
     if st.button("➕ Nouvelle Discussion", use_container_width=True):
         st.session_state.session_id = str(uuid.uuid4())[:8]
-        if "camera_input" in st.session_state:
-            del st.session_state["camera_input"]
         st.rerun()
 
     activer_voix = st.checkbox("🔊 Réponse vocale automatique", value=True)
@@ -113,13 +93,9 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 👑 Fonctions JARVIS")
 
-    # Étape 1 : Wake Word
     if st.button("🎧 Écoute Passive (Wake Word)", use_container_width=True):
-        st.toast(
-            "Pour activer l'écoute passive sur mobile, utilisez ecoute_leyla_mobile.py"
-        )
+        st.toast("Pour activer l'écoute passive, utilisez le script mobile dédié.")
 
-    # Étape 2 : Briefing Matinal
     if st.button("🌅 Briefing Matinal Proactif", use_container_width=True):
         if generer_briefing_matinal:
             with st.spinner("Génération de votre briefing, Mon Professeur..."):
@@ -129,25 +105,38 @@ with st.sidebar:
         else:
             st.error("Module briefing_leyla.py introuvable.")
 
-    # Étape 4 : Mémoire Proactive
     if st.button("🧠 Synchro Mémoire Long Terme", use_container_width=True):
         messages = db_manager.get_history(st.session_state.session_id)
         utils_memoire.extraire_et_sauvegarder_faits(messages)
         st.toast("Mémoire de Leyla synchronisée !")
 
-    # Étape 5 : Hub Multi-Appareils (AJUSTÉ AVEC L'IP PC 192.168.100.75)
-    if st.button("📱 État Hub Multi-Appareils", use_container_width=True):
-        with st.spinner("Vérification de la connexion au Hub PC..."):
-            est_actif = verifier_hub_disponible(
-                IP_SERVEUR_HUB, PORT_SERVEUR_HUB, timeout=1.0
-            )
-            if est_actif:
-                st.success(f"Connecté au Hub Leyla : {URL_HUB_WEBSOCKET}")
-            else:
-                st.warning(
-                    f"Hub hors ligne ou inatteignable sur {URL_HUB_WEBSOCKET}.\n"
-                    f"Vérifiez que le serveur WebSocket tourne sur le PC."
-                )
+    # --- DÉCOUVERTE MATÉRIELLE AUTOMATIQUE (BLUETOOTH & WI-FI) ---
+    st.markdown("---")
+    st.markdown("### 📱 Découverte Réseau & Appareils")
+
+    type_recherche = st.selectbox(
+        "Cible de recherche :", ["Bluetooth Proche", "Passerelles / Caméras Wi-Fi"]
+    )
+
+    if st.button("🔍 Lancer le Scan Local", use_container_width=True):
+        if type_recherche == "Bluetooth Proche":
+            with st.spinner("Leyla analyse les ondes Bluetooth (4s)..."):
+                appareils_bt = asyncio.run(utils_scan.scanner_bluetooth_proche())
+                if appareils_bt:
+                    st.success(f"{len(appareils_bt)} appareil(s) détecté(s) :")
+                    for dev in appareils_bt:
+                        st.info(f"📱 **{dev['nom']}**\n- Adresse : `{dev['adresse']}`\n- Signal : {dev['rssi']} dBm")
+                else:
+                    st.warning("Aucun appareil Bluetooth détecté à proximité.")
+        else:
+            with st.spinner("Sondage du réseau local..."):
+                # Test rapide sur des IPs locales courantes ou passerelle type
+                ip_test = "192.168.1.1"
+                actif = utils_scan.verifier_appareil_reseau(ip_test, 80, timeout=0.5)
+                if actif:
+                    st.success(f"Passerelle active détectée sur {ip_test} !")
+                else:
+                    st.info("Sondage terminé. Aucun service réseau critique supplémentaire détecté sur la plage par défaut.")
 
     # --- SECTION SOURCING MÉDIA & CAMÉRAS ---
     st.markdown("---")
@@ -160,9 +149,7 @@ with st.sidebar:
 
     media_file = None
     if choix_source == "📁 Fichier":
-        media_file = st.file_uploader(
-            "Téléverser une image", type=["jpg", "jpeg", "png"]
-        )
+        media_file = st.file_uploader("Téléverser une image", type=["jpg", "jpeg", "png"])
     elif choix_source == "📷 Caméra":
         media_file = st.camera_input("Prendre une photo")
     elif choix_source == "📹 Caméra IP (RTSP)":
@@ -170,18 +157,16 @@ with st.sidebar:
             "URL du flux (RTSP/HTTP) :",
             placeholder="rtsp://admin:12345@192.168.1.50:554/live",
         )
-        if st.button("👁️️ Analyser le Flux Caméra", use_container_width=True):
+        if st.button("👁 Analyser le Flux Caméra", use_container_width=True):
             if rtsp_url and capturer_et_analyser_camera_externe:
                 with st.spinner("Analyse du flux réseau..."):
                     rapport = capturer_et_analyser_camera_externe(rtsp_url)
-                    st.session_state.message_en_cours = (
-                        f"[ANALYSE CAMÉRA DISTANTE]\n{rapport}"
-                    )
+                    st.session_state.message_en_cours = f"[ANALYSE CAMÉRA DISTANTE]\n{rapport}"
                     st.rerun()
 
+    # --- GESTION DES SESSIONS ---
     st.markdown("---")
     st.markdown("### 💬 Sessions")
-
     sessions_enregistrees = db_manager.get_all_sessions()
 
     for s_id, s_name in sessions_enregistrees:
@@ -190,9 +175,7 @@ with st.sidebar:
 
         with col_btn:
             prefix = "📌 " if is_active else ""
-            if st.button(
-                f"{prefix}{s_name}", key=f"sel_{s_id}", use_container_width=True
-            ):
+            if st.button(f"{prefix}{s_name}", key=f"sel_{s_id}", use_container_width=True):
                 if not is_active:
                     st.session_state.session_id = s_id
                     st.rerun()
@@ -209,9 +192,7 @@ with st.sidebar:
                 st.rerun()
 
         if st.session_state.get(f"editing_{s_id}", False):
-            nouveau_nom = st.text_input(
-                "Nom :", value=s_name, key=f"input_ren_{s_id}"
-            )
+            nouveau_nom = st.text_input("Nom :", value=s_name, key=f"input_ren_{s_id}")
             col_val, col_ann = st.columns(2)
             with col_val:
                 if st.button("OK", key=f"val_{s_id}"):
@@ -244,7 +225,7 @@ for m in messages:
 # --- CONTRÔLES VOCAUX INTERACTIFS ---
 col_v1, col_v2, col_v3, col_v4 = st.columns([1, 1, 1, 5])
 with col_v1:
-    btn_parler = st.button("🎙️️", help="Dictée vocale (Micro)")
+    btn_parler = st.button("🎙", help="Dictée vocale (Micro)")
 with col_v2:
     btn_stop = st.button("⏹️", help="Arrêter la parole")
 with col_v3:
@@ -253,10 +234,7 @@ with col_v3:
         st.toast("Mémoire de Leyla synchronisée !")
 
 if btn_stop:
-    components.html(
-        """<script>window.parent.window.speechSynthesis.cancel();</script>""",
-        height=0,
-    )
+    components.html("""<script>window.parent.window.speechSynthesis.cancel();</script>""", height=0)
 
 if btn_parler:
     components.html(
@@ -287,19 +265,14 @@ if st.session_state.message_en_cours:
     texte_final = st.session_state.message_en_cours
     st.session_state.message_en_cours = ""
 
-    # 1. Enregistrement et affichage du message utilisateur
     with st.chat_message("user"):
         st.write(texte_final)
     db_manager.save_message(st.session_state.session_id, "user", texte_final)
 
-    # 2. Traitement par Leyla
     with st.chat_message("assistant"):
         historique_actuel = db_manager.get_history(st.session_state.session_id)
 
-        # Appel du moteur révisé avec recherche Web et Imagen 3
-        resultat_ia = rechercher_sur_le_web(
-            historique_actuel, image_file=media_file
-        )
+        resultat_ia = rechercher_sur_le_web(historique_actuel, image_file=media_file)
 
         reponse_texte = resultat_ia.get("texte", "...")
         reponse_image_path = resultat_ia.get("image_path")
@@ -308,30 +281,16 @@ if st.session_state.message_en_cours:
 
         contenu_a_sauvegarder = reponse_texte
         if reponse_image_path and os.path.exists(reponse_image_path):
-            st.image(
-                reponse_image_path,
-                caption="Création de Leyla",
-                use_container_width=True,
-            )
+            st.image(reponse_image_path, caption="Création de Leyla", use_container_width=True)
             contenu_a_sauvegarder += f" [IMAGE:{reponse_image_path}]"
 
-        db_manager.save_message(
-            st.session_state.session_id, "assistant", contenu_a_sauvegarder
-        )
+        db_manager.save_message(st.session_state.session_id, "assistant", contenu_a_sauvegarder)
 
-        # 3. Synchronisation de la mémoire à long terme
-        utils_memoire.extraire_et_sauvegarder_faits(
-            db_manager.get_history(st.session_state.session_id)
-        )
+        utils_memoire.extraire_et_sauvegarder_faits(db_manager.get_history(st.session_state.session_id))
 
-        # 4. Synthèse vocale (TTS)
         if activer_voix:
             texte_vocale = re.sub(r"[\*\#\_\`\~]", "", reponse_texte)
-            texte_vocale = (
-                re.sub(r"[\n\r]+", " ", texte_vocale)
-                .replace('"', '\\"')
-                .replace("'", "\\'")
-            )
+            texte_vocale = re.sub(r"[\n\r]+", " ", texte_vocale).replace('"', '\\"').replace("'", "\\'")
             components.html(
                 f"""<script>
                 window.parent.window.speechSynthesis.cancel();
