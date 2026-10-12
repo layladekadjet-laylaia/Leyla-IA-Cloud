@@ -1,0 +1,11 @@
+[supabase]
+url = "https://fuxgqbxrrhasrrhvrlcd.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1eGdxYnhycmhhc3JyaHZybGNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1NjEyODUsImV4cCI6MjEwMzEzNzI4NX0.ffe_dM2NJSDL2vmYGnTJ6Ae3tEmYq4QfhzkO0QBuekU"
+
+[database]
+db_type = "sqlite"
+host = "localhost"
+port = ""
+user = ""
+password = ""
+database = "entreprise.db"
