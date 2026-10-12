@@ -26,7 +26,7 @@ def capturer_et_analyser_camera_externe(rtsp_url: str) -> str:
         # Sauvegarde temporaire de l'image
         cv2.imwrite(fichier_temp, frame)
         
-        # Envoi direct à la vision de Leyla (Gemini 2.5 Flash)
+        # Envoi direct à la vision de Leyla (Gemini 3.8 Flash)
         print("🧠 Transmis au cerveau visuel de Leyla...")
         analyse_resultat = analyser_image(
             fichier_temp, 
