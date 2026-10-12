@@ -137,9 +137,9 @@ async def discuter(donnees: RequeteClient):
 
         contenus_prompt.append(historique_texte)
 
-        # 3. GÉNÉRATION GEMINI 2.5 FLASH
+        # 3. GÉNÉRATION GEMINI 3.8 FLASH
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=contenus_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=consignes_systeme,
