@@ -1,24 +1,29 @@
 import asyncio
+import socket
 from bleak import BleakScanner
 
 
-async def scanner_appareils():
-    print("🔍 Recherche des appareils Bluetooth à proximité...")
-
-    # Scan pendant 5 secondes
-    devices = await BleakScanner.discover(timeout=5.0)
-
-    if not devices:
-        print("❌ Aucun appareil Bluetooth détecté.")
-        return
-
-    print(f"\n✅ {len(devices)} appareil(s) trouvé(s) :\n")
-    for device in devices:
-        nom = device.name if device.name else "Appareil inconnu"
-        adresse = device.address
-        rssi = device.rssi  # Plus le nombre est proche de 0, plus l'appareil est près
-        print(f"📱 Nom : {nom} | Adresse : {adresse} | Signal (RSSI) : {rssi} dBm")
+async def scanner_bluetooth_proche() -> list:
+    """Scanne les appareils Bluetooth à proximité pendant 4 secondes."""
+    try:
+        devices = await BleakScanner.discover(timeout=4.0)
+        resultats = []
+        for d in devices:
+            nom = d.name if d.name else "Appareil Bluetooth Inconnu"
+            resultats.append({"nom": nom, "adresse": d.address, "rssi": d.rssi})
+        return resultats
+    except Exception as e:
+        print(f"Erreur scan Bluetooth : {e}")
+        return []
 
 
-if __name__ == "__main__":
-    asyncio.run(scanner_appareils())
+def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.8) -> bool:
+    """Vérifie si une machine ou une caméra est active sur le réseau local."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        resultat = sock.connect_ex((ip, port))
+        sock.close()
+        return resultat == 0
+    except Exception:
+        return False
