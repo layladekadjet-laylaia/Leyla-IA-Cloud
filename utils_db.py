@@ -4,7 +4,7 @@ import urllib.parse
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-def charger_configuration_db():
+def charger_configuration_db() -> dict:
     """
     Détection et lecture dynamique des identifiants et accès réseau (IP, Port, BDD)
     depuis Streamlit secrets ou directement depuis le fichier secrets.toml local/portable.
@@ -31,25 +31,29 @@ def charger_configuration_db():
     for chemin in chemins_recherche:
         if os.path.exists(chemin):
             try:
-                import tomllib  # Python 3.11+
+                # Tentative avec tomllib (Python 3.11+)
+                import tomllib
                 with open(chemin, "rb") as f:
                     config = tomllib.load(f)
                     return config.get("database", {})
             except ImportError:
-                import toml
-                with open(chemin, "r", encoding="utf-8") as f:
-                    config = toml.load(f)
-                    return config.get("database", {})
+                try:
+                    # Fallback sur le paquet externe toml
+                    import toml
+                    with open(chemin, "r", encoding="utf-8") as f:
+                        config = toml.load(f)
+                        return config.get("database", {})
+                except Exception:
+                    continue
             except Exception:
                 continue
 
     return {}
 
 
-def obtenir_chaine_connexion() -> str:
+def obtenir_chaine_connexion() -> tuple[str, str]:
     """
-    Génère dynamiquement la chaîne de connexion SQLAlchemy à partir de la configuration.
-    Gère le formatage d'IP, de ports, et l'échappement des mots de passe complexes.
+    Génère dynamiquement la chaîne de connexion SQLAlchemy et retourne aussi le type de SGBD.
     """
     db_config = charger_configuration_db()
 
@@ -62,43 +66,53 @@ def obtenir_chaine_connexion() -> str:
 
     # Cas 1 : Base de données SQLite Locale
     if db_type == "sqlite":
-        return f"sqlite:///{database}"
+        return f"sqlite:///{database}", db_type
 
-    # Échappement des identifiants pour éviter les erreurs de syntaxe d'URL (mots de passe avec @ ou #)
+    # Échappement sécurisé des identifiants
     user_encoded = urllib.parse.quote_plus(user)
     password_encoded = urllib.parse.quote_plus(password)
-
-    # Formatage propre du bloc [host:port]
     host_port = f"{host}:{port}" if port else host
 
-    # Cas 2 : Bases de données réseau distantes (IP/Port)
+    # Cas 2 : Bases de données réseau distantes
     if db_type == "postgresql":
-        return f"postgresql://{user_encoded}:{password_encoded}@{host_port}/{database}"
+        return f"postgresql://{user_encoded}:{password_encoded}@{host_port}/{database}", db_type
     elif db_type == "mysql":
-        return f"mysql+pymysql://{user_encoded}:{password_encoded}@{host_port}/{database}"
+        return f"mysql+pymysql://{user_encoded}:{password_encoded}@{host_port}/{database}", db_type
     elif db_type == "mssql":
         driver = "ODBC+Driver+17+for+SQL+Server"
-        return f"mssql+pyodbc://{user_encoded}:{password_encoded}@{host_port}/{database}?driver={driver}"
+        return f"mssql+pyodbc://{user_encoded}:{password_encoded}@{host_port}/{database}?driver={driver}", db_type
     elif db_type == "oracle":
-        return f"oracle+cx_oracle://{user_encoded}:{password_encoded}@{host_port}/?service_name={database}"
+        return f"oracle+cx_oracle://{user_encoded}:{password_encoded}@{host_port}/?service_name={database}", db_type
     else:
         raise ValueError(f"Type de base de données non supporté : {db_type}")
 
 
 def interroger_base_donnees(requete_sql: str) -> str:
     """
-    Exécute une requête SQL en LECTURE SEULE sur la base de données configurée.
+    Exécute une requête SQL en LECTURE SEULE de manière sécurisée sur la base configurée.
     """
-    requete_propre = requete_sql.strip().upper()
-    if not (requete_propre.startswith("SELECT") or requete_propre.startswith("WITH")):
+    # Nettoyage et vérification stricte anti-injection / écriture
+    requete_propre = requete_sql.strip()
+    requete_upper = requete_propre.upper()
+
+    if not (requete_upper.startswith("SELECT") or requete_upper.startswith("WITH")):
         return "Erreur de sécurité : Seules les requêtes de lecture (SELECT / WITH) sont autorisées."
+    
+    # Interdiction des points-virgules multiples pour éviter l'empilement de requêtes (SQL Injection)
+    if ";" in requete_propre.rstrip(";"):
+        return "Erreur de sécurité : Les requêtes multiples (point-virgule intermédiaire) sont interdites."
 
     try:
-        url_connexion = obtenir_chaine_connexion()
-        engine = create_engine(url_connexion, connect_args={'connect_timeout': 10} if "sqlite" not in url_connexion else {})
+        url_connexion, db_type = obtenir_chaine_connexion()
+        
+        # Configuration spécifique de l'engine selon le SGBD
+        if db_type == "sqlite":
+            engine = create_engine(url_connexion)
+        else:
+            engine = create_engine(url_connexion, connect_args={'connect_timeout': 10})
 
         with engine.connect() as conn:
-            df = pd.read_sql_query(text(requete_sql), conn)
+            df = pd.read_sql_query(text(requete_propre), conn)
             
             if df.empty:
                 return "La requête a été exécutée avec succès, mais aucun résultat n'a été trouvé."
@@ -115,13 +129,16 @@ def interroger_base_donnees(requete_sql: str) -> str:
 
 def lister_tables_et_structure() -> str:
     """
-    Permet à Leyla d'explorer la structure de la base de données cliente (IP courante).
+    Permet à Leyla d'explorer la structure de la base de données cliente en toute sécurité.
     """
     try:
-        url_connexion = obtenir_chaine_connexion()
-        engine = create_engine(url_connexion, connect_args={'connect_timeout': 10} if "sqlite" not in url_connexion else {})
+        url_connexion, db_type = obtenir_chaine_connexion()
         db_config = charger_configuration_db()
-        db_type = str(db_config.get("db_type", "sqlite")).lower().strip()
+
+        if db_type == "sqlite":
+            engine = create_engine(url_connexion)
+        else:
+            engine = create_engine(url_connexion, connect_args={'connect_timeout': 10})
 
         with engine.connect() as conn:
             if db_type == "sqlite":
@@ -140,7 +157,8 @@ def lister_tables_et_structure() -> str:
                 return "Aucune table trouvée dans la base de données ciblée."
             
             tables = df.iloc[:, 0].tolist()
-            return f"Tables disponibles sur le serveur ({db_config.get('host', 'local')}) : {', '.join(tables)}"
+            host_info = db_config.get('host', 'local')
+            return f"Tables disponibles sur le serveur ({host_info}) : {', '.join(tables)}"
 
     except Exception as e:
         return f"Impossible de récupérer la structure sur ce serveur : {str(e)}"
