@@ -1,14 +1,16 @@
 import json
 import os
+from datetime import datetime
 from google import genai
 from google.genai import types
 import streamlit as st
 
 FICHIER_MEMOIRE = "memoire_long_terme.json"
+MODELE_GEMINI = "gemini-3.8-flash"  # Modèle officiel Gemini 3.8 Flash
 
 
 def initialiser_client():
-    """Initialise le client Google GenAI de manière sécurisée"""
+    """Initialise le client Google GenAI de manière sécurisée."""
     api_key = (
         st.secrets.get("GEMINI_API_KEY")
         or os.environ.get("GOOGLE_API_KEY")
@@ -17,11 +19,8 @@ def initialiser_client():
     return genai.Client(api_key=api_key) if api_key else None
 
 
-# --- GESTION DE LA MÉMOIRE PERMANENTE (RAG LOCAL) ---
-
-
 def charger_memoire_long_terme() -> dict:
-    """Charge les faits et préférences enregistrés au fil du temps."""
+    """Charge les faits, préférences et l'historique quotidien."""
     if os.path.exists(FICHIER_MEMOIRE):
         try:
             with open(FICHIER_MEMOIRE, "r", encoding="utf-8") as f:
@@ -34,11 +33,12 @@ def charger_memoire_long_terme() -> dict:
         "projets": [],
         "preferences": [],
         "faits_cles": [],
+        "journal_quotidien": {}  # Stocke les résumés par date ("YYYY-MM-DD")
     }
 
 
 def sauvegarder_memoire_long_terme(data: dict):
-    """Sauvegarde les faits enregistrés dans un fichier JSON local."""
+    """Sauvegarde la mémoire dans le fichier JSON local."""
     try:
         with open(FICHIER_MEMOIRE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
@@ -46,24 +46,54 @@ def sauvegarder_memoire_long_terme(data: dict):
         print(f"Erreur lors de la sauvegarde de la mémoire : {e}")
 
 
-def extraire_et_sauvegarder_faits(messages: list):
+def sauvegarder_resume_journee(messages: list):
     """
-    Analyse la discussion récente et extrait les nouvelles informations importantes
-    à retenir pour toujours (style JARVIS).
+    Génère un résumé complet de la session et l'enregistre dans le journal quotidien 
+    sous la date du jour via Gemini 3.8 Flash.
     """
     client = initialiser_client()
     if not client or not messages:
         return
 
-    texte_discussion = ""
-    for m in messages[-6:]:
-        role = "Utilisateur" if m["role"] == "user" else "Leyla"
-        texte_discussion += f"{role} : {m['content']}\n"
+    date_aujourdhui = datetime.now().strftime("%Y-%m-%d")
+    texte_session = "\n".join([f"{'Utilisateur' if m['role']=='user' else 'Leyla'} : {m['content']}" for m in messages])
+
+    prompt = (
+        f"Fais une synthèse très concise (3 à 5 puces max) des actions réalisées et décisions prises aujourd'hui ({date_aujourdhui}) "
+        f"pendant cette session de travail avec Mon Professeur :\n\n{texte_session}"
+    )
+
+    try:
+        response = client.models.generate_content(
+            model=MODELE_GEMINI,
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=300),
+        )
+        if response and response.text:
+            memoire = charger_memoire_long_terme()
+            if "journal_quotidien" not in memoire:
+                memoire["journal_quotidien"] = {}
+            
+            # Enregistre le résumé sous la date du jour
+            memoire["journal_quotidien"][date_aujourdhui] = response.text.strip()
+            sauvegarder_memoire_long_terme(memoire)
+            print(f"✅ Résumé du jour ({date_aujourdhui}) enregistré par Leyla !")
+    except Exception as e:
+        print(f"Erreur sauvegarde résumé journée : {e}")
+
+
+def extraire_et_sauvegarder_faits(messages: list):
+    """Analyse la discussion et extrait les faits clés ainsi que les projets."""
+    client = initialiser_client()
+    if not client or not messages:
+        return
+
+    texte_discussion = "\n".join([f"{'Utilisateur' if m['role']=='user' else 'Leyla'} : {m['content']}" for m in messages[-10:]])
 
     prompt = (
         "Tu es le module de mémoire à long terme de Leyla. "
         "Analyse la conversation suivante entre 'Mon Professeur' (Djè Akadjé) et Leyla. "
-        "Identifie s'il y a de nouvelles informations clés sur ses projets, ses préférences, ou des faits importants à retenir. "
+        "Identifie les nouvelles informations clés sur ses projets, ses préférences, ou des faits importants à retenir. "
         "Réponds uniquement au format JSON valide avec les clés 'nouveaux_projets', 'nouvelles_preferences', 'nouveaux_faits'. "
         "Si aucune nouvelle information importante n'est présente, renvoie des listes vides.\n\n"
         f"CONVERSATION :\n{texte_discussion}"
@@ -71,7 +101,7 @@ def extraire_et_sauvegarder_faits(messages: list):
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=MODELE_GEMINI,
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.1,
@@ -83,7 +113,6 @@ def extraire_et_sauvegarder_faits(messages: list):
             nouveaux_donnees = json.loads(response.text)
             memoire = charger_memoire_long_terme()
 
-            # Mise à jour sans doublons
             for p in nouveaux_donnees.get("nouveaux_projets", []):
                 if p not in memoire["projets"]:
                     memoire["projets"].append(p)
@@ -102,65 +131,28 @@ def extraire_et_sauvegarder_faits(messages: list):
         print(f"Erreur extraction mémoire : {e}")
 
 
-# --- GESTION DU RÉSUMÉ ET DU CONTEXTE ---
-
-
-def generer_resume(messages: list) -> str:
-    """Génère un résumé concis de la session actuelle."""
-    client = initialiser_client()
-    if not client or not messages:
-        return "Résumé indisponible."
-
-    texte_a_resumer = ""
-    for m in messages:
-        role = "Utilisateur" if m["role"] == "user" else "Leyla"
-        texte_a_resumer += f"{role} : {m['content']}\n"
-
-    prompt = (
-        "Fais un résumé synthétique, factuel et structuré des points clés de cette discussion "
-        f"afin de conserver le contexte pour Leyla :\n\n{texte_a_resumer}"
-    )
-
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.2,
-                max_output_tokens=300,
-            ),
-        )
-        return (
-            response.text
-            if response and response.text
-            else "Résumé indisponible."
-        )
-    except Exception as e:
-        return f"Erreur lors du résumé : {str(e)}"
-
-
 def charger_contexte_memoire() -> str:
     """
-    Génère un bloc de texte contenant la mémoire long terme
-    à injecter directement dans le prompt système de Leyla.
+    Construit le contexte temporel injecté dans le briefing matinal.
     """
     memoire = charger_memoire_long_terme()
-    contexte = "=== MÉMOIRE À LONG TERME DE LEYLA ===\n"
-    contexte += (
-        f"Utilisateur principal : {memoire.get('utilisateur', 'Djè Akadjé')} "
-        f"(Appellation : {memoire.get('titre', 'Mon Professeur')})\n"
-    )
+    contexte = "=== MÉMOIRE À LONG TERME ET HISTORIQUE DE LEYLA ===\n"
+    contexte += f"Utilisateur principal : {memoire.get('utilisateur', 'Djè Akadjé')} (Titre : {memoire.get('titre', 'Mon Professeur')})\n"
 
     if memoire.get("projets"):
-        contexte += (
-            f"- Projets en cours : {', '.join(memoire['projets'])}\n"
-        )
+        contexte += f"- Projets actifs : {', '.join(memoire['projets'])}\n"
     if memoire.get("preferences"):
-        contexte += (
-            f"- Préférences de l'utilisateur : {', '.join(memoire['preferences'])}\n"
-        )
+        contexte += f"- Préférences : {', '.join(memoire['preferences'])}\n"
     if memoire.get("faits_cles"):
-        contexte += f"- Faits importants à retenir : {'; '.join(memoire['faits_cles'])}\n"
+        contexte += f"- Faits majeurs : {'; '.join(memoire['faits_cles'])}\n"
 
-    contexte += "=====================================\n"
+    # Injection du journal quotidien des derniers jours
+    journal = memoire.get("journal_quotidien", {})
+    if journal:
+        contexte += "\n--- HISTORIQUE DES DERNIERS JOURS ---\n"
+        dates_triees = sorted(journal.keys(), reverse=True)[:5]
+        for date_key in dates_triees:
+            contexte += f"📅 [{date_key}] :\n{journal[date_key]}\n"
+
+    contexte += "===================================================\n"
     return contexte
