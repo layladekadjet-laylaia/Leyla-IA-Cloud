@@ -26,4 +26,4 @@ def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.8) -> bool:
         sock.close()
         return resultat == 0
     except Exception:
-        return False
+        return False 
