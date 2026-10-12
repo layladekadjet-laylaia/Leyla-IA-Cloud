@@ -21,7 +21,7 @@ DEVICE_ID = get_device_id()
 
 def init_db():
     """Initialise les tables de la base de données de manière totalement sécurisée."""
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
 
         # 1. Table des messages (création si absente)
@@ -76,7 +76,7 @@ def init_db():
 def save_user_name(name: str, device_id: Optional[str] = None):
     """Enregistre le nom de l'utilisateur dans la base SQLite."""
     dev_id = device_id or DEVICE_ID
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
         c.execute(
             """INSERT INTO user_profile (device_id, user_name) 
@@ -90,7 +90,7 @@ def save_user_name(name: str, device_id: Optional[str] = None):
 def get_user_name(device_id: Optional[str] = None) -> Optional[str]:
     """Récupère le nom de l'utilisateur."""
     dev_id = device_id or DEVICE_ID
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
         c.execute(
             "SELECT user_name FROM user_profile WHERE device_id = ?", (dev_id,)
@@ -114,7 +114,7 @@ def get_user_name(device_id: Optional[str] = None) -> Optional[str]:
 def get_all_sessions(device_id: Optional[str] = None) -> List[Tuple[str, str]]:
     """Récupère la liste de toutes les sessions."""
     dev_id = device_id or DEVICE_ID
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
         c.execute(
             """
@@ -138,7 +138,7 @@ def save_message(
     dev_id = device_id or DEVICE_ID
     now = datetime.datetime.now()
 
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
 
         # 1. Sauvegarde du message
@@ -172,7 +172,7 @@ def get_history(
 ) -> List[Dict[str, str]]:
     """Récupère l'historique complet d'une session."""
     dev_id = device_id or DEVICE_ID
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
         c.execute(
             "SELECT role, content FROM messages WHERE device_id = ? AND session_id = ? ORDER BY id ASC",
@@ -190,7 +190,7 @@ def rename_session(
 ):
     """Renomme une session."""
     dev_id = device_id or DEVICE_ID
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
         c.execute(
             "UPDATE sessions SET name = ? WHERE session_id = ? AND device_id = ?",
@@ -202,7 +202,7 @@ def rename_session(
 def delete_session(session_id: str, device_id: Optional[str] = None):
     """Supprime définitivement une session et ses messages."""
     dev_id = device_id or DEVICE_ID
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
         c.execute(
             "DELETE FROM messages WHERE session_id = ? AND device_id = ?",
@@ -218,7 +218,7 @@ def delete_session(session_id: str, device_id: Optional[str] = None):
 def clear_history(device_id: Optional[str] = None):
     """Purge toutes les données de l'appareil."""
     dev_id = device_id or DEVICE_ID
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
         c.execute("DELETE FROM messages WHERE device_id = ?", (dev_id,))
         c.execute("DELETE FROM sessions WHERE device_id = ?", (dev_id,))
