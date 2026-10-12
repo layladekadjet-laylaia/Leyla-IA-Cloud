@@ -18,7 +18,7 @@ async def scanner_bluetooth_proche() -> list:
 
 
 def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.8) -> bool:
-    """Vérifie si une machine ou une caméra est active sur le réseau local."""
+    """Vérifie si une machine ou un service est actif sur le réseau local."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
