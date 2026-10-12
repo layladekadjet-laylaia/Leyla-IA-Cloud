@@ -24,7 +24,7 @@ def analyser_image(image_path_ou_pil, consigne_utilisateur: str = "Analyse cette
         )
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=[img, consigne_utilisateur],
             config=types.GenerateContentConfig(
                 system_instruction=prompt_systeme,
