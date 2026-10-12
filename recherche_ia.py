@@ -10,6 +10,7 @@ from google.genai import types
 
 import utils_memoire
 import utils_systeme
+import utils_scan
 
 try:
     import utils_adb
