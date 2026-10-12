@@ -8,7 +8,6 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
-# --- IMPORTATION DES MODULES HOUSE ET ÉTAPES JARVIS ---
 import utils_memoire
 import utils_systeme
 
@@ -22,7 +21,6 @@ try:
 except ImportError:
     utils_db = None
 
-# Importation sécurisée des modules d'étapes
 try:
     import camera_leyla
 except ImportError:
@@ -33,7 +31,6 @@ try:
 except ImportError:
     briefing_leyla = None
 
-# Dossier de sauvegarde local des créations graphiques
 DOSSIER_IMAGES = "images_generees"
 os.makedirs(DOSSIER_IMAGES, exist_ok=True)
 
@@ -63,24 +60,22 @@ def obtenir_client() -> genai.Client:
     return None
 
 
-# --- DÉFINITION DES OUTILS/FONCTIONS POUR LES ÉTAPES JARVIS & ENTREPRISE ---
-
 def analyser_flux_camera(rtsp_url: str) -> str:
-    """Outil pour l'étape Caméra/RTSP : Permet d'analyser un flux vidéo ou caméra IP en direct."""
+    """Outil pour analyser un flux vidéo ou caméra IP en direct."""
     if camera_leyla:
         return camera_leyla.capturer_et_analyser_camera_externe(rtsp_url)
     return "Le module camera_leyla n'est pas disponible."
 
 
 def obtenir_briefing_matinal() -> str:
-    """Outil pour l'étape Briefing Matinal Proactif : Génère un rapport complet pour la journée."""
+    """Outil pour le Briefing Matinal Proactif."""
     if briefing_leyla:
         return briefing_leyla.generer_briefing_matinal()
     return "Le module briefing_leyla n'est pas disponible."
 
 
 def synchroniser_memoire_long_terme() -> str:
-    """Outil pour l'étape Mémoire : Force l'extraction et l'enregistrement des faits récents."""
+    """Outil pour synchroniser la mémoire à long terme."""
     return "Mémoire à long terme mise à jour avec succès, Mon Professeur."
 
 
@@ -92,7 +87,7 @@ def nettoyer_reponse(texte: str) -> str:
 
 
 def ajouter_signature_leyla(image_bytes: bytes) -> bytes:
-    """Inscrit la signature élégante '✨ Par Leyla' en bas à droite des visuels créés."""
+    """Inscrit la signature '✨ Par Leyla' en bas à droite des visuels créés."""
     try:
         image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
         txt_layer = Image.new("RGBA", image.size, (255, 255, 255, 0))
@@ -132,13 +127,12 @@ def ajouter_signature_leyla(image_bytes: bytes) -> bytes:
         output_buffer = io.BytesIO()
         image_finale.save(output_buffer, format="JPEG", quality=95)
         return output_buffer.getvalue()
-
     except Exception:
         return image_bytes
 
 
 def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
-    """Moteur de raisonnement central de Leyla (Text, Vision, Imagen 3, Function Calling, Search, ADB & Enterprise DB)."""
+    """Moteur central de raisonnement de Leyla (Gemini 3.8 Flash)."""
     client = obtenir_client()
 
     if not client:
@@ -147,42 +141,23 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
             "image_path": None,
         }
 
-    historique_reduit = (
-        historique[-10:] if len(historique) > 10 else historique
-    )
-    derniere_requete = (
-        historique_reduit[-1]["content"] if historique_reduit else ""
-    )
+    historique_reduit = historique[-10:] if len(historique) > 10 else historique
+    derniere_requete = historique_reduit[-1]["content"] if historique_reduit else ""
 
-    # 1. RÉCUPÉRATION DE LA MÉMOIRE LONG TERME
     contexte_memoire = utils_memoire.charger_contexte_memoire()
 
-    # 2. CONSIGNES SYSTÈME (JARVIS HUB & ASSISTANT EXÉCUTIF D'ENTREPRISE)
     consignes_systeme = (
         f"{contexte_memoire}\n"
-        "Tu es Leyla, l'intelligence artificielle autonome, le système d'exploitation d'entreprise et la partenaire de programmation de Djè Akadjé. "
+        "Tu es Leyla, l'intelligence artificielle autonome et Edge Agent de Djè Akadjé. "
         "Appelle-le impérativement 'Mon Professeur'. "
-        "LANGUE OBLIGATOIRE : Rédige l'intégralité de tes réponses en français. "
-        "RÔLE ÉTENDU : Tu es un assistant exécutif capable d'interagir avec le système local, les flux vidéo caméras, les périphériques Android reliés en ADB (controle de la lampe torche, diagnostic), la mémoire, le web, "
-        "ainsi que de consulter la structure et le contenu des bases de données de l'entreprise (SQL, SAP, Oracle) via tes outils dédiés."
+        "LANGUE OBLIGATOIRE : Français. "
+        "RÔLE : Assistant exécutif local capable d'interagir avec le système, les caméras, les périphériques et les bases de données."
     )
 
-    # Détection de la volonté de génération graphique
     mots_cles_visuels = [
-        "génère",
-        "crée",
-        "dessine",
-        "logo",
-        "montre-moi",
-        "illustration",
-        "photo",
-        "image",
-        "fais-moi voir",
-        "donne-moi un logo",
+        "génère", "crée", "dessine", "logo", "montre-moi", "illustration", "photo", "image", "fais-moi voir"
     ]
-    demande_visuelle = any(
-        mot in derniere_requete.lower() for mot in mots_cles_visuels
-    )
+    demande_visuelle = any(mot in derniere_requete.lower() for mot in mots_cles_visuels)
     is_image_mode = (image_file is not None) and demande_visuelle
 
     try:
@@ -197,13 +172,10 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
             pil_img = Image.open(image_file)
             contenus_prompt.append(pil_img)
 
-        # --- MODE 1 : CRÉATION D'IMAGE (IMAGEN 3) ---
         if is_image_mode:
             prompt_image = derniere_requete
             if image_file is not None:
-                prompt_image = (
-                    f"Adaptation visuelle de l'image : {derniere_requete}"
-                )
+                prompt_image = f"Adaptation visuelle de l'image : {derniere_requete}"
 
             result_image = client.models.generate_images(
                 model="imagen-3.0-generate-002",
@@ -217,12 +189,8 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
 
             image_path_str = None
             if result_image.generated_images:
-                generated_image_bytes = result_image.generated_images[
-                    0
-                ].image.image_bytes
-                generated_image_bytes = ajouter_signature_leyla(
-                    generated_image_bytes
-                )
+                generated_image_bytes = result_image.generated_images[0].image.image_bytes
+                generated_image_bytes = ajouter_signature_leyla(generated_image_bytes)
                 nom_fichier = f"img_{uuid.uuid4().hex[:8]}.jpg"
                 image_path_str = os.path.join(DOSSIER_IMAGES, nom_fichier)
                 with open(image_path_str, "wb") as f:
@@ -232,8 +200,6 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 "texte": "Voici la création graphique demandée, Mon Professeur !",
                 "image_path": image_path_str,
             }
-
-        # --- MODE 2 : RAISONNEMENT + OUTILS JARVIS, SYSTÈME, ADB & BASES DE DONNÉES ---
         else:
             outils_disponibles = [
                 {"google_search": {}},
@@ -248,24 +214,13 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
             ]
 
             if utils_adb:
-                outils_disponibles.extend(
-                    [
-                        utils_adb.gerer_lampe_torche,
-                        utils_adb.lister_appareils_adb,
-                    ]
-                )
+                outils_disponibles.extend([utils_adb.gerer_lampe_torche, utils_adb.lister_appareils_adb])
 
             if utils_db:
-                outils_disponibles.extend(
-                    [
-                        utils_db.interroger_base_donnees,
-                        utils_db.lister_tables_et_structure,
-                    ]
-                )
+                outils_disponibles.extend([utils_db.interroger_base_donnees, utils_db.lister_tables_et_structure])
 
             tentatives = 4
             response = None
-
             for essai in range(tentatives):
                 try:
                     response = client.models.generate_content(
@@ -275,16 +230,13 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                             system_instruction=consignes_systeme,
                             temperature=0.3,
                             tools=outils_disponibles,
-                            tool_config={
-                                "include_server_side_tool_invocations": True
-                            },
                         ),
                     )
                     break
                 except Exception as err:
                     err_str = str(err)
                     if "429" in err_str and essai < tentatives - 1:
-                        time.sleep(3 * (essai + 1))  # Attente progressive (3s, 6s, 9s)
+                        time.sleep(3 * (essai + 1))
                         continue
                     raise err
 
@@ -295,18 +247,8 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
 
     except Exception as e:
         erreur_str = str(e)
-        if "503" in erreur_str or "UNAVAILABLE" in erreur_str:
-            message_douceur = (
-                "Oups, Mon Professeur ! Les serveurs connaissent un pic de charge momentané. "
-                "Relancez dans un instant, je suis prête !"
-            )
-        elif "429" in erreur_str or "RESOURCE_EXHAUSTED" in erreur_str:
-            message_douceur = (
-                "Mon Professeur, le quota de requêtes gratuit de l'API est temporairement saturé. "
-                "Veuillez patienter quelques secondes avant de relancer votre message."
-            )
+        if "429" in erreur_str or "RESOURCE_EXHAUSTED" in erreur_str:
+            msg_err = "Mon Professeur, le quota de requêtes est temporairement saturé. Patientons un instant."
         else:
-            message_douceur = f"Une perturbation technique est survenue, Mon Professeur : {erreur_str}"
-
-        return {"texte": message_douceur, "image_path": None}
-
+            msg_err = f"Une perturbation technique est survenue : {erreur_str}"
+        return {"texte": msg_err, "image_path": None}
