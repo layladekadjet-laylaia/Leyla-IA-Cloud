@@ -27,6 +27,7 @@ def status_hub():
 async def websocket_endpoint(websocket: WebSocket, device_id: str):
     await websocket.accept()
     appareils_connectes[device_id] = websocket
+    print(f"📱 Appareil connecté au Hub : {device_id}")
     try:
         while True:
             data = await websocket.receive_text()
@@ -36,6 +37,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
             )
     except WebSocketDisconnect:
         del appareils_connectes[device_id]
+        print(f"🔌 Appareil déconnecté : {device_id}")
 
 async def envoyer_ordre_appareil(appareil_cible: str, action: str, params: dict = None) -> bool:
     if params is None:
@@ -48,13 +50,13 @@ async def envoyer_ordre_appareil(appareil_cible: str, action: str, params: dict 
     return False
 
 def demarrer_hub_arriere_plan():
-    """Démarre le serveur FastAPI en arrière-plan sur le port 8000 uniquement."""
+    """Démarre le serveur FastAPI en arrière-plan sur toutes les interfaces du réseau local."""
     import uvicorn
-    config = uvicorn.Config(app, host="127.0.0.1", port=8000, log_level="warning")
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="warning")
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
