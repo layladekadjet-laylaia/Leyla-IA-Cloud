@@ -12,6 +12,8 @@ import utils_memoire
 import utils_systeme
 import utils_scan
 import utils_config
+from auth_manager import verifier_licence_et_recuperer_secrets
+import sys
 
 try:
     import utils_adb
@@ -38,11 +40,13 @@ os.makedirs(DOSSIER_IMAGES, exist_ok=True)
 
 
 def obtenir_cle_api() -> str:
-    """Récupère la clé API en toute sécurité sans faire planter Streamlit."""
+    """Récupère la clé API en toute sécurité (priorité à la clé sécurisée en mémoire ou variables d'environnement)."""
+    # 1. Vérifier si la clé sécurisée a été injectée en variable d'environnement par le système de licence
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if api_key:
         return api_key
 
+    # 2. Fallback Streamlit secrets au cas où
     try:
         if "GOOGLE_API_KEY" in st.secrets:
             return st.secrets["GOOGLE_API_KEY"]
@@ -139,7 +143,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
 
     if not client:
         return {
-            "texte": "Alerte : Clé API Google/Gemini non détectée. Veuillez configurer GOOGLE_API_KEY.",
+            "texte": "Alerte : Clé API Google/Gemini non détectée. Veuillez configurer les accès.",
             "image_path": None,
         }
 
@@ -254,3 +258,22 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
         else:
             msg_err = f"Une perturbation technique est survenue : {erreur_str}"
         return {"texte": msg_err, "image_path": None}
+
+
+if __name__ == "__main__":
+    print("🔄 Vérification de la licence et de la sécurité en cours...")
+    
+    acces_autorise, resultat = verifier_licence_et_recuperer_secrets()
+    
+    if not acces_autorise:
+        print(f"\n[BLOQUÉ] {resultat}")
+        sys.exit(1)
+    
+    # Injection sécurisée de la clé récupérée depuis Supabase dans l'environnement
+    os.environ["GOOGLE_API_KEY"] = resultat
+    os.environ["GEMINI_API_KEY"] = resultat
+    
+    print("🎉 Lancement de Leyla réussi ! Clé récupérée et sécurisée en mémoire.")
+    
+    # Ici tu lances ton application Streamlit ou ton interface principale
+    # Exemple : os.system("streamlit run main.py") ou appel direct de l'UI
