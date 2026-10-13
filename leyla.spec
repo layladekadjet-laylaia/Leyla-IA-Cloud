@@ -3,31 +3,48 @@
 block_cipher = None
 
 a = Analysis(
-    ['moteur_ia.py'],
+    ['run_app.py'],  # Point d'entrée principal qui orchestre le lancement et le Hub
     pathex=[],
     binaries=[],
-    datas=[('config.toml', '.'), ('LOGO LAYLA.png', '.')],
+    datas=[
+        ('config.toml', '.'),         # Configuration externe modifiable par le client
+        ('requirements.txt', '.'),    # Référence des dépendances
+        ('run_app.py', '.'),          # Script de lancement orchestré
+        ('LOGO LAYLA.png', '.')       # Logo et filigrane de l'application
+    ],
     hiddenimports=[
+        # Dépendances techniques et matérielles
         'bleak',
         'psycopg2',
         'sqlite3',
         'toml',
+        'fastapi',
+        'uvicorn',
+        'websockets',
+        # Modules fonctionnels, d'actions, d'audit et d'intelligence de Leyla
+        'auth_manager',
+        'briefing_leyla',
+        'camera_leyla',
+        'db_manager',
+        'hub_leyla',
+        'memoire_leyla',
+        'moteur_ia',
+        'recherche_ia',
+        'secretaire_auto',
+        'serveur_leyla',
         'utils_actions',
         'utils_audit',
-        'utils_adb',
+        'utils_config',
         'utils_db',
+        'utils_memoire',
         'utils_scan',
         'utils_systeme',
-        'utils_memoire',
-        'utils_config',
-        'camera_leyla',
-        'briefing_leyla',
-        'auth_manager'
+        'vision_leyla'
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['serveur_central'], # Exclu car réservé au Cloud / PDC central
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
