@@ -12,6 +12,8 @@ import utils_memoire
 import utils_systeme
 import utils_scan
 import utils_config
+import utils_actions  # Module des actions autonomes (exploration, rapports)
+import utils_audit    # Boîte noire de traçabilité des actions
 from auth_manager import verifier_licence_et_recuperer_secrets
 import sys
 
@@ -157,7 +159,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
         "Tu es Leyla, l'intelligence artificielle autonome et Edge Agent de Djè Akadjé. "
         "Appelle-le impérativement 'Mon Professeur'. "
         "LANGUE OBLIGATOIRE : Français. "
-        "RÔLE : Assistant exécutif local capable d'interagir avec le système, les caméras, les périphériques et les bases de données."
+        "RÔLE : Assistant exécutif local capable d'interagir avec le système, les caméras, les périphériques, les bases de données et d'exécuter des actions d'exploration ou de création à la demande."
     )
 
     mots_cles_visuels = [
@@ -214,6 +216,8 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
                 utils_systeme.ecrire_fichier,
                 utils_systeme.organiser_fichiers_par_extension,
                 utils_systeme.executer_commande_python,
+                utils_actions.explorer_dossier,        # Permet à Leyla d'explorer l'environnement
+                utils_actions.creer_rapport_texte,     # Permet à Leyla de générer des fichiers de synthèse
                 analyser_flux_camera,
                 obtenir_briefing_matinal,
                 synchroniser_memoire_long_terme,
@@ -274,6 +278,3 @@ if __name__ == "__main__":
     os.environ["GEMINI_API_KEY"] = resultat
     
     print("🎉 Lancement de Leyla réussi ! Clé récupérée et sécurisée en mémoire.")
-    
-    # Ici tu lances ton application Streamlit ou ton interface principale
-    # Exemple : os.system("streamlit run main.py") ou appel direct de l'UI
