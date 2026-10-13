@@ -3,7 +3,7 @@ import os
 
 block_cipher = None
 
-# Liste des fichiers de données
+# Liste des ressources statiques à embarquer
 datas_list = [
     ('config.toml', '.'),
     ('requirements.txt', '.'),
@@ -11,11 +11,9 @@ datas_list = [
     ('LOGO LAYLA.png', '.')
 ]
 
-# Inclusion conditionnelle du runtime PyArmor s'il est généré
+# Embarquement sécurisé du runtime PyArmor si généré
 if os.path.exists('pyarmor_runtime'):
     datas_list.append(('pyarmor_runtime', 'pyarmor_runtime'))
-elif os.path.exists('dist/pyarmor_runtime'):
-    datas_list.append(('dist/pyarmor_runtime', 'pyarmor_runtime'))
 
 a = Analysis(
     ['run_app.py'],
@@ -23,6 +21,7 @@ a = Analysis(
     binaries=[],
     datas=datas_list,
     hiddenimports=[
+        # Dépendances système et backends
         'bleak',
         'psycopg2',
         'sqlite3',
@@ -34,6 +33,12 @@ a = Analysis(
         'scipy',
         'scipy.io.wavfile',
         'pygetwindow',
+        'google.genai',
+        'PIL',
+        'PIL.Image',
+        'PIL.ImageDraw',
+        'PIL.ImageFont',
+        # Modules applicatifs locaux
         'auth_manager',
         'briefing_leyla',
         'camera_leyla',
@@ -43,7 +48,6 @@ a = Analysis(
         'moteur_ia',
         'recherche_ia',
         'secretaire_auto',
-        'secretaire_leyla',
         'serveur_leyla',
         'utils_actions',
         'utils_audit',
