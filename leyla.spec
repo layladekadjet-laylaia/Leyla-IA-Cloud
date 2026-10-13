@@ -1,16 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 
 block_cipher = None
 
 a = Analysis(
-    ['run_app.py'],  # Point d'entrée principal qui orchestre le lancement et le Hub
+    ['run_app.py'],  # Point d'entrée principal orchestrant le Hub et Streamlit
     pathex=[],
     binaries=[],
     datas=[
-        ('config.toml', '.'),         # Configuration externe modifiable par le client
+        ('config.toml', '.'),         # Fichier de configuration modifiable par l'administrateur
         ('requirements.txt', '.'),    # Référence des dépendances
-        ('run_app.py', '.'),          # Script de lancement orchestré
-        ('LOGO LAYLA.png', '.')       # Logo et filigrane de l'application
+        ('run_app.py', '.'),          # Script de lancement
+        ('LOGO LAYLA.png', '.'),      # Logo et filigrane officiel
+        ('pyarmor_runtime', 'pyarmor_runtime') # Dossier de déchiffrement sécurisé de PyArmor
     ],
     hiddenimports=[
         # Dépendances techniques et matérielles
@@ -21,6 +23,10 @@ a = Analysis(
         'fastapi',
         'uvicorn',
         'websockets',
+        'sounddevice',
+        'scipy',
+        'scipy.io.wavfile',
+        'pygetwindow',
         # Modules fonctionnels, d'actions, d'audit et d'intelligence de Leyla
         'auth_manager',
         'briefing_leyla',
@@ -31,6 +37,7 @@ a = Analysis(
         'moteur_ia',
         'recherche_ia',
         'secretaire_auto',
+        'secretaire_leyla',
         'serveur_leyla',
         'utils_actions',
         'utils_audit',
