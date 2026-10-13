@@ -29,3 +29,4 @@ numpy>=1.26.0
 speechrecognition>=3.10.0
 pydub>=0.25.1
 bleak>=0.21.0
+ 
