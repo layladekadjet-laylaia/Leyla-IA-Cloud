@@ -18,11 +18,15 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Installation de PyInstaller et des dependances
+    - name: Installation de PyInstaller, PyArmor et des dependances
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller streamlit uvicorn fastapi pydantic pillow google-genai pygetwindow sounddevice scipy numpy
+        pip install pyinstaller pyarmor streamlit uvicorn fastapi pydantic pillow google-genai pygetwindow sounddevice scipy numpy
         if (Test-Path -Path "requirements.txt") { pip install -r requirements.txt }
+
+    - name: Obfuscation des sources avec PyArmor
+      run: |
+        pyarmor gen --output . *.py
 
     - name: Preparation du dossier .streamlit et secrets
       run: |
@@ -30,25 +34,21 @@ jobs:
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
         if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
-    - name: Compilation avec PyInstaller
+    - name: Compilation avec PyInstaller et le fichier Spec
       run: |
-        pyinstaller --noconfirm --onedir --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all pillow --collect-all google.genai --collect-all sounddevice --collect-all scipy --hidden-import=google.genai --hidden-import=PIL --hidden-import=PIL.Image --hidden-import=PIL.ImageDraw --hidden-import=PIL.ImageFont --hidden-import=pygetwindow --hidden-import=sounddevice --hidden-import=scipy --hidden-import=scipy.io.wavfile --hidden-import=secretaire_leyla --hidden-import=secretaire_auto --add-data ".streamlit;.streamlit" --add-data "*.py;." run_app.py --name Leyla
+        pyinstaller leyla.spec
 
-    - name: Copie explicite des fichiers source, secrétariat et ressources
+    - name: Copie explicite des ressources, de la configuration et des logs
       run: |
-        Copy-Item -Path "*.py" -Destination "dist/Leyla/" -Force
-        if (Test-Path -Path "secretaire_auto.py") { Copy-Item -Path "secretaire_auto.py" -Destination "dist/Leyla/" -Force }
-        if (Test-Path -Path "secretaire_leyla.py") { Copy-Item -Path "secretaire_leyla.py" -Destination "dist/Leyla/" -Force }
-        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla/" -Force }
-        if (Test-Path -Path "dist/Leyla/_internal") {
-            Copy-Item -Path "*.py" -Destination "dist/Leyla/_internal/" -Force
-            if (Test-Path -Path "secretaire_auto.py") { Copy-Item -Path "secretaire_auto.py" -Destination "dist/Leyla/_internal/" -Force }
-            if (Test-Path -Path "secretaire_leyla.py") { Copy-Item -Path "secretaire_leyla.py" -Destination "dist/Leyla/_internal/" -Force }
-            if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla/_internal/" -Force }
+        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla_Edge_Agent/" -Force }
+        if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "dist/Leyla_Edge_Agent/" -Force }
+        if (Test-Path -Path "dist/Leyla_Edge_Agent/_internal") {
+            if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla_Edge_Agent/_internal/" -Force }
+            if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "dist/Leyla_Edge_Agent/_internal/" -Force }
         }
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
       with:
         name: Leyla-Executable-Windows
-        path: dist/Leyla/
+        path: dist/Leyla_Edge_Agent/
