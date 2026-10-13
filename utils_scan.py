@@ -3,56 +3,20 @@ import socket
 import concurrent.futures
 from bleak import BleakScanner
 
-# ==========================================
-# 1. GESTION BLUETOOTH (BLE & Classic)
-# ==========================================
 
-async def scanner_bluetooth_ble(timeout: float = 6.0) -> list:
-    """
-    Scanne les appareils Bluetooth Low Energy (IoT, capteurs, balises).
-    """
+async def scanner_bluetooth_proche() -> list:
+    """Scanne les appareils Bluetooth à proximité pendant 4 secondes."""
     try:
-        devices = await BleakScanner.discover(timeout=timeout)
+        devices = await BleakScanner.discover(timeout=4.0)
         resultats = []
         for d in devices:
-            nom = d.name if d.name else "Appareil BLE Inconnu"
-            resultats.append({
-                "type": "BLE",
-                "nom": nom, 
-                "adresse": d.address, 
-                "rssi": d.rssi
-            })
+            nom = d.name if d.name else "Appareil Bluetooth Inconnu"
+            resultats.append({"nom": nom, "adresse": d.address, "rssi": d.rssi})
         return resultats
     except Exception as e:
-        print(f"Erreur scan BLE : {e}")
+        print(f"Erreur scan Bluetooth : {e}")
         return []
 
-def scanner_bluetooth_classic() -> list:
-    """
-    Scanne les appareils Bluetooth Classic (Enceintes audio, casques, etc.).
-    Nécessite le paquet PyBluez si disponible.
-    """
-    resultats = []
-    try:
-        import bluetooth  # Nécessite PyBluez
-        devices = bluetooth.discover_devices(duration=8, lookup_names=True, lookup_class=True)
-        for addr, name, device_class in devices:
-            resultats.append({
-                "type": "Classic (Audio/Périphérique)",
-                "nom": name if name else "Appareil Bluetooth",
-                "adresse": addr,
-                "classe": device_class
-            })
-    except ImportError:
-        print("Module 'PyBluez' non installé. Seul le scan BLE (Bleak) est actif.")
-    except Exception as e:
-        print(f"Erreur scan Bluetooth Classic : {e}")
-    return resultats
-
-
-# ==========================================
-# 2. GESTION RÉSEAU & IP (Wi-Fi / Ethernet)
-# ==========================================
 
 def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.8) -> bool:
     """Vérifie si une machine ou un service est actif sur le réseau local."""
@@ -80,7 +44,7 @@ def scanner_plage_ip_locale(prefixe_ip: str = "192.168.1", ports: list = [80, 55
                 return {"ip": ip, "port_ouvert": port}
         return None
 
-    # Exécution parallèle pour un scan rapide
+    # Exécution parallèle pour un scan réseau ultra-rapide
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         resultats = executor.map(tester_ip, range(1, 255))
         for res in resultats:
