@@ -3,19 +3,26 @@ import os
 
 block_cipher = None
 
+# Liste des fichiers de données
+datas_list = [
+    ('config.toml', '.'),
+    ('requirements.txt', '.'),
+    ('run_app.py', '.'),
+    ('LOGO LAYLA.png', '.')
+]
+
+# Inclusion conditionnelle du runtime PyArmor s'il est généré
+if os.path.exists('pyarmor_runtime'):
+    datas_list.append(('pyarmor_runtime', 'pyarmor_runtime'))
+elif os.path.exists('dist/pyarmor_runtime'):
+    datas_list.append(('dist/pyarmor_runtime', 'pyarmor_runtime'))
+
 a = Analysis(
-    ['run_app.py'],  # Point d'entrée principal orchestrant le Hub et Streamlit
+    ['run_app.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('config.toml', '.'),         # Fichier de configuration modifiable par l'administrateur
-        ('requirements.txt', '.'),    # Référence des dépendances
-        ('run_app.py', '.'),          # Script de lancement
-        ('LOGO LAYLA.png', '.'),      # Logo et filigrane officiel
-        ('pyarmor_runtime', 'pyarmor_runtime') # Dossier de déchiffrement sécurisé de PyArmor
-    ],
+    datas=datas_list,
     hiddenimports=[
-        # Dépendances techniques et matérielles
         'bleak',
         'psycopg2',
         'sqlite3',
@@ -27,7 +34,6 @@ a = Analysis(
         'scipy',
         'scipy.io.wavfile',
         'pygetwindow',
-        # Modules fonctionnels, d'actions, d'audit et d'intelligence de Leyla
         'auth_manager',
         'briefing_leyla',
         'camera_leyla',
@@ -51,7 +57,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['serveur_central'], # Exclu car réservé au Cloud / PDC central
+    excludes=['serveur_central'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
