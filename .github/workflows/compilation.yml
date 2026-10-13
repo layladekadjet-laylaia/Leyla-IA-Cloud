@@ -24,10 +24,6 @@ jobs:
         pip install pyinstaller pyarmor streamlit uvicorn fastapi pydantic pillow google-genai pygetwindow sounddevice scipy numpy
         if (Test-Path -Path "requirements.txt") { pip install -r requirements.txt }
 
-    - name: Obfuscation des sources avec PyArmor
-      run: |
-        pyarmor gen moteur_ia.py recherche_ia.py utils_actions.py utils_audit.py hub_leyla.py
-
     - name: Preparation du dossier .streamlit et secrets
       run: |
         if (!(Test-Path -Path ".streamlit")) { New-Item -ItemType Directory -Path ".streamlit" }
@@ -38,7 +34,7 @@ jobs:
       run: |
         pyinstaller leyla.spec
 
-    - name: Copie explicite des ressources, de la configuration et des logs
+    - name: Copie explicite des ressources et de la configuration
       run: |
         if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla_Edge_Agent/" -Force }
         if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "dist/Leyla_Edge_Agent/" -Force }
