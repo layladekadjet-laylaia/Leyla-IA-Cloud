@@ -1,16 +1,11 @@
 import os
-import uuid
 import platform
 import hashlib
 import requests
 import toml
 
 def obtenir_device_id() -> str:
-    """
-    Génère une empreinte matérielle unique et stable pour le PC local,
-    basée sur les informations système de la machine.
-    """
-    # On combine le nom de l'hôte, le processeur et le système
+    """Génère une empreinte matérielle unique et stable pour le PC local."""
     infos_systeme = f"{platform.node()}-{platform.processor()}-{platform.system()}"
     device_id = hashlib.sha256(infos_systeme.encode('utf-8')).hexdigest()
     return device_id
@@ -27,23 +22,24 @@ def charger_config_supabase() -> tuple:
 
 def verifier_licence_et_recuperer_secrets() -> tuple[bool, str]:
     """
-    Vérifie l'authenticité de la licence du poste auprès de Supabase
-    et récupère la clé Gemini sécurisée si l'accès est autorisé.
-    
-    Retourne : (True/False, cle_gemini_ou_message_erreur)
+    Vérifie l'authenticité de la licence du poste dans le schéma 'licensing'
+    et récupère la clé Gemini sécurisée.
     """
     try:
         supabase_url, supabase_key = charger_config_supabase()
         device_id = obtenir_device_id()
         print(f"💻 Empreinte de l'appareil (Device ID) : {device_id[:12]}...")
 
+        # Pour interroger un schéma spécifique via l'API PostgREST de Supabase, 
+        # on configure l'en-tête 'Accept-Profile' ou 'Content-Profile'.
         headers = {
             "apikey": supabase_key,
             "Authorization": f"Bearer {supabase_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Accept-Profile": "licensing"
         }
 
-        # 1. Vérifier si ce device_id est enregistré et lié à une entreprise active
+        # 1. Vérifier la licence du poste (schéma licensing)
         url_licence = f"{supabase_url}/rest/v1/licences_postes?device_id=eq.{device_id}&select=*,entreprises(*)"
         response = requests.get(url_licence, headers=headers, timeout=10)
 
@@ -62,7 +58,7 @@ def verifier_licence_et_recuperer_secrets() -> tuple[bool, str]:
 
         print(f"✅ Entreprise reconnue : {entreprise.get('nom_entreprise')}")
 
-        # 2. Si la licence est valide, récupérer la clé secrète Gemini depuis la table secrets_systeme
+        # 2. Récupérer la clé secrète Gemini depuis la table secrets_systeme (schéma licensing)
         url_secrets = f"{supabase_url}/rest/v1/secrets_systeme?cle_nom=eq.GOOGLE_GEMINI_API_KEY&select=cle_valeur"
         resp_secret = requests.get(url_secrets, headers=headers, timeout=10)
 
