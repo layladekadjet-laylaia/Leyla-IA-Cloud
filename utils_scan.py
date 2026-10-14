@@ -7,7 +7,6 @@ from bleak import BleakScanner
 async def scanner_bluetooth_proche(timeout: float = 8.0) -> list:
     """
     Scanne les appareils Bluetooth à proximité.
-    Timeout augmenté à 8.0 secondes pour détecter les capteurs IoT plus lents.
     """
     try:
         devices = await BleakScanner.discover(timeout=timeout)
@@ -21,10 +20,30 @@ async def scanner_bluetooth_proche(timeout: float = 8.0) -> list:
         return []
 
 
+def obtenir_passerelle_par_defaut() -> str:
+    """
+    Détecte automatiquement l'adresse IP de la passerelle par défaut du réseau local,
+    s'adaptant ainsi à n'importe quelle entreprise cliente sans codage en dur.
+    """
+    try:
+        # Crée une socket temporaire pour trouver l'IP locale connectée au web/réseau
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip_locale = s.getsockname()[0]
+        s.close()
+        
+        # Extrait le préfixe réseau (ex: '192.168.1' à partir de '192.168.1.55')
+        octets = ip_locale.split('.')
+        passerelle_estimee = f"{octets[0]}.{octets[1]}.{octets[2]}.1"
+        return passerelle_estimee
+    except Exception:
+        # Fallback universel par défaut si la détection échoue
+        return "192.168.1.1"
+
+
 def verifier_appareil_reseau(ip: str, port: int, timeout: float = 1.5) -> bool:
     """
     Vérifie si une machine ou un service est actif sur le réseau local.
-    Timeout ajusté à 1.5s pour tolérer les variations de latence Wi-Fi.
     """
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -36,16 +55,19 @@ def verifier_appareil_reseau(ip: str, port: int, timeout: float = 1.5) -> bool:
         return False
 
 
-def scanner_plage_ip_locale(prefixe_ip: str = "192.168.1", ports: list = [80, 554, 8080]) -> list:
+def scanner_plage_ip_locale(ports: list = [80, 554, 8080]) -> list:
     """
-    Scanne rapidement les adresses de la plage IP locale en multi-threading.
+    Scanne dynamiquement la plage IP du réseau actuel de l'entreprise.
     """
+    passerelle = obtenir_passerelle_par_defaut()
+    prefixe_ip = ".".join(passerelle.split('.')[:3])
+    
     appareils_trouves = []
 
     def tester_ip(dernier_octet):
         ip = f"{prefixe_ip}.{dernier_octet}"
         for port in ports:
-            if verifier_appareil_reseau(ip, port, timeout=1.2):
+            if verifier_appareil_reseau(ip, port, timeout=1.0):
                 return {"ip": ip, "port_ouvert": port}
         return None
 
