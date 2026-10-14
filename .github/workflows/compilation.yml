@@ -1,4 +1,4 @@
-name: Compilation Leyla EXE
+Name: Compilation Leyla EXE
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
 
     - name: Compilation directe avec PyInstaller
       run: |
-        pyinstaller --noconfirm --onedir --name Leyla_Edge_Agent --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all google.genai --collect-all sounddevice --collect-all scipy --add-data "config.toml;." --add-data "LOGO LAYLA.png;." run_app.py
+        pyinstaller --noconfirm --onedir --name Leyla_Edge_Agent --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all google.genai --collect-all sounddevice --collect-all scipy --collect-all bleak --add-data "config.toml;." --add-data "LOGO LAYLA.png;." run_app.py
 
     - name: Copie de tous les modules Python et ressources dans le dossier final
       run: |
