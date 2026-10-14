@@ -54,11 +54,18 @@ def verifier_appareil_reseau(ip: str, port: int, timeout: float = 1.0) -> bool:
 
 def scanner_plage_ip_locale(ports: list = None) -> list:
     """
-    Scanne dynamiquement la plage IP du réseau actuel de l'entreprise en testant 
-    une liste élargie de ports (web, sécurisés, caméras, administration et services réseau).
+    Scanne dynamiquement la plage IP du réseau en incluant les ports web,
+    administration, caméras et objets connectés (Smart TV, ampoules, passerelles IoT).
     """
     if ports is None:
-        ports = [80, 443, 554, 8080, 8443, 21, 22, 23, 53, 3389]
+        ports = [
+            80, 443, 554, 8080, 8443,  # Web & Flux vidéo
+            21, 22, 23, 53, 3389,      # Administration & Réseau
+            8008, 8009,                # Smart TV & Google Cast / Chromecast
+            1883,                      # MQTT (IoT / Domotique)
+            55443,                     # Ampoules connectées & périphériques locaux
+            8888                       # Passerelles IoT alternatives
+        ]
 
     passerelle = obtenir_passerelle_par_defaut()
     prefixe_ip = ".".join(passerelle.split('.')[:3])
@@ -69,7 +76,7 @@ def scanner_plage_ip_locale(ports: list = None) -> list:
         ip = f"{prefixe_ip}.{dernier_octet}"
         services_ouverts = []
         for port in ports:
-            if verifier_appareil_reseau(ip, port, timeout=0.6):
+            if verifier_appareil_reseau(ip, port, timeout=0.5):
                 services_ouverts.append(port)
         if services_ouverts:
             return {"ip": ip, "ports_ouverts": services_ouverts}
