@@ -80,6 +80,9 @@ if "session_id" not in st.session_state:
 if "message_en_cours" not in st.session_state:
     st.session_state.message_en_cours = ""
 
+if "inventaire_reseau" not in st.session_state:
+    st.session_state.inventaire_reseau = []
+
 # --- BARRE LATÉRALE (SIDEBAR - CONTRÔLEUR LEYLA) ---
 with st.sidebar:
     st.title("⚡ Leyla Control")
@@ -115,30 +118,30 @@ with st.sidebar:
     st.markdown("### 📱 Découverte Réseau & Appareils")
 
     type_recherche = st.selectbox(
-        "Cible de recherche :", ["Bluetooth Proche", "Passerelles / Caméras Wi-Fi"]
+        "Cible de recherche :", ["Bluetooth Proche", "Passerelle & Appareils Wi-Fi (IoT/Caméras)"]
     )
 
-    if st.button("🔍 Lancer le Scan Local", use_container_width=True):
+    if st.button("🔍 Lancer le Scan Global", use_container_width=True):
         if type_recherche == "Bluetooth Proche":
             with st.spinner("Leyla analyse les ondes Bluetooth (4s)..."):
                 appareils_bt = asyncio.run(utils_scan.scanner_bluetooth_proche())
                 if appareils_bt:
-                    st.success(f"{len(appareils_bt)} appareil(s) détecté(s) :")
+                    st.success(f"{len(appareils_bt)} appareil(s) Bluetooth détecté(s) :")
                     for dev in appareils_bt:
                         st.info(f"📱 **{dev['nom']}**\n- Adresse : `{dev['adresse']}`\n- Signal : {dev['rssi']} dBm")
                 else:
                     st.warning("Aucun appareil Bluetooth détecté à proximité.")
         else:
-            with st.spinner("Analyse approfondie de la plage réseau et des objets connectés..."):
-                passerelle_auto = utils_scan.obtenir_passerelle_par_defaut()
-                equipements = utils_scan.scanner_plage_ip_locale()
+            with st.spinner("Cartographie complète du réseau et des objets connectés en cours..."):
+                rapport = utils_scan.scanner_reseau_complet()
+                st.session_state.inventaire_reseau = rapport['appareils']
                 
-                if equipements:
-                    st.success(f"Passerelle : `{passerelle_auto}` | {len(equipements)} équipement(s) actif(s) détecté(s) :")
-                    for eq in equipements:
-                        st.info(f"🌐 IP : `{eq['ip']}` | Ports ouverts : `{eq['ports_ouverts']}`")
+                if rapport['appareils']:
+                    st.success(f"Passerelle : `{rapport['passerelle']}` | {rapport['total_appareils']} équipement(s) actif(s) !")
+                    for eq in rapport['appareils']:
+                        st.info(f"**{eq['type']}**\n- IP : `{eq['ip']}`\n- Ports : `{eq['ports_ouverts']}`")
                 else:
-                    st.warning(f"Passerelle identifiée : `{passerelle_auto}`. Aucun autre service critique ou objet connecté réactif détecté sur le sous-réseau.")
+                    st.warning(f"Passerelle : `{rapport['passerelle']}`. Aucun autre périphérique réactif trouvé.")
 
     # --- SECTION SOURCING MÉDIA & CAMÉRAS ---
     st.markdown("---")
@@ -274,6 +277,11 @@ if st.session_state.message_en_cours:
     with st.chat_message("assistant"):
         historique_actuel = db_manager.get_history(st.session_state.session_id)
 
+        # Injection dynamique de l'inventaire réseau dans le contexte de l'IA si besoin
+        if st.session_state.inventaire_reseau:
+            contexte_reseau_str = f"[INVENTAIRE RÉSEAU ACTUEL: {st.session_state.inventaire_reseau}]"
+            # On peut l'ajouter subtilement à l'historique ou le passer au moteur
+        
         resultat_ia = rechercher_sur_le_web(historique_actuel, image_file=media_file)
 
         reponse_texte = resultat_ia.get("texte", "...")
