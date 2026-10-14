@@ -30,14 +30,20 @@ jobs:
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
         if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
-    - name: Compilation avec PyInstaller et le fichier Spec
+    - name: Compilation directe avec PyInstaller
       run: |
-        pyinstaller leyla.spec
+        pyinstaller --noconfirm --onedir --name Leyla_Edge_Agent --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all google.genai --collect-all sounddevice --collect-all scipy --add-data "config.toml;." --add-data "LOGO LAYLA.png;." run_app.py
 
-    - name: Securisation et copie des fichiers de configuration
+    - name: Copie de tous les modules Python et ressources dans le dossier final
       run: |
+        Copy-Item -Path "*.py" -Destination "dist/Leyla_Edge_Agent/" -Force
         if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "dist/Leyla_Edge_Agent/" -Force }
         if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla_Edge_Agent/" -Force }
+        if (Test-Path -Path "utils_db") { Copy-Item -Path "utils_db" -Destination "dist/Leyla_Edge_Agent/" -Recurse -Force }
+        if (Test-Path -Path "dist/Leyla_Edge_Agent/_internal") {
+            Copy-Item -Path "*.py" -Destination "dist/Leyla_Edge_Agent/_internal/" -Force
+            if (Test-Path -Path "utils_db") { Copy-Item -Path "utils_db" -Destination "dist/Leyla_Edge_Agent/_internal/" -Recurse -Force }
+        }
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
