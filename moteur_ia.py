@@ -129,21 +129,16 @@ with st.sidebar:
                 else:
                     st.warning("Aucun appareil Bluetooth détecté à proximité.")
         else:
-            with st.spinner("Détection automatique du réseau d'entreprise et sondage..."):
+            with st.spinner("Analyse approfondie de la plage réseau et des objets connectés..."):
                 passerelle_auto = utils_scan.obtenir_passerelle_par_defaut()
-                actif = utils_scan.verifier_appareil_reseau(passerelle_auto, 80, timeout=0.8)
+                equipements = utils_scan.scanner_plage_ip_locale()
                 
-                if actif:
-                    st.success(f"Passerelle active détectée automatiquement sur `{passerelle_auto}` !")
+                if equipements:
+                    st.success(f"Passerelle : `{passerelle_auto}` | {len(equipements)} équipement(s) actif(s) détecté(s) :")
+                    for eq in equipements:
+                        st.info(f"🌐 IP : `{eq['ip']}` | Ports ouverts : `{eq['ports_ouverts']}`")
                 else:
-                    st.info(f"Passerelle identifiée : `{passerelle_auto}` (Port 80 fermé ou protégé). Lancement d'un scan étendu...")
-                    equipements = utils_scan.scanner_plage_ip_locale(ports=[80, 554, 8080])
-                    if equipements:
-                        st.success(f"{len(equipements)} équipement(s) réseau trouvé(s) sur le site :")
-                        for eq in equipements:
-                            st.info(f"🌐 IP : `{eq['ip']}` | Port ouvert : `{eq['port_ouvert']}`")
-                    else:
-                        st.warning("Aucun service critique détecté sur le sous-réseau actuel.")
+                    st.warning(f"Passerelle identifiée : `{passerelle_auto}`. Aucun autre service critique ou objet connecté réactif détecté sur le sous-réseau.")
 
     # --- SECTION SOURCING MÉDIA & CAMÉRAS ---
     st.markdown("---")
