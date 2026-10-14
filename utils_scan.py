@@ -36,7 +36,7 @@ def obtenir_passerelle_par_defaut() -> str:
         return "192.168.1.1"
 
 
-def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.8) -> bool:
+def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.5) -> bool:
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
@@ -52,7 +52,7 @@ def identifier_type_appareil(ports_ouverts: list) -> str:
     Classe l'appareil selon les ports ouverts détectés.
     """
     if 554 in ports_ouverts or 8554 in ports_ouverts:
-        return "📹 Caméra de Surveillance / Flux RTSP"
+        return "📹 Caméra de Surveillance"
     elif 8008 in ports_ouverts or 8009 in ports_ouverts or 9197 in ports_ouverts:
         return "📺 Smart TV / Chromecast"
     elif 55443 in ports_ouverts or 1883 in ports_ouverts:
@@ -60,20 +60,19 @@ def identifier_type_appareil(ports_ouverts: list) -> str:
     elif 3389 in ports_ouverts or 22 in ports_ouverts:
         return "💻 Ordinateur / Serveur / Passerelle Secondaire"
     elif 80 in ports_ouverts or 443 in ports_ouverts or 8080 in ports_ouverts:
-        return "🌐 Routeur / Interface Web / Périphérique Réseau"
+        return "🌐 Routeur / Interface Web / Box"
     else:
-        return "🔌 Appareil Connecté Inconnu"
+        return "🔌 Appareil Connecté Divers"
 
 
 def scanner_reseau_complet() -> dict:
     """
     Scanne la passerelle et tous les appareils du réseau, les classe
-    et retourne un rapport structuré exploitable par Leyla.
+    et retourne un inventaire structuré pour Leyla.
     """
     passerelle = obtenir_passerelle_par_defaut()
     prefixe_ip = ".".join(passerelle.split('.')[:3])
     
-    # Liste élargie des ports à sonder
     ports_cibles = [
         80, 443, 554, 8080, 8443,  # Web & Vidéo
         21, 22, 23, 53, 3389,      # Admin & Réseau
@@ -100,7 +99,6 @@ def scanner_reseau_complet() -> dict:
             }
         return None
 
-    # Lancement du scan multi-threadé sur toute la plage locale (1 à 254)
     with concurrent.futures.ThreadPoolExecutor(max_workers=60) as executor:
         resultats = executor.map(tester_ip, range(1, 255))
         for res in resultats:
