@@ -129,14 +129,21 @@ with st.sidebar:
                 else:
                     st.warning("Aucun appareil Bluetooth détecté à proximité.")
         else:
-            with st.spinner("Sondage du réseau local..."):
-                # Test rapide sur des IPs locales courantes ou passerelle type
-                ip_test = "192.168.1.1"
-                actif = utils_scan.verifier_appareil_reseau(ip_test, 80, timeout=0.5)
+            with st.spinner("Détection automatique du réseau d'entreprise et sondage..."):
+                passerelle_auto = utils_scan.obtenir_passerelle_par_defaut()
+                actif = utils_scan.verifier_appareil_reseau(passerelle_auto, 80, timeout=0.8)
+                
                 if actif:
-                    st.success(f"Passerelle active détectée sur {ip_test} !")
+                    st.success(f"Passerelle active détectée automatiquement sur `{passerelle_auto}` !")
                 else:
-                    st.info("Sondage terminé. Aucun service réseau critique supplémentaire détecté sur la plage par défaut.")
+                    st.info(f"Passerelle identifiée : `{passerelle_auto}` (Port 80 fermé ou protégé). Lancement d'un scan étendu...")
+                    equipements = utils_scan.scanner_plage_ip_locale(ports=[80, 554, 8080])
+                    if equipements:
+                        st.success(f"{len(equipements)} équipement(s) réseau trouvé(s) sur le site :")
+                        for eq in equipements:
+                            st.info(f"🌐 IP : `{eq['ip']}` | Port ouvert : `{eq['port_ouvert']}`")
+                    else:
+                        st.warning("Aucun service critique détecté sur le sous-réseau actuel.")
 
     # --- SECTION SOURCING MÉDIA & CAMÉRAS ---
     st.markdown("---")
