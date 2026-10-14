@@ -22,8 +22,7 @@ async def scanner_bluetooth_proche(timeout: float = 8.0) -> list:
 
 def obtenir_passerelle_par_defaut() -> str:
     """
-    Détecte automatiquement l'adresse IP de la passerelle par défaut du réseau local,
-    s'adaptant ainsi à n'importe quelle entreprise cliente sans codage en dur.
+    Détecte automatiquement l'adresse IP de la passerelle par défaut du réseau local.
     """
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -32,16 +31,12 @@ def obtenir_passerelle_par_defaut() -> str:
         s.close()
         
         octets = ip_locale.split('.')
-        passerelle_estimee = f"{octets[0]}.{octets[1]}.{octets[2]}.1"
-        return passerelle_estimee
+        return f"{octets[0]}.{octets[1]}.{octets[2]}.1"
     except Exception:
         return "192.168.1.1"
 
 
-def verifier_appareil_reseau(ip: str, port: int, timeout: float = 1.0) -> bool:
-    """
-    Vérifie si une machine ou un service est actif sur le réseau local.
-    """
+def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.8) -> bool:
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
@@ -52,40 +47,68 @@ def verifier_appareil_reseau(ip: str, port: int, timeout: float = 1.0) -> bool:
         return False
 
 
-def scanner_plage_ip_locale(ports: list = None) -> list:
+def identifier_type_appareil(ports_ouverts: list) -> str:
     """
-    Scanne dynamiquement la plage IP du réseau en incluant les ports web,
-    administration, caméras et objets connectés (Smart TV, ampoules, passerelles IoT).
+    Classe l'appareil selon les ports ouverts détectés.
     """
-    if ports is None:
-        ports = [
-            80, 443, 554, 8080, 8443,  # Web & Flux vidéo
-            21, 22, 23, 53, 3389,      # Administration & Réseau
-            8008, 8009,                # Smart TV & Google Cast / Chromecast
-            1883,                      # MQTT (IoT / Domotique)
-            55443,                     # Ampoules connectées & périphériques locaux
-            8888                       # Passerelles IoT alternatives
-        ]
+    if 554 in ports_ouverts or 8554 in ports_ouverts:
+        return "📹 Caméra de Surveillance / Flux RTSP"
+    elif 8008 in ports_ouverts or 8009 in ports_ouverts or 9197 in ports_ouverts:
+        return "📺 Smart TV / Chromecast"
+    elif 55443 in ports_ouverts or 1883 in ports_ouverts:
+        return "💡 Ampoule / Prise Connectée (IoT)"
+    elif 3389 in ports_ouverts or 22 in ports_ouverts:
+        return "💻 Ordinateur / Serveur / Passerelle Secondaire"
+    elif 80 in ports_ouverts or 443 in ports_ouverts or 8080 in ports_ouverts:
+        return "🌐 Routeur / Interface Web / Périphérique Réseau"
+    else:
+        return "🔌 Appareil Connecté Inconnu"
 
+
+def scanner_reseau_complet() -> dict:
+    """
+    Scanne la passerelle et tous les appareils du réseau, les classe
+    et retourne un rapport structuré exploitable par Leyla.
+    """
     passerelle = obtenir_passerelle_par_defaut()
     prefixe_ip = ".".join(passerelle.split('.')[:3])
     
-    appareils_trouves = []
+    # Liste élargie des ports à sonder
+    ports_cibles = [
+        80, 443, 554, 8080, 8443,  # Web & Vidéo
+        21, 22, 23, 53, 3389,      # Admin & Réseau
+        8008, 8009, 9197,          # Smart TV
+        1883,                      # MQTT IoT
+        55443,                     # Ampoules / Prises locales
+        8888                       # Passerelles alternatives
+    ]
+
+    appareils_decouverts = []
 
     def tester_ip(dernier_octet):
         ip = f"{prefixe_ip}.{dernier_octet}"
-        services_ouverts = []
-        for port in ports:
-            if verifier_appareil_reseau(ip, port, timeout=0.5):
-                services_ouverts.append(port)
-        if services_ouverts:
-            return {"ip": ip, "ports_ouverts": services_ouverts}
+        ports_trouves = []
+        for port in ports_cibles:
+            if verifier_appareil_reseau(ip, port, timeout=0.4):
+                ports_trouves.append(port)
+        if ports_trouves:
+            type_appareil = identifier_type_appareil(ports_trouves)
+            return {
+                "ip": ip,
+                "type": type_appareil,
+                "ports_ouverts": ports_trouves
+            }
         return None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+    # Lancement du scan multi-threadé sur toute la plage locale (1 à 254)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=60) as executor:
         resultats = executor.map(tester_ip, range(1, 255))
         for res in resultats:
             if res:
-                appareils_trouves.append(res)
+                appareils_decouverts.append(res)
 
-    return appareils_trouves
+    return {
+        "passerelle": passerelle,
+        "total_appareils": len(appareils_decouverts),
+        "appareils": appareils_decouverts
+    }
