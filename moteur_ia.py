@@ -91,7 +91,7 @@ with st.sidebar:
 
     # --- FONCTIONNALITÉS JARVIS ---
     st.markdown("---")
-    st.markdown("### 👑 Fonctions JARVIS")
+    st.markdown("### 👑 Fonctions LEYLA")
 
     if st.button("🎧 Écoute Passive (Wake Word)", use_container_width=True):
         st.toast("Pour activer l'écoute passive, utilisez le script mobile dédié.")
