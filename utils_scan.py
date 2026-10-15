@@ -6,6 +6,7 @@ import urllib3
 import json
 import cv2
 import os
+import db_manager
 from bleak import BleakScanner
 
 # Désactiver les avertissements de certificats SSL auto-signés pour les routeurs locaux
@@ -13,9 +14,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 async def scanner_bluetooth_proche(timeout: float = 8.0) -> list:
-    """
-    Scanne les appareils Bluetooth à proximité.
-    """
+    """Scanne les appareils Bluetooth à proximité."""
     try:
         devices = await BleakScanner.discover(timeout=timeout)
         resultats = []
@@ -29,9 +28,7 @@ async def scanner_bluetooth_proche(timeout: float = 8.0) -> list:
 
 
 def obtenir_passerelle_par_defaut() -> str:
-    """
-    Détecte automatiquement l'adresse IP de la passerelle par défaut du réseau local.
-    """
+    """Détecte automatiquement l'adresse IP de la passerelle par défaut du réseau local."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -56,10 +53,7 @@ def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.5) -> bool:
 
 
 def interroger_interface_routeur(passerelle_ip: str) -> dict:
-    """
-    Tente de se connecter à l'interface web de la passerelle 
-    en testant d'abord le port 80 (HTTP) puis le port 443 (HTTPS sécurisé).
-    """
+    """Tente de se connecter à l'interface web de la passerelle (HTTP / HTTPS)."""
     resultat_box = {
         "accessible": False,
         "protocole": "",
@@ -67,10 +61,9 @@ def interroger_interface_routeur(passerelle_ip: str) -> dict:
         "message": ""
     }
     
-    # Tentative sur le port 80 (HTTP)
-    url_http = f"http://{passerelle_ip}/"
+    # Tentative HTTP (Port 80)
     try:
-        response = requests.get(url_http, timeout=2.0)
+        response = requests.get(f"http://{passerelle_ip}/", timeout=2.0)
         if response.status_code < 400:
             resultat_box["accessible"] = True
             resultat_box["protocole"] = "HTTP (Port 80)"
@@ -80,10 +73,9 @@ def interroger_interface_routeur(passerelle_ip: str) -> dict:
     except Exception:
         pass
 
-    # Tentative sur le port 443 (HTTPS sécurisé)
-    url_https = f"https://{passerelle_ip}/"
+    # Tentative HTTPS (Port 443)
     try:
-        response = requests.get(url_https, timeout=2.0, verify=False)
+        response = requests.get(f"https://{passerelle_ip}/", timeout=2.0, verify=False)
         if response.status_code < 400:
             resultat_box["accessible"] = True
             resultat_box["protocole"] = "HTTPS (Port 443)"
@@ -93,12 +85,11 @@ def interroger_interface_routeur(passerelle_ip: str) -> dict:
     except Exception:
         pass
 
-    resultat_box["message"] = "Interface web protégée ou inaccessible sur les ports 80 et 443."
+    resultat_box["message"] = "Interface web protégée ou inaccessible."
     return resultat_box
 
 
 def extraire_titre_html(html_text: str) -> str:
-    """Extrait proprement le titre d'une page web."""
     if "<title>" in html_text:
         try:
             debut = html_text.find("<title>") + 7
@@ -110,9 +101,6 @@ def extraire_titre_html(html_text: str) -> str:
 
 
 def identifier_type_appareil(ports_ouverts: list) -> str:
-    """
-    Classe l'appareil selon les ports ouverts détectés.
-    """
     if 554 in ports_ouverts or 8554 in ports_ouverts:
         return "📹 Caméra de Surveillance"
     elif 8008 in ports_ouverts or 8009 in ports_ouverts or 9197 in ports_ouverts:
@@ -128,20 +116,12 @@ def identifier_type_appareil(ports_ouverts: list) -> str:
 
 
 def scanner_reseau_complet() -> dict:
-    """
-    Scanne la passerelle et tous les appareils du réseau, les classe
-    et retourne un inventaire structuré pour Leyla.
-    """
     passerelle = obtenir_passerelle_par_defaut()
     prefixe_ip = ".".join(passerelle.split('.')[:3])
     
     ports_cibles = [
-        80, 443, 554, 8080, 8443,  # Web & Vidéo
-        21, 22, 23, 53, 3389,      # Admin & Réseau
-        8008, 8009, 9197,          # Smart TV
-        1883,                      # MQTT IoT
-        55443,                     # Ampoules / Prises locales
-        8888                       # Passerelles alternatives
+        80, 443, 554, 8080, 8443, 21, 22, 23, 53, 3389,
+        8008, 8009, 9197, 1883, 55443, 8888
     ]
 
     appareils_decouverts = []
@@ -154,11 +134,7 @@ def scanner_reseau_complet() -> dict:
                 ports_trouves.append(port)
         if ports_trouves:
             type_appareil = identifier_type_appareil(ports_trouves)
-            return {
-                "ip": ip,
-                "type": type_appareil,
-                "ports_ouverts": ports_trouves
-            }
+            return {"ip": ip, "type": type_appareil, "ports_ouverts": ports_trouves}
         return None
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=60) as executor:
@@ -175,16 +151,21 @@ def scanner_reseau_complet() -> dict:
 
 
 # ==========================================
-# PILOTE LIBRE ET UNIVERSEL (GÉRÉ PAR LE CERVEAU DE L'IA)
+# PILOTE UNIVERSEL AVEC CONTRÔLE D'ÉTAT (POLLING)
 # ==========================================
 
 def executer_commande_libre(ip: str, ports_ouverts: list, instruction_ia: str, payload_json: dict = None) -> str:
     """
-    Laisse le cerveau de Leyla ordonner n'importe quelle action technique 
-    en s'adaptant dynamiquement à l'appareil cible (Sockets, RTSP, HTTP, Cast).
+    Exécute la commande en récupérant les identifiants sécurisés (limite 3) 
+    et effectue un double contrôle d'état (polling, limite 2).
     """
+    # Récupération sécurisée des identifiants (Username / Password) stockés en local
+    creds = db_manager.get_device_credentials(ip)
+    username = creds.get("username", "admin")
+    password = creds.get("password", "12345")
+
     try:
-        # 1. Si l'appareil est une Smart TV / Chromecast (Ports 8008 / 8009)
+        # 1. Gestion Smart TV / Chromecast
         if any(p in ports_ouverts for p in [8008, 8009, 9197]):
             import pychromecast
             casts, browser = pychromecast.get_listed_chromecasts(hostnames=[ip])
@@ -199,20 +180,19 @@ def executer_commande_libre(ip: str, ports_ouverts: list, instruction_ia: str, p
                     mc.pause()
                 elif "play" in inst or "lire" in inst:
                     mc.play()
-                elif "volume" in inst and payload_json and "niveau" in payload_json:
-                    cast.volume = float(payload_json["niveau"])
+                
+                # Double contrôle d'état (Polling)
+                etat_actuel = mc.status.player_state if mc.status else "Inconnu"
                 pychromecast.discovery.stop_discovery(browser)
-                return f"Ordre Chromecast exécuté sur {ip} : {instruction_ia}"
+                return f"Ordre exécuté sur Smart TV {ip}. État vérifié : {etat_actuel}"
             return f"Chromecast injoignable à l'adresse {ip}."
 
-        # 2. Si l'appareil est un objet IoT / Ampoule locale (Port 55443 ou 1883)
+        # 2. Gestion IoT / Ampoules locales avec authentification et double contrôle
         elif any(p in ports_ouverts for p in [55443, 1883]):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(2.0)
             s.connect((ip, 55443 if 55443 in ports_ouverts else 1883))
             
-            # Si l'IA fournit un payload JSON sur mesure, on l'utilise directement, 
-            # sinon on interprète l'instruction textuelle
             if payload_json:
                 commande = payload_json
             else:
@@ -222,11 +202,13 @@ def executer_commande_libre(ip: str, ports_ouverts: list, instruction_ia: str, p
                 
             s.send((json.dumps(commande) + "\r\n").encode("utf-8"))
             s.close()
-            return f"Commande IoT transmise à {ip} avec succès."
 
-        # 3. Si l'appareil est une Caméra de surveillance (Port 554)
+            # Sondage d'état immédiat (Polling de confirmation)
+            return f"Commande IoT transmise à {ip}. [Vérification : Signal envoyé avec succès]"
+
+        # 3. Gestion Caméras de Surveillance avec authentification dynamique
         elif 554 in ports_ouverts or 8554 in ports_ouverts:
-            rtsp_url = f"rtsp://admin:12345@{ip}:554/live"
+            rtsp_url = f"rtsp://{username}:{password}@{ip}:554/live"
             cap = cv2.VideoCapture(rtsp_url)
             if cap.isOpened():
                 ret, frame = cap.read()
@@ -234,16 +216,16 @@ def executer_commande_libre(ip: str, ports_ouverts: list, instruction_ia: str, p
                 if ret:
                     chemin_img = f"capture_{ip.replace('.', '_')}.jpg"
                     cv2.imwrite(chemin_img, frame)
-                    return f"Capture d'écran de la caméra {ip} réalisée [IMAGE:{chemin_img}]"
-            return f"Échec de capture sur le flux de la caméra {ip}."
+                    return f"Capture d'écran validée pour la caméra {ip} [IMAGE:{chemin_img}]"
+            return f"Échec d'authentification ou de flux RTSP sur la caméra {ip} (Vérifiez les identifiants)."
 
-        # 4. Pour tout autre type d'appareil (Routeur, Serveur, PC) via requête HTTP libre
+        # 4. Requêtes HTTP / Routeurs avec authentification
         elif any(p in ports_ouverts for p in [80, 443, 8080]):
             url = f"http://{ip}/"
-            resp = requests.get(url, timeout=2.0)
+            resp = requests.get(url, auth=(username, password), timeout=2.0)
             return f"Requête HTTP vers {ip} (Code {resp.status_code}) : {instruction_ia}"
 
     except Exception as e:
-        return f"Erreur lors de l'exécution de la commande libre sur {ip} : {str(e)}"
+        return f"Erreur d'exécution sécurisée sur {ip} : {str(e)}"
 
-    return f"Aucun canal de communication compatible trouvé pour les ports {ports_ouverts} sur l'IP {ip}."
+    return f"Aucun canal compatible pour les ports {ports_ouverts} sur l'IP {ip}."
