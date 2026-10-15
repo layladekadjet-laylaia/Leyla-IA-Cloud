@@ -6,8 +6,6 @@ import urllib3
 import json
 import cv2
 import os
-import subprocess
-import platform
 import db_manager
 from bleak import BleakScanner
 
@@ -43,15 +41,23 @@ def obtenir_passerelle_par_defaut() -> str:
         return "192.168.1.1"
 
 
-def tester_ping(ip: str) -> bool:
-    """Vérifie si une adresse IP répond au ping (détecte les smartphones et PC silencieux)."""
-    param = "-n" if platform.system().lower() == "windows" else "-c"
-    command = ["ping", param, "1", "-w", "200", ip]
-    try:
-        resultat = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return resultat.returncode == 0
-    except Exception:
-        return False
+def tester_presence_ip(ip: str) -> bool:
+    """
+    Teste la présence d'une IP en tentant des connexions sockets rapides 
+    sur des ports usuels sans dépendre des droits 'ping' du système.
+    """
+    ports_test_rapide = [80, 443, 135, 139, 445, 8080, 62078] # Ports usuels Windows/Android/iOS
+    for p in ports_test_rapide:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.15)
+            res = s.connect_ex((ip, p))
+            s.close()
+            if res == 0:
+                return True
+        except Exception:
+            pass
+    return False
 
 
 def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.5) -> bool:
@@ -144,16 +150,16 @@ def scanner_reseau_complet() -> dict:
     def tester_ip(dernier_octet):
         ip = f"{prefixe_ip}.{dernier_octet}"
         
-        # 1. Test Ping ICMP (Détecte la présence physique de l'appareil sur le réseau)
-        en_ligne = tester_ping(ip)
+        # 1. Test de présence par sockets rapides (remplace le ping système)
+        en_ligne = tester_presence_ip(ip)
         
-        # 2. Test des ports ouverts
+        # 2. Test des ports ouverts cibles
         ports_trouves = []
         for port in ports_cibles:
             if verifier_appareil_reseau(ip, port, timeout=0.3):
                 ports_trouves.append(port)
                 
-        # Si l'appareil répond au ping OU possède des ports ouverts, on l'ajoute
+        # Si l'appareil répond ou possède des ports ouverts, on l'ajoute à l'inventaire
         if en_ligne or ports_trouves:
             type_appareil = identifier_type_appareil(ports_trouves)
             return {
