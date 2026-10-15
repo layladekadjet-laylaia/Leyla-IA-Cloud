@@ -30,21 +30,21 @@ jobs:
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
         if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
-    - name: Obfuscation du code avec PyArmor
+    - name: Copie et Obfuscation complète avec PyArmor
       run: |
-        # Création d'un dossier de sortie dédié pour PyArmor
+        # 1. Création du dossier de sortie PyArmor
         New-Item -ItemType Directory -Path "pyarmor_out" -Force
         
-        # Exécution de PyArmor en envoyant le code chiffré dans pyarmor_out
-        pyarmor gen --output pyarmor_out run_app.py moteur_ia.py hub_leyla.py db_manager.py utils_scan.py
-
-    - name: Preparation de l'espace de compilation final
-      run: |
-        # Copie des ressources statiques et du fichier spec dans le dossier obfusqué
+        # 2. Copie de TOUS les fichiers .py et ressources dans pyarmor_out AVANT chiffrement
+        Copy-Item -Path "*.py" -Destination "pyarmor_out/" -Force
         if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "pyarmor_out/" -Force }
         if (Test-Path -Path "requirements.txt") { Copy-Item -Path "requirements.txt" -Destination "pyarmor_out/" -Force }
         if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "pyarmor_out/" -Force }
         if (Test-Path -Path "leyla.spec") { Copy-Item -Path "leyla.spec" -Destination "pyarmor_out/" -Force }
+
+        # 3. Chiffrement de tous les scripts se trouvant dans pyarmor_out
+        cd pyarmor_out
+        pyarmor gen *.py
 
     - name: Compilation avec PyInstaller
       run: |
