@@ -30,19 +30,35 @@ jobs:
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
         if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
-    - name: Obfuscation du code avec PyArmor
+    - name: Preparation et Obfuscation du code avec PyArmor
       run: |
-        # Chiffrement des scripts principaux avec PyArmor
+        # 1. Création d'un dossier de travail isolé
+        New-Item -ItemType Directory -Path "obf_src" -Force
+        
+        # 2. Copie de tous les fichiers nécessaires dans ce dossier
+        Copy-Item -Path "*.py" -Destination "obf_src/" -Force
+        if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "obf_src/" -Force }
+        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "obf_src/" -Force }
+        if (Test-Path -Path "leyla.spec") { Copy-Item -Path "leyla.spec" -Destination "obf_src/" -Force }
+
+        # 3. Chiffrement sécurisé dans l'espace de travail isolé
+        cd obf_src
         pyarmor gen run_app.py moteur_ia.py hub_leyla.py db_manager.py utils_scan.py
 
-    - name: Compilation avec PyInstaller en utilisant le fichier spec
+    - name: Compilation avec PyInstaller
       run: |
-        # On utilise ton fichier leyla.spec pour garantir l'embarquement de tous les modules et assets
+        cd obf_src
         pyinstaller --noconfirm leyla.spec
+
+    - name: Deplacement du resultat vers le dossier racine dist/
+      run: |
+        if (!(Test-Path -Path "dist")) { New-Item -ItemType Directory -Path "dist/Leyla_Edge_Agent" }
+        if (Test-Path -Path "obf_src/dist/Leyla_Edge_Agent") {
+            Copy-Item -Path "obf_src/dist/Leyla_Edge_Agent/*" -Destination "dist/Leyla_Edge_Agent/" -Recurse -Force
+        }
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
       with:
         name: Leyla-Executable-Windows
         path: dist/Leyla_Edge_Agent/
-
