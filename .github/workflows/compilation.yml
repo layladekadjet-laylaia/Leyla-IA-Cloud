@@ -32,16 +32,16 @@ jobs:
 
     - name: Obfuscation du code avec PyArmor
       run: |
-        # Commande compatible PyArmor 8+ pour chiffrer tous les fichiers .py
-        pyarmor gen --recursive --output dist_obf *.py
+        # Chiffrement des scripts principaux avec PyArmor
+        pyarmor gen run_app.py moteur_ia.py hub_leyla.py db_manager.py utils_scan.py
 
-    - name: Compilation avec PyInstaller via le fichier spec
+    - name: Compilation avec PyInstaller
       run: |
-        # On copie le fichier spec dans le dossier obfusqué si nécessaire, ou on compile directement
-        pyinstaller Leyla_Edge_Agent.spec
+        # PyInstaller va compiler directement en utilisant le dossier de sortie de pyarmor (dist ou le dossier courant selon la version)
+        pyinstaller --noconfirm --onedir --name Leyla_Edge_Agent --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all google.genai --collect-all sounddevice --collect-all scipy --collect-all bleak --collect-all cv2 --add-data "config.toml;." --add-data "LOGO LAYLA.png;." run_app.py
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
       with:
         name: Leyla-Executable-Windows
-        path: dist/
+        path: dist/Leyla_Edge_Agent/
