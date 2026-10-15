@@ -42,7 +42,7 @@ jobs:
         if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "pyarmor_out/" -Force }
         if (Test-Path -Path "leyla.spec") { Copy-Item -Path "leyla.spec" -Destination "pyarmor_out/" -Force }
 
-        # 3. Chiffrement sécurisé avec la syntaxe correcte pour PyArmor 8/9
+        # 3. Chiffrement sécurisé avec PyArmor
         cd pyarmor_out
         pyarmor gen --recursive .
 
