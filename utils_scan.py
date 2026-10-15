@@ -97,6 +97,167 @@ def scanner_reseau_complet() -> dict:
                 "type": type_appareil,
                 "ports_ouverts": ports_trouves
             }
+        return Noneimport asyncio
+import socket
+import concurrent.futures
+import requests
+import urllib3
+import json
+import cv2
+import os
+from bleak import BleakScanner
+
+# Désactiver les avertissements de certificats SSL auto-signés pour les routeurs locaux
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+async def scanner_bluetooth_proche(timeout: float = 8.0) -> list:
+    """
+    Scanne les appareils Bluetooth à proximité.
+    """
+    try:
+        devices = await BleakScanner.discover(timeout=timeout)
+        resultats = []
+        for d in devices:
+            nom = d.name if d.name else "Appareil Bluetooth Inconnu"
+            resultats.append({"nom": nom, "adresse": d.address, "rssi": d.rssi})
+        return resultats
+    except Exception as e:
+        print(f"Erreur scan Bluetooth : {e}")
+        return []
+
+
+def obtenir_passerelle_par_defaut() -> str:
+    """
+    Détecte automatiquement l'adresse IP de la passerelle par défaut du réseau local.
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip_locale = s.getsockname()[0]
+        s.close()
+        
+        octets = ip_locale.split('.')
+        return f"{octets[0]}.{octets[1]}.{octets[2]}.1"
+    except Exception:
+        return "192.168.1.1"
+
+
+def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.5) -> bool:
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        resultat = sock.connect_ex((ip, port))
+        sock.close()
+        return resultat == 0
+    except Exception:
+        return False
+
+
+def interroger_interface_routeur(passerelle_ip: str) -> dict:
+    """
+    Tente de se connecter à l'interface web de la passerelle 
+    en testant d'abord le port 80 (HTTP) puis le port 443 (HTTPS sécurisé).
+    """
+    resultat_box = {
+        "accessible": False,
+        "protocole": "",
+        "titre_page": "",
+        "message": ""
+    }
+    
+    # Tentative sur le port 80 (HTTP)
+    url_http = f"http://{passerelle_ip}/"
+    try:
+        response = requests.get(url_http, timeout=2.0)
+        if response.status_code < 400:
+            resultat_box["accessible"] = True
+            resultat_box["protocole"] = "HTTP (Port 80)"
+            resultat_box["titre_page"] = extraire_titre_html(response.text)
+            resultat_box["message"] = "Interface web active en HTTP."
+            return resultat_box
+    except Exception:
+        pass
+
+    # Tentative sur le port 443 (HTTPS sécurisé)
+    url_https = f"https://{passerelle_ip}/"
+    try:
+        response = requests.get(url_https, timeout=2.0, verify=False)
+        if response.status_code < 400:
+            resultat_box["accessible"] = True
+            resultat_box["protocole"] = "HTTPS (Port 443)"
+            resultat_box["titre_page"] = extraire_titre_html(response.text)
+            resultat_box["message"] = "Interface web active en HTTPS sécurisé."
+            return resultat_box
+    except Exception:
+        pass
+
+    resultat_box["message"] = "Interface web protégée ou inaccessible sur les ports 80 et 443."
+    return resultat_box
+
+
+def extraire_titre_html(html_text: str) -> str:
+    """Extrait proprement le titre d'une page web."""
+    if "<title>" in html_text:
+        try:
+            debut = html_text.find("<title>") + 7
+            fin = html_text.find("</title>", debut)
+            return html_text[debut:fin].strip()
+        except Exception:
+            pass
+    return "Interface Routeur Web"
+
+
+def identifier_type_appareil(ports_ouverts: list) -> str:
+    """
+    Classe l'appareil selon les ports ouverts détectés.
+    """
+    if 554 in ports_ouverts or 8554 in ports_ouverts:
+        return "📹 Caméra de Surveillance"
+    elif 8008 in ports_ouverts or 8009 in ports_ouverts or 9197 in ports_ouverts:
+        return "📺 Smart TV / Chromecast"
+    elif 55443 in ports_ouverts or 1883 in ports_ouverts:
+        return "💡 Ampoule / Prise Connectée (IoT)"
+    elif 3389 in ports_ouverts or 22 in ports_ouverts:
+        return "💻 Ordinateur / Serveur / Passerelle Secondaire"
+    elif 80 in ports_ouverts or 443 in ports_ouverts or 8080 in ports_ouverts:
+        return "🌐 Routeur / Interface Web / Box"
+    else:
+        return "🔌 Appareil Connecté Divers"
+
+
+def scanner_reseau_complet() -> dict:
+    """
+    Scanne la passerelle et tous les appareils du réseau, les classe
+    et retourne un inventaire structuré pour Leyla.
+    """
+    passerelle = obtenir_passerelle_par_defaut()
+    prefixe_ip = ".".join(passerelle.split('.')[:3])
+    
+    ports_cibles = [
+        80, 443, 554, 8080, 8443,  # Web & Vidéo
+        21, 22, 23, 53, 3389,      # Admin & Réseau
+        8008, 8009, 9197,          # Smart TV
+        1883,                      # MQTT IoT
+        55443,                     # Ampoules / Prises locales
+        8888                       # Passerelles alternatives
+    ]
+
+    appareils_decouverts = []
+
+    def tester_ip(dernier_octet):
+        ip = f"{prefixe_ip}.{dernier_octet}"
+        ports_trouves = []
+        for port in ports_cibles:
+            if verifier_appareil_reseau(ip, port, timeout=0.4):
+                ports_trouves.append(port)
+        if ports_trouves:
+            type_appareil = identifier_type_appareil(ports_trouves)
+            return {
+                "ip": ip,
+                "type": type_appareil,
+                "ports_ouverts": ports_trouves
+            }
         return None
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=60) as executor:
@@ -110,3 +271,99 @@ def scanner_reseau_complet() -> dict:
         "total_appareils": len(appareils_decouverts),
         "appareils": appareils_decouverts
     }
+
+
+# ==========================================
+# MODULES DE CONTRÔLE UNIVERSEL & EXTENSIBLE
+# ==========================================
+
+# Registre dynamique des actions supportées par type de protocole
+REGISTRE_COMMANDES = {}
+
+def enregistrer_action(type_appareil, nom_action):
+    """Décorateur pour enregistrer dynamiquement de nouvelles actions."""
+    def decorateur(func):
+        if type_appareil not in REGISTRE_COMMANDES:
+            REGISTRE_COMMANDES[type_appareil] = {}
+        REGISTRE_COMMANDES[type_appareil][nom_action.lower()] = func
+        return func
+    return decorateur
+
+# --- 1. Actions pour Smart TV / Chromecast ---
+@enregistrer_action("Chromecast", "stop")
+def tv_stop(ip, **kwargs):
+    import pychromecast
+    casts, browser = pychromecast.get_listed_chromecasts(hostnames=[ip])
+    if casts:
+        cast = casts[0]; cast.wait()
+        cast.media_controller.stop()
+        pychromecast.discovery.stop_discovery(browser)
+        return f"Arrêt (Stop) de la Smart TV ({ip})."
+    return "Chromecast injoignable."
+
+@enregistrer_action("Chromecast", "pause")
+def tv_pause(ip, **kwargs):
+    import pychromecast
+    casts, browser = pychromecast.get_listed_chromecasts(hostnames=[ip])
+    if casts:
+        cast = casts[0]; cast.wait()
+        cast.media_controller.pause()
+        pychromecast.discovery.stop_discovery(browser)
+        return f"Pause de la Smart TV ({ip})."
+    return "Chromecast injoignable."
+
+# --- 2. Actions pour objets IoT (Ampoules, Prises) ---
+@enregistrer_action("IoT", "allumer")
+def iot_allumer(ip, **kwargs):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2.0); s.connect((ip, 55443))
+    commande = {"id": 1, "method": "set_power", "params": ["on", "smooth", 500]}
+    s.send((json.dumps(commande) + "\r\n").encode("utf-8")); s.close()
+    return f"Appareil IoT ({ip}) allumé."
+
+@enregistrer_action("IoT", "eteindre")
+def iot_eteindre(ip, **kwargs):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2.0); s.connect((ip, 55443))
+    commande = {"id": 1, "method": "set_power", "params": ["off", "smooth", 500]}
+    s.send((json.dumps(commande) + "\r\n").encode("utf-8")); s.close()
+    return f"Appareil IoT ({ip}) éteint."
+
+# --- 3. Actions pour Caméras ---
+@enregistrer_action("Camera", "capturer")
+def camera_capturer(ip, **kwargs):
+    rtsp_url = f"rtsp://admin:12345@{ip}:554/live"
+    cap = cv2.VideoCapture(rtsp_url)
+    if cap.isOpened():
+        ret, frame = cap.read()
+        cap.release()
+        if ret:
+            chemin_img = f"capture_{ip.replace('.', '_')}.jpg"
+            cv2.imwrite(chemin_img, frame)
+            return f"Capture réussie [IMAGE:{chemin_img}]"
+    return f"Échec du flux RTSP pour la caméra {ip}."
+
+
+def executer_commande_universelle(ip: str, type_appareil_str: str, action: str, **kwargs) -> str:
+    """
+    Exécute n'importe quelle commande enregistrée sans être bloqué par des if/elif.
+    On peut ajouter de nouvelles actions à l'infini via le décorateur @enregistrer_action.
+    """
+    action_cle = action.lower().strip()
+    
+    # Déduction de la catégorie générique
+    categorie = "Inconnu"
+    if "tv" in type_appareil_str.lower() or "chromecast" in type_appareil_str.lower():
+        categorie = "Chromecast"
+    elif "iot" in type_appareil_str.lower() or "ampoule" in type_appareil_str.lower():
+        categorie = "IoT"
+    elif "caméra" in type_appareil_str.lower():
+        categorie = "Camera"
+
+    if categorie in REGISTRE_COMMANDES and action_cle in REGISTRE_COMMANDES[categorie]:
+        try:
+            return REGISTRE_COMMANDES[categorie][action_cle](ip, **kwargs)
+        except Exception as e:
+            return freponse := f"Erreur lors de l'exécution de '{action}' sur {ip} : {str(e)}"
+            
+    return f"L'action '{action}' n'est pas reconnue ou n'est pas supportée pour ce type d'appareil ({type_appareil_str})."
