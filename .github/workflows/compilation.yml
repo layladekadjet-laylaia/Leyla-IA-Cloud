@@ -21,29 +21,36 @@ jobs:
     - name: Installation de PyInstaller et des dependances
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller pyarmor streamlit uvicorn fastapi pydantic pillow google-genai pygetwindow sounddevice scipy numpy
+        pip install pyinstaller pyarmor streamlit uvicorn fastapi pydantic pillow google-genai pygetwindow sounddevice scipy numpy opencv-python-headless
         if (Test-Path -Path "requirements.txt") { pip install -r requirements.txt }
 
-    - name: Preparation du dossier .streamlit et secrets
+    - name: Preparation du dossier .streamlit et ressources
       run: |
         if (!(Test-Path -Path ".streamlit")) { New-Item -ItemType Directory -Path ".streamlit" }
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
         if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
-    - name: Compilation directe avec PyInstaller
+    - name: Obfuscation du code avec PyArmor
       run: |
-        pyinstaller --noconfirm --onedir --name Leyla_Edge_Agent --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all google.genai --collect-all sounddevice --collect-all scipy --collect-all bleak --add-data "config.toml;." --add-data "LOGO LAYLA.png;." run_app.py
+        # Crée un dossier de travail obfusqué et chiffre les scripts Python
+        pyarmor gen --output dist_obf *.py
 
-    - name: Copie de tous les modules Python et ressources dans le dossier final
+    - name: Copie des ressources non-python dans le dossier obfusqué
       run: |
-        Copy-Item -Path "*.py" -Destination "dist/Leyla_Edge_Agent/" -Force
-        if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "dist/Leyla_Edge_Agent/" -Force }
-        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist/Leyla_Edge_Agent/" -Force }
-        if (Test-Path -Path "utils_db") { Copy-Item -Path "utils_db" -Destination "dist/Leyla_Edge_Agent/" -Recurse -Force }
-        if (Test-Path -Path "dist/Leyla_Edge_Agent/_internal") {
-            Copy-Item -Path "*.py" -Destination "dist/Leyla_Edge_Agent/_internal/" -Force
-            if (Test-Path -Path "utils_db") { Copy-Item -Path "utils_db" -Destination "dist/Leyla_Edge_Agent/_internal/" -Recurse -Force }
-        }
+        if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "dist_obf/" -Force }
+        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist_obf/" -Force }
+        if (Test-Path -Path "utils_db") { Copy-Item -Path "utils_db" -Destination "dist_obf/" -Recurse -Force }
+
+    - name: Compilation avec PyInstaller sur le code obfusqué
+      run: |
+        cd dist_obf
+        pyinstaller --noconfirm --onedir --name Leyla_Edge_Agent --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all google.genai --collect-all sounddevice --collect-all scipy --collect-all bleak --collect-all cv2 --add-data "config.toml;." --add-data "LOGO LAYLA.png;." run_app.py
+
+    - name: Deplacement du resultat final vers dist/
+      run: |
+        if (Test-Path -Path "dist") { Remove-Item -Path "dist" -Recurse -Force }
+        New-Item -ItemType Directory -Path "dist/Leyla_Edge_Agent"
+        Copy-Item -Path "dist_obf/dist/Leyla_Edge_Agent/*" -Destination "dist/Leyla_Edge_Agent/" -Recurse -Force
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
