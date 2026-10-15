@@ -113,7 +113,7 @@ with st.sidebar:
         utils_memoire.extraire_et_sauvegarder_faits(messages)
         st.toast("Mémoire de Leyla synchronisée !")
 
-    # --- DÉCOUVERTE MATÉRIELLE AUTOMATIQUE (BLUETOOTH & WI-FI) ---
+    # --- DÉCOUVERTE MATÉRIELLE AUTOMATIQUE ---
     st.markdown("---")
     st.markdown("### 📱 Découverte Réseau & Appareils")
 
@@ -132,16 +132,32 @@ with st.sidebar:
                 else:
                     st.warning("Aucun appareil Bluetooth détecté à proximité.")
         else:
-            with st.spinner("Cartographie complète du réseau et des objets connectés en cours..."):
+            with st.spinner("Cartographie complète du réseau et interrogation de la passerelle..."):
                 rapport = utils_scan.scanner_reseau_complet()
                 st.session_state.inventaire_reseau = rapport['appareils']
                 
-                if rapport['appareils']:
-                    st.success(f"Passerelle : `{rapport['passerelle']}` | {rapport['total_appareils']} équipement(s) actif(s) !")
-                    for eq in rapport['appareils']:
-                        st.info(f"**{eq['type']}**\n- IP : `{eq['ip']}`\n- Ports : `{eq['ports_ouverts']}`")
+                infos_routeur = utils_scan.interroger_interface_routeur(rapport['passerelle'])
+                
+                st.success(f"Passerelle : `{rapport['passerelle']}` | {rapport['total_appareils']} équipement(s) actif(s) !")
+                if infos_routeur['accessible']:
+                    st.info(f"🌐 **Routeur Web**\n- Statut : Actif\n- Titre : {infos_routeur['titre_page']}")
                 else:
-                    st.warning(f"Passerelle : `{rapport['passerelle']}`. Aucun autre périphérique réactif trouvé.")
+                    st.warning(f"🌐 Routeur Web : {infos_routeur['message']}")
+
+                for eq in rapport['appareils']:
+                    st.info(f"**{eq['type']}**\n- IP : `{eq['ip']}`\n- Ports : `{eq['ports_ouverts']}`")
+
+    # --- CONFIGURATION DES IDENTIFIANTS MATÉRIELS (SÉCURITÉ) ---
+    st.markdown("---")
+    st.markdown("### 🔐 Coffre-fort Caméras")
+    with st.expander("Configurer les accès IP"):
+        ip_cible_cred = st.text_input("Adresse IP de l'appareil", placeholder="192.168.100.50")
+        user_cred = st.text_input("Nom d'utilisateur", value="admin")
+        pass_cred = st.text_input("Mot de passe", type="password")
+        if st.button("Enregistrer les accès", use_container_width=True):
+            if ip_cible_cred:
+                db_manager.save_device_credentials(ip_cible_cred, user_cred, pass_cred)
+                st.toast(f"Accès enregistrés pour {ip_cible_cred} !")
 
     # --- SECTION SOURCING MÉDIA & CAMÉRAS ---
     st.markdown("---")
@@ -277,10 +293,10 @@ if st.session_state.message_en_cours:
     with st.chat_message("assistant"):
         historique_actuel = db_manager.get_history(st.session_state.session_id)
 
-        # Injection dynamique de l'inventaire réseau dans le contexte de l'IA si besoin
+        # Injection dynamique de l'inventaire réseau dans le contexte de l'IA
         if st.session_state.inventaire_reseau:
             contexte_reseau_str = f"[INVENTAIRE RÉSEAU ACTUEL: {st.session_state.inventaire_reseau}]"
-            # On peut l'ajouter subtilement à l'historique ou le passer au moteur
+            historique_actuel.append({"role": "system", "content": contexte_reseau_str})
         
         resultat_ia = rechercher_sur_le_web(historique_actuel, image_file=media_file)
 
