@@ -35,10 +35,10 @@ jobs:
         # Chiffrement des scripts principaux avec PyArmor
         pyarmor gen run_app.py moteur_ia.py hub_leyla.py db_manager.py utils_scan.py
 
-    - name: Compilation avec PyInstaller
+    - name: Compilation avec PyInstaller en utilisant le fichier spec
       run: |
-        # PyInstaller va compiler directement en utilisant le dossier de sortie de pyarmor (dist ou le dossier courant selon la version)
-        pyinstaller --noconfirm --onedir --name Leyla_Edge_Agent --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all google.genai --collect-all sounddevice --collect-all scipy --collect-all bleak --collect-all cv2 --add-data "config.toml;." --add-data "LOGO LAYLA.png;." run_app.py
+        # On utilise ton fichier leyla.spec pour garantir l'embarquement de tous les modules et assets
+        pyinstaller --noconfirm leyla.spec
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
