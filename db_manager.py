@@ -24,7 +24,7 @@ def init_db():
     with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
 
-        # 1. Table des messages (création si absente)
+        # 1. Table des messages
         c.execute(
             """CREATE TABLE IF NOT EXISTS messages 
                      (id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -35,14 +35,12 @@ def init_db():
                       timestamp TIMESTAMP)"""
         )
 
-        # 2. Migration ultra-sécurisée de la colonne timestamp
         try:
             c.execute("ALTER TABLE messages ADD COLUMN timestamp TIMESTAMP")
         except sqlite3.OperationalError:
-            # La colonne existe déjà ou ne peut pas être réajoutée, on ignore l'erreur en toute sécurité
             pass
 
-        # 3. Table des métadonnées des sessions
+        # 2. Table des métadonnées des sessions
         c.execute(
             """CREATE TABLE IF NOT EXISTS sessions 
                      (session_id TEXT PRIMARY KEY, 
@@ -51,12 +49,19 @@ def init_db():
                       created_at TIMESTAMP)"""
         )
 
-        # 4. Table du profil utilisateur
+        # 3. Table du profil utilisateur
         c.execute(
             """CREATE TABLE IF NOT EXISTS user_profile 
                      (device_id TEXT PRIMARY KEY, 
                       user_name TEXT,
                       title TEXT DEFAULT 'Mon Professeur')"""
+        )
+
+        # 4. Table du coffre-fort de credentials (Sécurité matérielle)
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS device_credentials 
+                     (device_id TEXT, ip_address TEXT, username TEXT, password TEXT, 
+                      PRIMARY KEY(device_id, ip_address))"""
         )
 
         # 5. Index d'optimisation
@@ -68,6 +73,38 @@ def init_db():
         )
 
         conn.commit()
+
+
+# --- GESTION DES CREDENTIALS MATÉRIELS ---
+
+
+def save_device_credentials(ip: str, username: str, password: str, device_id: Optional[str] = None):
+    """Enregistre ou met à jour les identifiants d'un appareil sécurisé."""
+    dev_id = device_id or DEVICE_ID
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
+        c = conn.cursor()
+        c.execute(
+            """INSERT INTO device_credentials (device_id, ip_address, username, password) 
+                     VALUES (?, ?, ?, ?) 
+                     ON CONFLICT(device_id, ip_address) DO UPDATE SET username = excluded.username, password = excluded.password""",
+            (dev_id, ip, username, password),
+        )
+        conn.commit()
+
+
+def get_device_credentials(ip: str, device_id: Optional[str] = None) -> dict:
+    """Récupère les identifiants d'un appareil enregistré."""
+    dev_id = device_id or DEVICE_ID
+    with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT username, password FROM device_credentials WHERE device_id = ? AND ip_address = ?", 
+            (dev_id, ip)
+        )
+        row = c.fetchone()
+        if row:
+            return {"username": row[0], "password": row[1]}
+    return {"username": "admin", "password": "12345"}
 
 
 # --- GESTION DE L'UTILISATEUR ---
@@ -140,14 +177,11 @@ def save_message(
 
     with sqlite3.connect(DB_NAME, timeout=5.0) as conn:
         c = conn.cursor()
-
-        # 1. Sauvegarde du message
         c.execute(
             "INSERT INTO messages (device_id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
             (dev_id, session_id, role, content, now),
         )
 
-        # 2. Vérification/Création de la session
         c.execute(
             "SELECT session_id FROM sessions WHERE session_id = ?",
             (session_id,),
