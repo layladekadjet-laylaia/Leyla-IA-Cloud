@@ -32,28 +32,16 @@ jobs:
 
     - name: Obfuscation du code avec PyArmor
       run: |
-        # Crée un dossier de travail obfusqué et chiffre les scripts Python
-        pyarmor gen --output dist_obf *.py
+        # Commande compatible PyArmor 8+ pour chiffrer tous les fichiers .py
+        pyarmor gen --recursive --output dist_obf *.py
 
-    - name: Copie des ressources non-python dans le dossier obfusqué
+    - name: Compilation avec PyInstaller via le fichier spec
       run: |
-        if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "dist_obf/" -Force }
-        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "dist_obf/" -Force }
-        if (Test-Path -Path "utils_db") { Copy-Item -Path "utils_db" -Destination "dist_obf/" -Recurse -Force }
-
-    - name: Compilation avec PyInstaller sur le code obfusqué
-      run: |
-        cd dist_obf
-        pyinstaller --noconfirm --onedir --name Leyla_Edge_Agent --collect-all streamlit --collect-all uvicorn --collect-all PIL --collect-all google.genai --collect-all sounddevice --collect-all scipy --collect-all bleak --collect-all cv2 --add-data "config.toml;." --add-data "LOGO LAYLA.png;." run_app.py
-
-    - name: Deplacement du resultat final vers dist/
-      run: |
-        if (Test-Path -Path "dist") { Remove-Item -Path "dist" -Recurse -Force }
-        New-Item -ItemType Directory -Path "dist/Leyla_Edge_Agent"
-        Copy-Item -Path "dist_obf/dist/Leyla_Edge_Agent/*" -Destination "dist/Leyla_Edge_Agent/" -Recurse -Force
+        # On copie le fichier spec dans le dossier obfusqué si nécessaire, ou on compile directement
+        pyinstaller Leyla_Edge_Agent.spec
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
       with:
         name: Leyla-Executable-Windows
-        path: dist/Leyla_Edge_Agent/
+        path: dist/
