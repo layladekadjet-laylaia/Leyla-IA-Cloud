@@ -42,9 +42,9 @@ jobs:
         if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "pyarmor_out/" -Force }
         if (Test-Path -Path "leyla.spec") { Copy-Item -Path "leyla.spec" -Destination "pyarmor_out/" -Force }
 
-        # 3. Chiffrement de tous les scripts se trouvant dans pyarmor_out
+        # 3. Chiffrement sécurisé avec la syntaxe correcte pour PyArmor 8/9
         cd pyarmor_out
-        pyarmor gen *.py
+        pyarmor gen --recursive .
 
     - name: Compilation avec PyInstaller
       run: |
