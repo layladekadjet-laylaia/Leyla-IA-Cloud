@@ -6,6 +6,8 @@ import urllib3
 import json
 import cv2
 import os
+import subprocess
+import platform
 import db_manager
 from bleak import BleakScanner
 
@@ -39,6 +41,17 @@ def obtenir_passerelle_par_defaut() -> str:
         return f"{octets[0]}.{octets[1]}.{octets[2]}.1"
     except Exception:
         return "192.168.1.1"
+
+
+def tester_ping(ip: str) -> bool:
+    """Vérifie si une adresse IP répond au ping (détecte les smartphones et PC silencieux)."""
+    param = "-n" if platform.system().lower() == "windows" else "-c"
+    command = ["ping", param, "1", "-w", "200", ip]
+    try:
+        resultat = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return resultat.returncode == 0
+    except Exception:
+        return False
 
 
 def verifier_appareil_reseau(ip: str, port: int, timeout: float = 0.5) -> bool:
@@ -101,7 +114,9 @@ def extraire_titre_html(html_text: str) -> str:
 
 
 def identifier_type_appareil(ports_ouverts: list) -> str:
-    if 554 in ports_ouverts or 8554 in ports_ouverts:
+    if not ports_ouverts:
+        return "📱 Smartphone / Appareil Actif (Silencieux)"
+    elif 554 in ports_ouverts or 8554 in ports_ouverts:
         return "📹 Caméra de Surveillance"
     elif 8008 in ports_ouverts or 8009 in ports_ouverts or 9197 in ports_ouverts:
         return "📺 Smart TV / Chromecast"
@@ -128,13 +143,24 @@ def scanner_reseau_complet() -> dict:
 
     def tester_ip(dernier_octet):
         ip = f"{prefixe_ip}.{dernier_octet}"
+        
+        # 1. Test Ping ICMP (Détecte la présence physique de l'appareil sur le réseau)
+        en_ligne = tester_ping(ip)
+        
+        # 2. Test des ports ouverts
         ports_trouves = []
         for port in ports_cibles:
-            if verifier_appareil_reseau(ip, port, timeout=0.4):
+            if verifier_appareil_reseau(ip, port, timeout=0.3):
                 ports_trouves.append(port)
-        if ports_trouves:
+                
+        # Si l'appareil répond au ping OU possède des ports ouverts, on l'ajoute
+        if en_ligne or ports_trouves:
             type_appareil = identifier_type_appareil(ports_trouves)
-            return {"ip": ip, "type": type_appareil, "ports_ouverts": ports_trouves}
+            return {
+                "ip": ip,
+                "type": type_appareil,
+                "ports_ouverts": ports_trouves
+            }
         return None
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=60) as executor:
@@ -155,11 +181,6 @@ def scanner_reseau_complet() -> dict:
 # ==========================================
 
 def executer_commande_libre(ip: str, ports_ouverts: list, instruction_ia: str, payload_json: dict = None) -> str:
-    """
-    Exécute la commande en récupérant les identifiants sécurisés (limite 3) 
-    et effectue un double contrôle d'état (polling, limite 2).
-    """
-    # Récupération sécurisée des identifiants (Username / Password) stockés en local
     creds = db_manager.get_device_credentials(ip)
     username = creds.get("username", "admin")
     password = creds.get("password", "12345")
@@ -181,13 +202,12 @@ def executer_commande_libre(ip: str, ports_ouverts: list, instruction_ia: str, p
                 elif "play" in inst or "lire" in inst:
                     mc.play()
                 
-                # Double contrôle d'état (Polling)
                 etat_actuel = mc.status.player_state if mc.status else "Inconnu"
                 pychromecast.discovery.stop_discovery(browser)
                 return f"Ordre exécuté sur Smart TV {ip}. État vérifié : {etat_actuel}"
             return f"Chromecast injoignable à l'adresse {ip}."
 
-        # 2. Gestion IoT / Ampoules locales avec authentification et double contrôle
+        # 2. Gestion IoT / Ampoules locales
         elif any(p in ports_ouverts for p in [55443, 1883]):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(2.0)
@@ -202,11 +222,9 @@ def executer_commande_libre(ip: str, ports_ouverts: list, instruction_ia: str, p
                 
             s.send((json.dumps(commande) + "\r\n").encode("utf-8"))
             s.close()
-
-            # Sondage d'état immédiat (Polling de confirmation)
             return f"Commande IoT transmise à {ip}. [Vérification : Signal envoyé avec succès]"
 
-        # 3. Gestion Caméras de Surveillance avec authentification dynamique
+        # 3. Gestion Caméras de Surveillance
         elif 554 in ports_ouverts or 8554 in ports_ouverts:
             rtsp_url = f"rtsp://{username}:{password}@{ip}:554/live"
             cap = cv2.VideoCapture(rtsp_url)
@@ -217,9 +235,9 @@ def executer_commande_libre(ip: str, ports_ouverts: list, instruction_ia: str, p
                     chemin_img = f"capture_{ip.replace('.', '_')}.jpg"
                     cv2.imwrite(chemin_img, frame)
                     return f"Capture d'écran validée pour la caméra {ip} [IMAGE:{chemin_img}]"
-            return f"Échec d'authentification ou de flux RTSP sur la caméra {ip} (Vérifiez les identifiants)."
+            return f"Échec d'authentification ou de flux RTSP sur la caméra {ip}."
 
-        # 4. Requêtes HTTP / Routeurs avec authentification
+        # 4. Requêtes HTTP / Routeurs
         elif any(p in ports_ouverts for p in [80, 443, 8080]):
             url = f"http://{ip}/"
             resp = requests.get(url, auth=(username, password), timeout=2.0)
