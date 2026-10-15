@@ -52,12 +52,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- IMPORTATION DES MODULES JARVIS ---
-try:
-    from camera_leyla import capturer_et_analyser_camera_externe
-except ImportError:
-    capturer_et_analyser_camera_externe = None
-
+# --- IMPORTATION DES MODULES ---
 try:
     from briefing_leyla import generer_briefing_matinal
 except ImportError:
@@ -159,31 +154,23 @@ with st.sidebar:
                 db_manager.save_device_credentials(ip_cible_cred, user_cred, pass_cred)
                 st.toast(f"Accès enregistrés pour {ip_cible_cred} !")
 
-    # --- SECTION SOURCING MÉDIA & CAMÉRAS ---
+    # --- SECTION SOURCING MULTIMÉDIA & DOCUMENTS ---
     st.markdown("---")
-    st.markdown("### 🎨 Studio Visuel & Caméras")
+    st.markdown("### 🎨 Studio Multimédia & Documents")
     choix_source = st.radio(
         "Source média :",
-        ["Aucune", "📁 Fichier", "📷 Caméra", "📹 Caméra IP (RTSP)"],
+        ["Aucune", "📁 Fichier (Image, Vidéo, PDF, Texte)", "📷 Caméra web"],
         horizontal=False,
     )
 
     media_file = None
-    if choix_source == "📁 Fichier":
-        media_file = st.file_uploader("Téléverser une image", type=["jpg", "jpeg", "png"])
-    elif choix_source == "📷 Caméra":
-        media_file = st.camera_input("Prendre une photo")
-    elif choix_source == "📹 Caméra IP (RTSP)":
-        rtsp_url = st.text_input(
-            "URL du flux (RTSP/HTTP) :",
-            placeholder="rtsp://admin:12345@192.168.1.50:554/live",
+    if choix_source == "📁 Fichier (Image, Vidéo, PDF, Texte)":
+        media_file = st.file_uploader(
+            "Téléverser un fichier", 
+            type=["jpg", "jpeg", "png", "mp4", "avi", "mov", "pdf", "txt", "csv"]
         )
-        if st.button("👁 Analyser le Flux Caméra", use_container_width=True):
-            if rtsp_url and capturer_et_analyser_camera_externe:
-                with st.spinner("Analyse du flux réseau..."):
-                    rapport = capturer_et_analyser_camera_externe(rtsp_url)
-                    st.session_state.message_en_cours = f"[ANALYSE CAMÉRA DISTANTE]\n{rapport}"
-                    st.rerun()
+    elif choix_source == "📷 Caméra web":
+        media_file = st.camera_input("Prendre une photo")
 
     # --- GESTION DES SESSIONS ---
     st.markdown("---")
