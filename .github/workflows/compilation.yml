@@ -35,7 +35,7 @@ jobs:
         # 1. Création d'un dossier de travail isolé
         New-Item -ItemType Directory -Path "obf_src" -Force
         
-        # 2. Copie de tous les fichiers nécessaires dans ce dossier (y compris requirements.txt)
+        # 2. Copie de tous les fichiers nécessaires dans ce dossier
         Copy-Item -Path "*.py" -Destination "obf_src/" -Force
         if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "obf_src/" -Force }
         if (Test-Path -Path "requirements.txt") { Copy-Item -Path "requirements.txt" -Destination "obf_src/" -Force }
@@ -53,9 +53,16 @@ jobs:
 
     - name: Deplacement du resultat vers le dossier racine dist/
       run: |
-        if (!(Test-Path -Path "dist")) { New-Item -ItemType Directory -Path "dist/Leyla_Edge_Agent" }
-        if (Test-Path -Path "obf_src/dist/Leyla_Edge_Agent") {
-            Copy-Item -Path "obf_src/dist/Leyla_Edge_Agent/*" -Destination "dist/Leyla_Edge_Agent/" -Recurse -Force
+        $source = Join-Path $PWD "obf_src/dist/Leyla_Edge_Agent"
+        $dest = Join-Path $PWD "dist/Leyla_Edge_Agent"
+        Write-Host "Recherche du build dans : $source"
+        if (Test-Path $source) {
+            New-Item -ItemType Directory -Path $dest -Force
+            Copy-Item -Path "$source\*" -Destination $dest -Recurse -Force
+            Write-Host "Copie réussie vers : $dest"
+        } else {
+            Write-Error "Le dossier source du build est introuvable !"
+            exit 1
         }
 
     - name: Telecharger le fichier EXE
