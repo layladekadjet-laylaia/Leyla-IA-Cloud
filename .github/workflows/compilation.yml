@@ -35,9 +35,10 @@ jobs:
         # 1. Création d'un dossier de travail isolé
         New-Item -ItemType Directory -Path "obf_src" -Force
         
-        # 2. Copie de tous les fichiers nécessaires dans ce dossier
+        # 2. Copie de tous les fichiers nécessaires dans ce dossier (y compris requirements.txt)
         Copy-Item -Path "*.py" -Destination "obf_src/" -Force
         if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "obf_src/" -Force }
+        if (Test-Path -Path "requirements.txt") { Copy-Item -Path "requirements.txt" -Destination "obf_src/" -Force }
         if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "obf_src/" -Force }
         if (Test-Path -Path "leyla.spec") { Copy-Item -Path "leyla.spec" -Destination "obf_src/" -Force }
 
