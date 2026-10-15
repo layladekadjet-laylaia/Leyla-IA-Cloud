@@ -22,7 +22,7 @@ datas_list = [
     ('utils_actions.py', '.'),
     ('utils_audit.py', '.'),
     ('utils_config.py', '.'),
-    ('utils_db', 'utils_db'),
+    ('utils_db.py', '.'),
     ('utils_memoire.py', '.'),
     ('utils_scan.py', '.'),
     ('utils_systeme.py', '.'),
