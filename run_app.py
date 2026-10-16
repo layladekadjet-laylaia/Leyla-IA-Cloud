@@ -1,7 +1,18 @@
 import os
 import sys
 
-# Pré-importations explicites pour forcer la détection par PyInstaller
+if __name__ == "__main__":
+    if getattr(sys, "frozen", False):
+        base_dir = sys._MEIPASS
+        exe_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        exe_dir = base_dir
+
+    # CRITIQUE : Injecter le dossier de base en tête de liste pour la résolution des modules
+    sys.path.insert(0, base_dir)
+
+# Pré-importations explicites pour forcer la détection des dépendances par PyInstaller
 try:
     import PIL
     import PIL.Image
@@ -12,13 +23,6 @@ except ImportError:
     pass
 
 if __name__ == "__main__":
-    if getattr(sys, "frozen", False):
-        base_dir = sys._MEIPASS
-        exe_dir = os.path.dirname(sys.executable)
-    else:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        exe_dir = base_dir
-
     # 1. Lancement du Hub sur le port 8000 en arrière-plan
     try:
         import hub_leyla
@@ -28,12 +32,12 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"⚠️ Lancement du Hub ignoré : {e}")
 
-    # 2. Localisation du script Streamlit
+    # 2. Localisation robuste du script Streamlit (moteur_ia.py)
     script_path = os.path.join(base_dir, "moteur_ia.py")
     if not os.path.exists(script_path):
         script_path = os.path.join(exe_dir, "moteur_ia.py")
 
-    # 3. Préparation explicite des arguments Streamlit
+    # 3. Configuration des arguments pour Streamlit
     sys.argv = [
         "streamlit",
         "run",
