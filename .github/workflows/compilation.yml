@@ -30,17 +30,17 @@ jobs:
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
         if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
-    - name: Compilation avec PyInstaller et le fichier spec
+    - name: Compilation avec PyInstaller et le fichier spec (OneFile)
       run: |
-        pyinstaller --noconfirm leyla.spec
+        pyinstaller --noconfirm --onefile leyla.spec
 
-    - name: Verification et preparation du dossier pour l'artefact
+    - name: Verification et preparation du fichier pour l'artefact
       run: |
-        $source = "dist/Leyla_Edge_Agent"
+        $source = "dist/Leyla_Edge_Agent.exe"
         if (Test-Path $source) {
-            Write-Host "Build trouvé avec succès dans $source"
+            Write-Host "Exécutable unique trouvé avec succès : $source"
         } else {
-            Write-Error "Le dossier de build est introuvable !"
+            Write-Error "L'exécutable est introuvable !"
             exit 1
         }
 
@@ -48,4 +48,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Leyla-Executable-Windows
-        path: dist/Leyla_Edge_Agent/
+        path: dist/Leyla_Edge_Agent.exe
