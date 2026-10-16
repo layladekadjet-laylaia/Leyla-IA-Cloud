@@ -36,29 +36,18 @@ jobs:
         Copy-Item -Path "*.py" -Destination "pyarmor_out/" -Force
         if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "pyarmor_out/" -Force }
         if (Test-Path -Path "requirements.txt") { Copy-Item -Path "requirements.txt" -Destination "pyarmor_out/" -Force }
+        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "pyarmor_out/LOGO LAYLA.png" -Force -ErrorAction SilentlyContinue }
         if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "pyarmor_out/" -Force }
         if (Test-Path -Path "leyla.spec") { Copy-Item -Path "leyla.spec" -Destination "pyarmor_out/" -Force }
 
         cd pyarmor_out
         pyarmor gen --recursive .
 
-    - name: Compilation avec PyInstaller
+    - name: Compilation avec PyInstaller directement vers dist/ racine
       run: |
         cd pyarmor_out
-        pyinstaller --noconfirm leyla.spec
-
-    - name: Deplacement automatique du resultat vers l'artefact
-      run: |
-        $found = Get-ChildItem -Path "pyarmor_out" -Recurse -Filter "Leyla_Edge_Agent" -Directory | Select-Object -First 1
-        $dest = "dist/Leyla_Edge_Agent"
-        if ($found) {
-            New-Item -ItemType Directory -Path $dest -Force
-            Copy-Item -Path "$($found.FullName)\*" -Destination $dest -Recurse -Force
-            Write-Host "Dossier trouvé et déplacé avec succès vers $dest"
-        } else {
-            Write-Error "Impossible de localiser le dossier Leyla_Edge_Agent généré !"
-            exit 1
-        }
+        # On force PyInstaller à écrire directement dans le dossier dist de la racine du dépôt
+        pyinstaller --noconfirm --distpath "..\dist" leyla.spec
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
