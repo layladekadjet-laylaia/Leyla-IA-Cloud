@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
-from PyInstaller.utils.hooks import copy_metadata
+from PyInstaller.utils.hooks import copy_metadata, collect_data_files
 
 block_cipher = None
 
@@ -30,8 +30,9 @@ datas_list = [
     ('LOGO LAYLA.png', '.')
 ]
 
-# Collecte automatique indispensable des métadonnées de Streamlit via copy_metadata
+# Collecte indispensable des métadonnées ET des fichiers statiques de Streamlit
 datas_list += copy_metadata('streamlit')
+datas_list += collect_data_files('streamlit')
 
 if os.path.exists('pyarmor_runtime'):
     datas_list.append(('pyarmor_runtime', 'pyarmor_runtime'))
