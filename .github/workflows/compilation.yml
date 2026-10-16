@@ -45,8 +45,20 @@ jobs:
     - name: Compilation avec PyInstaller
       run: |
         cd pyarmor_out
-        # On force PyInstaller à écrire directement dans le dossier dist à la racine du projet
-        pyinstaller --noconfirm --distpath "..\dist" leyla.spec
+        pyinstaller --noconfirm leyla.spec
+
+    - name: Deplacement explicite vers le dossier attendu par l'artefact
+      run: |
+        $source = "pyarmor_out/dist/Leyla_Edge_Agent"
+        $dest = "dist/Leyla_Edge_Agent"
+        if (Test-Path $source) {
+            New-Item -ItemType Directory -Path $dest -Force
+            Copy-Item -Path "$source\*" -Destination $dest -Recurse -Force
+            Write-Host "Dossier déplacé avec succès vers $dest"
+        } else {
+            Write-Error "Impossible de trouver le dossier source : $source"
+            exit 1
+        }
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
