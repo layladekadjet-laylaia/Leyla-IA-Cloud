@@ -30,9 +30,9 @@ jobs:
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
         if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
-    - name: Compilation avec PyInstaller et le fichier spec (OneFile)
+    - name: Compilation avec PyInstaller et le fichier spec
       run: |
-        pyinstaller --noconfirm --onefile leyla.spec
+        pyinstaller --noconfirm leyla.spec
 
     - name: Verification et preparation du fichier pour l'artefact
       run: |
