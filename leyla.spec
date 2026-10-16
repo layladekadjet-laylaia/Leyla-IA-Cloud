@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import copy_metadata, collect_data_files
 
 block_cipher = None
 
-# Liste des ressources statiques et de TOUS les scripts .py à embarquer
+# Liste des ressources statiques et de TOUS le scripts .py à embarquer
 datas_list = [
     ('config.toml', '.'),
     ('requirements.txt', '.'),
@@ -59,6 +59,14 @@ a = Analysis(
         'PIL.Image',
         'PIL.ImageDraw',
         'PIL.ImageFont',
+        # --- AJOUTS INDISPENSABLES POUR STREAMLIT ---
+        'streamlit',
+        'streamlit.runtime',
+        'streamlit.runtime.scriptrunner',
+        'streamlit.runtime.scriptrunner.magic_funcs',
+        'streamlit.web',
+        'streamlit.web.cli',
+        # -------------------------------------------
         'auth_manager',
         'briefing_leyla',
         'camera_leyla',
