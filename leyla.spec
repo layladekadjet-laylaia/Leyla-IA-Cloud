@@ -29,7 +29,6 @@ datas_list = [
     ('LOGO LAYLA.png', '.')
 ]
 
-# Embarquement sécurisé du runtime PyArmor si généré
 if os.path.exists('pyarmor_runtime'):
     datas_list.append(('pyarmor_runtime', 'pyarmor_runtime'))
 
@@ -90,7 +89,7 @@ exe = EXE(
     a.scripts,
     a.binaries,
     a.zipfiles,
-    a.datas,
+    a.datas,  # Tout est intégré ici dans le fichier unique
     [],
     name='Leyla_Edge_Agent',
     debug=False,
