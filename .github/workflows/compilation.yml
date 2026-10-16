@@ -21,7 +21,7 @@ jobs:
     - name: Installation de PyInstaller et des dependances
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller pyarmor streamlit uvicorn fastapi pydantic pillow google-genai pygetwindow sounddevice scipy numpy opencv-python-headless
+        pip install pyinstaller streamlit uvicorn fastapi pydantic pillow google-genai pygetwindow sounddevice scipy numpy opencv-python-headless
         if (Test-Path -Path "requirements.txt") { pip install -r requirements.txt }
 
     - name: Preparation du dossier .streamlit et ressources
@@ -30,24 +30,19 @@ jobs:
         if (!(Test-Path -Path ".streamlit\config.toml")) { Set-Content -Path ".streamlit\config.toml" -Value "[theme]`nprimaryColor='#F63366'" }
         if (Test-Path -Path "secrets.toml") { Copy-Item -Path "secrets.toml" -Destination ".streamlit\secrets.toml" -Force }
 
-    - name: Copie et Obfuscation complète avec PyArmor
+    - name: Compilation avec PyInstaller et le fichier spec
       run: |
-        New-Item -ItemType Directory -Path "pyarmor_out" -Force
-        Copy-Item -Path "*.py" -Destination "pyarmor_out/" -Force
-        if (Test-Path -Path "config.toml") { Copy-Item -Path "config.toml" -Destination "pyarmor_out/" -Force }
-        if (Test-Path -Path "requirements.txt") { Copy-Item -Path "requirements.txt" -Destination "pyarmor_out/" -Force }
-        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "pyarmor_out/LOGO LAYLA.png" -Force -ErrorAction SilentlyContinue }
-        if (Test-Path -Path "LOGO LAYLA.png") { Copy-Item -Path "LOGO LAYLA.png" -Destination "pyarmor_out/" -Force }
-        if (Test-Path -Path "leyla.spec") { Copy-Item -Path "leyla.spec" -Destination "pyarmor_out/" -Force }
+        pyinstaller --noconfirm leyla.spec
 
-        cd pyarmor_out
-        pyarmor gen --recursive .
-
-    - name: Compilation avec PyInstaller directement vers dist/ racine
+    - name: Verification et preparation du dossier pour l'artefact
       run: |
-        cd pyarmor_out
-        # On force PyInstaller à écrire directement dans le dossier dist de la racine du dépôt
-        pyinstaller --noconfirm --distpath "..\dist" leyla.spec
+        $source = "dist/Leyla_Edge_Agent"
+        if (Test-Path $source) {
+            Write-Host "Build trouvé avec succès dans $source"
+        } else {
+            Write-Error "Le dossier de build est introuvable !"
+            exit 1
+        }
 
     - name: Telecharger le fichier EXE
       uses: actions/upload-artifact@v4
