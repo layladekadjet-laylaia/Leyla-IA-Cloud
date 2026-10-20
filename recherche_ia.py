@@ -234,7 +234,7 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
             for essai in range(tentatives):
                 try:
                     response = client.models.generate_content(
-                        model="gemini-2.5-flash",  # Note : modèle standard Gemini Flash récent
+                        model="gemini-3.8-flash",  # Note : modèle standard Gemini Flash récent
                         contents=contenus_prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=consignes_systeme,
