@@ -28,7 +28,7 @@ def get_base64_image(image_path):
 
 img_base64 = get_base64_image("LOGO LAYLA.png")
 
-# --- DESIGN SYSTEM & CSS ULTRA-ÉLÉGANT (FUTURISTE & FLUIDE) ---
+# --- DESIGN SYSTEM "CYBER-IA" (ESTHÉTIQUE HAUTE FIDÉLITÉ) ---
 st.markdown(
     f"""
 <style>
@@ -38,87 +38,97 @@ st.markdown(
         font-family: 'Plus Jakarta Sans', sans-serif;
     }}
 
-    /* Fond principal sombre et immersif */
+    /* Fond principal inspiré des grands modèles d'IA (Bleu nuit abyssal et dégradés lumineux) */
     .stApp {{
-        background: linear-gradient(135deg, #090d16 0%, #030508 100%);
-        color: #e6edf3;
+        background: radial-gradient(circle at 50% 0%, #0f172a 0%, #090d16 50%, #020408 100%);
+        color: #f1f5f9;
     }}
 
-    /* Filigrane central sophistiqué */
+    /* Filigrane central sophistiqué avec effet lueur holographique */
     .stApp::before {{
         content: "";
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 400px;
-        height: 400px;
+        width: 480px;
+        height: 480px;
         background-image: url("data:image/png;base64,{img_base64}");
         background-repeat: no-repeat;
         background-size: contain;
-        opacity: 0.03;
+        opacity: 0.05;
         pointer-events: none;
         z-index: 0;
-        filter: drop-shadow(0 0 40px rgba(0, 242, 254, 0.15));
+        filter: drop-shadow(0 0 60px rgba(56, 189, 248, 0.3));
     }}
 
-    /* Sidebar futuriste en verre poli */
+    /* Sidebar futuriste en verre dépoli (Glassmorphism) */
     [data-testid="stSidebar"] {{
-        background: rgba(10, 14, 20, 0.9);
-        backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(24px);
+        border-right: 1px solid rgba(56, 189, 248, 0.1);
     }}
 
-    /* Boutons stylisés effet néon subtil */
+    /* Boutons interactifs avec lueur néon au survol */
     div.stButton > button {{
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        color: #e6edf3;
-        border-radius: 10px;
-        transition: all 0.3s ease;
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        color: #f1f5f9;
+        border-radius: 12px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }}
 
     div.stButton > button:hover {{
-        background: rgba(0, 242, 254, 0.1);
-        border-color: #00f2fe;
-        color: #00f2fe;
-        box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
-        transform: translateY(-1px);
+        background: rgba(56, 189, 248, 0.15);
+        border-color: #38bdf8;
+        color: #38bdf8;
+        box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+        transform: translateY(-2px);
     }}
 
-    /* Bulles de chat épurées */
+    /* Bulles de chat ultra-élégantes */
     [data-testid="stChatMessage"] {{
-        background: rgba(17, 22, 31, 0.75);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 14px;
-        padding: 1rem;
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-        margin-bottom: 0.8rem;
+        background: rgba(30, 41, 59, 0.6);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 16px;
+        padding: 1.2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        margin-bottom: 1rem;
     }}
 
-    /* Zone de saisie flottante high-tech */
+    /* Zone de saisie (Chat Input) style terminal high-tech */
     [data-testid="stChatInput"] {{
-        background: rgba(10, 14, 20, 0.95);
-        border-radius: 14px;
-        border: 1px solid rgba(0, 242, 254, 0.25);
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.1);
+        background: rgba(15, 23, 42, 0.95);
+        border-radius: 16px;
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        box-shadow: 0 0 25px rgba(56, 189, 248, 0.15);
     }}
 
-    /* Badge de statut supérieur */
+    /* Badge de statut lumineux */
     .leyla-badge {{
         display: inline-flex;
         align-items: center;
         padding: 6px 14px;
         border-radius: 30px;
-        background: rgba(0, 255, 128, 0.08);
-        border: 1px solid rgba(0, 255, 128, 0.25);
-        color: #00ff80;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #34d399;
         font-size: 0.75rem;
         font-weight: 600;
         letter-spacing: 0.5px;
-        box-shadow: 0 0 12px rgba(0, 255, 128, 0.15);
+        box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+    }}
+
+    /* Animation subtile pour le titre */
+    .hero-title {{
+        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+        letter-spacing: -1px;
     }}
 </style>
 """,
@@ -138,7 +148,7 @@ if not user_name:
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
         st.markdown("<h1 style='text-align: center; color: #ffffff;'>🤖 Bienvenue sur Leyla OS</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #8b949e;'>Votre Agent Edge Autonome et Sécurisé</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #94a3b8;'>Votre Agent Edge Autonome et Sécurisé</p>", unsafe_allow_html=True)
         nom_saisi = st.text_input("Comment dois-je vous appeler, Mon Professeur ?", placeholder="Entrez votre nom...")
         if nom_saisi:
             db_manager.save_user_name(nom_saisi)
@@ -157,7 +167,7 @@ if "inventaire_reseau" not in st.session_state:
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
-    st.markdown("### ⚡ LEYLA // COMMAND")
+    st.markdown("### ⚡ LEYLA // CORE")
     st.markdown('<div class="leyla-badge">● SYSTÈME ACTIF (EDGE)</div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
@@ -275,14 +285,14 @@ with st.sidebar:
                     st.session_state[f"editing_{s_id}"] = False
                     st.rerun()
 
-# --- HEADER PRINCIPAL PARFAITEMENT ALIGNÉ ---
+# --- HEADER PRINCIPAL STYLE CYBER-IA ---
 col_head1, col_head2 = st.columns([3, 1])
 with col_head1:
     st.markdown(
         f"""
         <div>
-            <h2 style='margin: 0; background: linear-gradient(90deg, #00f2fe, #4facfe); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Leyla Core OS</h2>
-            <p style='margin: 4px 0 0 0; color: #8b949e; font-size: 0.9rem;'>Command Center & Edge Agent — Connecté pour <b>{user_name}</b></p>
+            <h2 class='hero-title' style='margin: 0; font-size: 1.8rem;'>Leyla Core OS</h2>
+            <p style='margin: 4px 0 0 0; color: #94a3b8; font-size: 0.9rem;'>Command Center & Edge Agent — Connecté pour <b>{user_name}</b></p>
         </div>
         """,
         unsafe_allow_html=True
@@ -290,7 +300,7 @@ with col_head1:
 with col_head2:
     st.markdown("<div style='text-align: right;'><span class='leyla-badge'>MODE SÉCURISÉ EDGE</span></div>", unsafe_allow_html=True)
 
-st.markdown("<hr style='border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 15px 0;'>", unsafe_allow_html=True)
+st.markdown("<hr style='border: 0; border-top: 1px solid rgba(255,255,255,0.06); margin: 15px 0;'>", unsafe_allow_html=True)
 
 # --- AFFICHAGE DE L'HISTORIQUE ---
 messages = db_manager.get_history(st.session_state.session_id)
