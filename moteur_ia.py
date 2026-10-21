@@ -15,7 +15,7 @@ db_manager.init_db()
 st.set_page_config(
     page_title="Leyla IA - Edge Agent", 
     page_icon="🤖", 
-    layout="wide", # Mode large pour un effet tableau de bord spectaculaire
+    layout="wide", 
     initial_sidebar_state="expanded"
 )
 
@@ -28,11 +28,10 @@ def get_base64_image(image_path):
 
 img_base64 = get_base64_image("LOGO LAYLA.png")
 
-# --- DESIGN SYSTEM & CSS ULTRA-CAPTIVANT (GLASSMORPHISM & NÉON) ---
+# --- DESIGN SYSTEM & CSS ULTRA-ÉLÉGANT (FUTURISTE & FLUIDE) ---
 st.markdown(
     f"""
 <style>
-    /* Importation d'une police moderne (Inter / Orbitron vibe) */
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
     html, body, [class*="css"] {{
@@ -41,7 +40,7 @@ st.markdown(
 
     /* Fond principal sombre et immersif */
     .stApp {{
-        background: radial-gradient(circle at 50% 10%, #0d1117 0%, #05070a 100%);
+        background: linear-gradient(135deg, #090d16 0%, #030508 100%);
         color: #e6edf3;
     }}
 
@@ -52,80 +51,74 @@ st.markdown(
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 450px;
-        height: 450px;
+        width: 400px;
+        height: 400px;
         background-image: url("data:image/png;base64,{img_base64}");
         background-repeat: no-repeat;
         background-size: contain;
-        opacity: 0.04;
+        opacity: 0.03;
         pointer-events: none;
         z-index: 0;
-        filter: drop-shadow(0 0 50px rgba(0, 242, 254, 0.2));
+        filter: drop-shadow(0 0 40px rgba(0, 242, 254, 0.15));
     }}
 
     /* Sidebar futuriste en verre poli */
     [data-testid="stSidebar"] {{
-        background: rgba(13, 17, 23, 0.85);
-        backdrop-filter: blur(16px);
-        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(10, 14, 20, 0.9);
+        backdrop-filter: blur(20px);
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
     }}
 
-    /* Cartes et conteneurs effet verre */
+    /* Boutons stylisés effet néon subtil */
     div.stButton > button {{
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         color: #e6edf3;
-        border-radius: 12px;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        border-radius: 10px;
+        transition: all 0.3s ease;
         font-weight: 500;
     }}
 
     div.stButton > button:hover {{
-        background: linear-gradient(135deg, rgba(0, 242, 254, 0.15) 0%, rgba(79, 172, 254, 0.1) 100%);
+        background: rgba(0, 242, 254, 0.1);
         border-color: #00f2fe;
         color: #00f2fe;
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
-        transform: translateY(-2px);
+        box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+        transform: translateY(-1px);
     }}
 
-    /* Bulles de chat personnalisées */
+    /* Bulles de chat épurées */
     [data-testid="stChatMessage"] {{
-        background: rgba(22, 27, 34, 0.7);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 16px;
+        background: rgba(17, 22, 31, 0.75);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
         padding: 1rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        margin-bottom: 1rem;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+        margin-bottom: 0.8rem;
     }}
 
     /* Zone de saisie flottante high-tech */
     [data-testid="stChatInput"] {{
-        background: rgba(13, 17, 23, 0.9);
-        border-radius: 16px;
-        border: 1px solid rgba(0, 242, 254, 0.3);
-        box-shadow: 0 0 25px rgba(0, 242, 254, 0.1);
+        background: rgba(10, 14, 20, 0.95);
+        border-radius: 14px;
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        box-shadow: 0 0 20px rgba(0, 242, 254, 0.1);
     }}
 
-    /* Titres avec lueur élégante */
-    h1, h2, h3 {{
-        color: #ffffff;
-        font-weight: 700;
-        letter-spacing: -0.5px;
-    }}
-
-    /* Badges et statuts lumineux */
-    .status-badge {{
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        background: rgba(0, 255, 128, 0.1);
-        border: 1px solid rgba(0, 255, 128, 0.3);
+    /* Badge de statut supérieur */
+    .leyla-badge {{
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 14px;
+        border-radius: 30px;
+        background: rgba(0, 255, 128, 0.08);
+        border: 1px solid rgba(0, 255, 128, 0.25);
         color: #00ff80;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        box-shadow: 0 0 10px rgba(0, 255, 128, 0.2);
+        letter-spacing: 0.5px;
+        box-shadow: 0 0 12px rgba(0, 255, 128, 0.15);
     }}
 </style>
 """,
@@ -142,9 +135,9 @@ except ImportError:
 user_name = db_manager.get_user_name()
 if not user_name:
     st.markdown("<br><br>", unsafe_allow_html=True)
-    col1, col2, col1 = st.columns([1, 2, 1])
+    _, col2, _ = st.columns([1, 2, 1])
     with col2:
-        st.markdown("<h1 style='text-align: center;'>🤖 Bienvenue sur Leyla OS</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #ffffff;'>🤖 Bienvenue sur Leyla OS</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #8b949e;'>Votre Agent Edge Autonome et Sécurisé</p>", unsafe_allow_html=True)
         nom_saisi = st.text_input("Comment dois-je vous appeler, Mon Professeur ?", placeholder="Entrez votre nom...")
         if nom_saisi:
@@ -162,10 +155,10 @@ if "message_en_cours" not in st.session_state:
 if "inventaire_reseau" not in st.session_state:
     st.session_state.inventaire_reseau = []
 
-# --- BARRE LATÉRALE (SIDEBAR - CONTRÔLEUR LEYLA) ---
+# --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
     st.markdown("### ⚡ LEYLA // COMMAND")
-    st.markdown('<span class="status-badge">● SYSTÈME ACTIF</span>', unsafe_allow_html=True)
+    st.markdown('<div class="leyla-badge">● SYSTÈME ACTIF (EDGE)</div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
     if st.button("➕ Nouvelle Discussion", use_container_width=True):
@@ -174,7 +167,6 @@ with st.sidebar:
 
     activer_voix = st.checkbox("🔊 Réponse vocale automatique", value=True)
 
-    # --- FONCTIONNALITÉS JARVIS ---
     st.markdown("---")
     st.markdown("### 👑 Modules Exécutifs")
 
@@ -195,7 +187,6 @@ with st.sidebar:
         utils_memoire.extraire_et_sauvegarder_faits(messages)
         st.toast("Mémoire de Leyla synchronisée !")
 
-    # --- DÉCOUVERTE MATÉRIELLE AUTOMATIQUE ---
     st.markdown("---")
     st.markdown("### 📱 Scanner & IoT Réseau")
 
@@ -225,7 +216,6 @@ with st.sidebar:
                 else:
                     st.warning(f"🌐 Routeur Web : {infos_routeur['message']}")
 
-    # --- COFFRE-FORT SÉCURISÉ ---
     st.markdown("---")
     st.markdown("### 🔐 Coffre-fort Caméras")
     with st.expander("Configurer les accès IP"):
@@ -237,7 +227,6 @@ with st.sidebar:
                 db_manager.save_device_credentials(ip_cible_cred, user_cred, pass_cred)
                 st.toast("Accès enregistrés !")
 
-    # --- SECTION MULTIMÉDIA ---
     st.markdown("---")
     st.markdown("### 🎨 Studio Multimédia")
     choix_source = st.radio(
@@ -252,7 +241,6 @@ with st.sidebar:
     elif choix_source == "📷 Caméra web":
         media_file = st.camera_input("Prendre une photo")
 
-    # --- GESTION DES SESSIONS ---
     st.markdown("---")
     st.markdown("### 💬 Historique Sessions")
     sessions_enregistrees = db_manager.get_all_sessions()
@@ -287,21 +275,22 @@ with st.sidebar:
                     st.session_state[f"editing_{s_id}"] = False
                     st.rerun()
 
-# --- HEADER PRINCIPAL ---
-st.markdown(
-    f"""
-    <div style='display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 20px;'>
+# --- HEADER PRINCIPAL PARFAITEMENT ALIGNÉ ---
+col_head1, col_head2 = st.columns([3, 1])
+with col_head1:
+    st.markdown(
+        f"""
         <div>
             <h2 style='margin: 0; background: linear-gradient(90deg, #00f2fe, #4facfe); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Leyla Core OS</h2>
-            <p style='margin: 0; color: #8b949e; font-size: 0.9rem;'>Command Center & Edge Agent - Connecté pour {user_name}</p>
+            <p style='margin: 4px 0 0 0; color: #8b949e; font-size: 0.9rem;'>Command Center & Edge Agent — Connecté pour <b>{user_name}</b></p>
         </div>
-        <div>
-            <span class='status-badge'>MODE SECOURISÉ EDGE</span>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        """,
+        unsafe_allow_html=True
+    )
+with col_head2:
+    st.markdown("<div style='text-align: right;'><span class='leyla-badge'>MODE SÉCURISÉ EDGE</span></div>", unsafe_allow_html=True)
+
+st.markdown("<hr style='border: 0; border-top: 1px solid rgba(255,255,255,0.08); margin: 15px 0;'>", unsafe_allow_html=True)
 
 # --- AFFICHAGE DE L'HISTORIQUE ---
 messages = db_manager.get_history(st.session_state.session_id)
@@ -340,7 +329,7 @@ if btn_parler:
             recognition.lang = 'fr-FR';
             recognition.onresult = function(event) {
                 var text = event.results[0][0].transcript;
-                var chatInput = window.parent.document.querySelector('textarea[aria-label="Écrivez ou utilisez le micro..."]');
+                var chatInput = window.parent.document.querySelector('textarea[aria-label="Commandez Leyla ou posez votre question..."]');
                 if (chatInput) {
                     chatInput.value = text;
                     chatInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -384,7 +373,7 @@ if st.session_state.message_en_cours:
             st.image(reponse_image_path, caption="Création visuelle par Leyla", use_container_width=True)
             contenu_a_sauvegarder += f" [IMAGE:{reponse_image_path}]"
 
-        db_manager.save_number = db_manager.save_message(st.session_state.session_id, "assistant", contenu_a_sauvegarder)
+        db_manager.save_message(st.session_state.session_id, "assistant", contenu_a_sauvegarder)
         utils_memoire.extraire_et_sauvegarder_faits(db_manager.get_history(st.session_state.session_id))
 
         if activer_voix:
