@@ -28,119 +28,119 @@ def get_base64_image(image_path):
 
 img_base64 = get_base64_image("LOGO LAYLA.png")
 
-# --- CSS HAUT CONTRASTE & ÉCRITURES PURES (#FFFFFF) ---
+# --- CSS SUR MESURE : THÈME BLEU CIEL LUMINEUX ET TEXTE NET ---
 st.markdown(
     f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 
     html, body, [class*="css"] {{
         font-family: 'Plus Jakarta Sans', sans-serif;
     }}
 
-    /* Fond principal sombre et profond */
+    /* Fond principal bleu ciel très doux */
     .stApp {{
-        background-color: #06090e !important;
-        background-image: radial-gradient(ellipse at top, rgba(0, 242, 254, 0.12) 0%, transparent 70%) !important;
-        color: #ffffff !important;
+        background: #e0f2fe !important;
+        color: #0f172a !important;
     }}
 
-    /* Filigrane central subtil */
+    /* Filigrane central discret */
     .stApp::before {{
         content: "";
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 320px;
-        height: 320px;
+        width: 380px;
+        height: 380px;
         background-image: url("data:image/png;base64,{img_base64}");
         background-repeat: no-repeat;
         background-size: contain;
-        opacity: 0.03;
+        opacity: 0.06;
         pointer-events: none;
         z-index: 0;
     }}
 
-    /* Sidebar - Verre poli sombre à fort contraste */
+    /* Panneau latéral (Sidebar) Bleu ciel épuré */
     [data-testid="stSidebar"] {{
-        background: rgba(10, 15, 26, 0.95) !important;
-        border-right: 1px solid rgba(0, 242, 254, 0.2) !important;
+        background: #bae6fd !important;
+        border-right: 1px solid #7dd3fc !important;
     }}
 
-    /* Forcer tous les textes généraux en Blanc Pur */
-    p, span, label, div, h1, h2, h3, h4, .stMarkdown {{
-        color: #ffffff !important;
+    [data-testid="stSidebar"] * {{
+        color: #0369a1 !important;
     }}
 
-    /* Titres de section et textes secondaires lisibles */
-    .stMarkdown p, .stMarkdown label, [data-testid="stSidebar"] p {{
-        color: #e2e8f0 !important;
-        font-size: 0.95rem;
+    /* Titres & typographies nettes */
+    h1, h2, h3, h4, p, label {{
+        color: #0f172a !important;
+        font-weight: 600;
     }}
 
-    /* Bulles de chat HAUTE LISIBILITÉ */
+    /* Cartes de messages style blanc/verre lumineuse */
     [data-testid="stChatMessage"] {{
-        background: rgba(15, 23, 42, 0.9) !important;
-        border: 1px solid rgba(0, 242, 254, 0.25) !important;
-        border-radius: 14px !important;
-        padding: 1.1rem !important;
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5) !important;
-        margin-bottom: 0.9rem !important;
+        background: rgba(255, 255, 255, 0.85) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid #38bdf8 !important;
+        border-radius: 16px !important;
+        padding: 1.2rem !important;
+        box-shadow: 0 4px 20px rgba(14, 165, 233, 0.15) !important;
+        margin-bottom: 1rem !important;
+        color: #0f172a !important;
     }}
 
-    /* Contenu texte du chat en BLANC PUR NET */
-    [data-testid="stChatMessage"] p {{
-        color: #ffffff !important;
-        font-size: 1rem !important;
-        line-height: 1.6 !important;
-        font-weight: 400 !important;
-    }}
-
-    /* Boutons stylisés haute visibilité */
+    /* Boutons en bleu vif avec texte noir/sombre net */
     div.stButton > button {{
-        background: rgba(15, 23, 42, 0.95) !important;
-        border: 1px solid rgba(0, 242, 254, 0.4) !important;
-        color: #00f2fe !important;
+        background: #ffffff !important;
+        border: 1px solid #38bdf8 !important;
+        color: #0369a1 !important;
         border-radius: 10px !important;
         transition: all 0.2s ease-in-out !important;
         font-weight: 600 !important;
     }}
 
     div.stButton > button:hover {{
-        background: rgba(0, 242, 254, 0.2) !important;
-        border-color: #00f2fe !important;
+        background: #0284c7 !important;
+        border-color: #0284c7 !important;
         color: #ffffff !important;
-        box-shadow: 0 0 15px rgba(0, 242, 254, 0.4) !important;
+        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3) !important;
+        transform: translateY(-1px);
     }}
 
-    /* Zone de saisie flottante */
+    /* Zone d'entrée de chat : Fond blanc, ÉCRITURE EN NOIR INTENSE */
     [data-testid="stChatInput"] {{
-        background: rgba(15, 23, 42, 0.95) !important;
+        background: #ffffff !important;
         border-radius: 12px !important;
-        border: 1px solid rgba(0, 242, 254, 0.4) !important;
+        border: 2px solid #0284c7 !important;
+        box-shadow: 0 4px 20px rgba(2, 132, 199, 0.2) !important;
     }}
 
     [data-testid="stChatInput"] textarea {{
-        color: #ffffff !important;
+        color: #000000 !important;
+        font-weight: 600 !important;
     }}
 
-    /* Badges & cartes utilisateur */
+    [data-testid="stChatInput"] textarea::placeholder {{
+        color: #64748b !important;
+        font-weight: 400 !important;
+    }}
+
+    /* Card utilisateur sidebar */
     .user-card {{
         padding: 10px 14px;
         border-radius: 8px;
-        background: rgba(0, 242, 254, 0.1);
-        border: 1px solid rgba(0, 242, 254, 0.3);
-        color: #00f2fe !important;
-        font-size: 0.9rem;
-        font-weight: 600;
+        background: #ffffff;
+        border: 1px solid #38bdf8;
+        color: #0284c7 !important;
+        font-size: 0.875rem;
+        font-weight: 700;
     }}
 
     .telemetry-box {{
         font-family: 'JetBrains Mono', monospace;
-        font-size: 0.8rem;
-        color: #cbd5e1 !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.75rem;
+        color: #0369a1;
+        border-top: 1px solid #7dd3fc;
         padding-top: 12px;
         margin-top: 20px;
     }}
@@ -149,8 +149,8 @@ st.markdown(
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        background-color: #00f2fe;
-        box-shadow: 0 0 10px #00f2fe;
+        background-color: #0284c7;
+        box-shadow: 0 0 10px #0284c7;
         display: inline-block;
     }}
 </style>
@@ -158,7 +158,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- IMPORTATION DES MODULES ---
+# --- IMPORTATION DES MODULES OPTIONNELS ---
 try:
     from briefing_leyla import generer_briefing_matinal
 except ImportError:
@@ -174,8 +174,8 @@ if not user_name:
             """
             <div style="text-align: center;">
                 <div class="indicator-dot" style="width:14px; height:14px; margin-bottom: 10px;"></div>
-                <h1 style="margin: 0; font-size: 2rem; color: #00f2fe !important;">LEYLA v2.6</h1>
-                <p style="color: #ffffff !important; font-size: 0.95rem; margin-top: 6px;">Initialisation de l'Agent Edge</p>
+                <h1 style="margin: 0; font-size: 2rem; color: #0284c7 !important;">LEYLA v2.6</h1>
+                <p style="color: #334155; font-size: 0.9rem; margin-top: 6px;">Initialisation de l'Agent Edge</p>
             </div>
             """, 
             unsafe_allow_html=True
@@ -196,17 +196,17 @@ if "message_en_cours" not in st.session_state:
 if "inventaire_reseau" not in st.session_state:
     st.session_state.inventaire_reseau = []
 
-# --- BARRE LATÉRALE (SIDEBAR) ---
+# --- BARRE LATÉRALE (SIDEBAR BLEU CIEL) ---
 with st.sidebar:
     st.markdown(
         """
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 24px;">
             <div class="indicator-dot"></div>
-            <h1 style="font-size: 1.2rem; margin: 0; color: #00f2fe !important; font-weight: 700;">
-                LEYLA <span style="font-size: 0.75rem; color: #ffffff; font-weight: 400;">v2.6</span>
+            <h1 style="font-size: 1.125rem; margin: 0; color: #0284c7 !important; font-weight: 700;">
+                LEYLA <span style="font-size: 0.75rem; color: #0369a1; font-weight: 500;">v2.6</span>
             </h1>
         </div>
-        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #00f2fe; font-family: 'JetBrains Mono', monospace; margin-bottom: 6px;">
+        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #0369a1; font-family: 'JetBrains Mono', monospace; margin-bottom: 6px;">
             UTILISATEUR
         </div>
         """,
@@ -227,7 +227,7 @@ with st.sidebar:
 
     # --- MODULES EXÉCUTIFS ---
     st.markdown("---")
-    st.markdown("### 👑 Fonctions LEYLA")
+    st.markdown("<p style='font-size: 0.85rem; font-weight: 700; color: #0369a1;'>👑 Fonctions LEYLA</p>", unsafe_allow_html=True)
 
     if st.button("🎧 Écoute Passive (Wake Word)", use_container_width=True):
         st.toast("Pour activer l'écoute passive, utilisez le script mobile dédié.")
@@ -248,7 +248,7 @@ with st.sidebar:
 
     # --- DÉCOUVERTE MATÉRIELLE ---
     st.markdown("---")
-    st.markdown("### 📱 Découverte Réseau & IoT")
+    st.markdown("<p style='font-size: 0.85rem; font-weight: 700; color: #0369a1;'>📱 Découverte Réseau & IoT</p>", unsafe_allow_html=True)
 
     type_recherche = st.selectbox(
         "Cible de recherche :", ["Bluetooth Proche", "Passerelle & Appareils Wi-Fi (IoT/Caméras)"]
@@ -284,7 +284,7 @@ with st.sidebar:
 
     # --- STUDIO MULTIMÉDIA ---
     st.markdown("---")
-    st.markdown("### 🎨 Studio Multimédia")
+    st.markdown("<p style='font-size: 0.85rem; font-weight: 700; color: #0369a1;'>🎨 Studio Multimédia</p>", unsafe_allow_html=True)
     choix_source = st.radio("Source média :", ["Aucune", "📁 Fichier", "📷 Caméra web"])
 
     media_file = None
@@ -295,7 +295,7 @@ with st.sidebar:
 
     # --- GESTION DES SESSIONS ---
     st.markdown("---")
-    st.markdown("### 💬 Sessions Enregistrées")
+    st.markdown("<p style='font-size: 0.85rem; font-weight: 700; color: #0369a1;'>💬 Sessions Enregistrées</p>", unsafe_allow_html=True)
     sessions_enregistrees = db_manager.get_all_sessions()
 
     for s_id, s_name in sessions_enregistrees:
@@ -333,25 +333,25 @@ with st.sidebar:
         """
         <div class="telemetry-box">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                <span>Mémoire :</span> <span style="color:#00ff80; font-weight:bold;">Synchronisée</span>
+                <span>Mémoire :</span> <span style="color:#0284c7; font-weight:bold;">Synchronisée</span>
             </div>
             <div style="display:flex; justify-content:space-between;">
-                <span>Edge Agent :</span> <span style="color:#00f2fe; font-weight:bold;">Prêt</span>
+                <span>Edge Agent :</span> <span style="color:#16a34a; font-weight:bold;">Prêt</span>
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-# --- HEADER PRINCIPAL DE COMMAND CENTER ---
+# --- HEADER PRINCIPAL LUMINEUX ---
 st.markdown(
     f"""
-    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid rgba(0, 242, 254, 0.2); margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 2px solid #7dd3fc; margin-bottom: 24px;">
         <div>
-            <h2 style="margin:0; font-size: 1.6rem; color: #ffffff !important; font-weight: 700;">Leyla Core OS</h2>
-            <p style="margin:4px 0 0 0; font-size: 0.9rem; color: #00f2fe !important;">Command Center & Edge Agent — Connecté pour <b>Mon Professeur {user_name}</b></p>
+            <h2 style="margin:0; font-size: 1.6rem; color: #0284c7 !important; font-weight: 800;">Leyla Core OS</h2>
+            <p style="margin:2px 0 0 0; font-size: 0.9rem; color: #334155;">Command Center & Edge Agent — Connecté pour Mon Professeur <b>{user_name}</b></p>
         </div>
-        <div style="padding: 6px 14px; border-radius: 20px; background: rgba(0, 242, 254, 0.15); border: 1px solid #00f2fe; color: #ffffff; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+        <div style="padding: 6px 14px; border-radius: 20px; background: #ffffff; border: 1px solid #0284c7; color: #0284c7; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; font-weight: 700;">
             MODE SÉCURISÉ EDGE
         </div>
     </div>
