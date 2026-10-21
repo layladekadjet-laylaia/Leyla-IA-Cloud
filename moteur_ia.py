@@ -13,9 +13,11 @@ import utils_scan
 # --- INITIALISATION ET CONFIGURATION ---
 db_manager.init_db()
 st.set_page_config(
-    page_title="Leyla IA - Edge Agent", page_icon="🤖", layout="centered"
+    page_title="Leyla IA - Edge Agent", 
+    page_icon="🤖", 
+    layout="wide", # Mode large pour un effet tableau de bord spectaculaire
+    initial_sidebar_state="expanded"
 )
-
 
 # --- CHARGEMENT DU LOGO EN BASE64 ---
 def get_base64_image(image_path):
@@ -24,28 +26,106 @@ def get_base64_image(image_path):
             return base64.b64encode(img_file.read()).decode()
     return ""
 
-
 img_base64 = get_base64_image("LOGO LAYLA.png")
 
-# --- CSS PERSONNALISÉ & FILIGRANE ---
+# --- DESIGN SYSTEM & CSS ULTRA-CAPTIVANT (GLASSMORPHISM & NÉON) ---
 st.markdown(
     f"""
 <style>
-    .stApp {{ background-color: #ffffff; }}
+    /* Importation d'une police moderne (Inter / Orbitron vibe) */
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {{
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }}
+
+    /* Fond principal sombre et immersif */
+    .stApp {{
+        background: radial-gradient(circle at 50% 10%, #0d1117 0%, #05070a 100%);
+        color: #e6edf3;
+    }}
+
+    /* Filigrane central sophistiqué */
     .stApp::before {{
         content: "";
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 280px;
-        height: 280px;
+        width: 450px;
+        height: 450px;
         background-image: url("data:image/png;base64,{img_base64}");
         background-repeat: no-repeat;
         background-size: contain;
-        opacity: 0.12;
+        opacity: 0.04;
         pointer-events: none;
         z-index: 0;
+        filter: drop-shadow(0 0 50px rgba(0, 242, 254, 0.2));
+    }}
+
+    /* Sidebar futuriste en verre poli */
+    [data-testid="stSidebar"] {{
+        background: rgba(13, 17, 23, 0.85);
+        backdrop-filter: blur(16px);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }}
+
+    /* Cartes et conteneurs effet verre */
+    div.stButton > button {{
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #e6edf3;
+        border-radius: 12px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        font-weight: 500;
+    }}
+
+    div.stButton > button:hover {{
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.15) 0%, rgba(79, 172, 254, 0.1) 100%);
+        border-color: #00f2fe;
+        color: #00f2fe;
+        box-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
+        transform: translateY(-2px);
+    }}
+
+    /* Bulles de chat personnalisées */
+    [data-testid="stChatMessage"] {{
+        background: rgba(22, 27, 34, 0.7);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 16px;
+        padding: 1rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        margin-bottom: 1rem;
+    }}
+
+    /* Zone de saisie flottante high-tech */
+    [data-testid="stChatInput"] {{
+        background: rgba(13, 17, 23, 0.9);
+        border-radius: 16px;
+        border: 1px solid rgba(0, 242, 254, 0.3);
+        box-shadow: 0 0 25px rgba(0, 242, 254, 0.1);
+    }}
+
+    /* Titres avec lueur élégante */
+    h1, h2, h3 {{
+        color: #ffffff;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+    }}
+
+    /* Badges et statuts lumineux */
+    .status-badge {{
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        background: rgba(0, 255, 128, 0.1);
+        border: 1px solid rgba(0, 255, 128, 0.3);
+        color: #00ff80;
+        font-size: 0.8rem;
+        font-weight: 600;
+        box-shadow: 0 0 10px rgba(0, 255, 128, 0.2);
     }}
 </style>
 """,
@@ -61,11 +141,15 @@ except ImportError:
 # --- IDENTIFICATION UTILISATEUR ---
 user_name = db_manager.get_user_name()
 if not user_name:
-    st.title("🤖 Bienvenue sur Leyla IA")
-    nom_saisi = st.text_input("Comment dois-je vous appeler, Mon Professeur ?")
-    if nom_saisi:
-        db_manager.save_user_name(nom_saisi)
-        st.rerun()
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col1, col2, col1 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<h1 style='text-align: center;'>🤖 Bienvenue sur Leyla OS</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #8b949e;'>Votre Agent Edge Autonome et Sécurisé</p>", unsafe_allow_html=True)
+        nom_saisi = st.text_input("Comment dois-je vous appeler, Mon Professeur ?", placeholder="Entrez votre nom...")
+        if nom_saisi:
+            db_manager.save_user_name(nom_saisi)
+            st.rerun()
     st.stop()
 
 # --- INITIALISATION DE LA SESSION ---
@@ -80,7 +164,10 @@ if "inventaire_reseau" not in st.session_state:
 
 # --- BARRE LATÉRALE (SIDEBAR - CONTRÔLEUR LEYLA) ---
 with st.sidebar:
-    st.title("⚡ Leyla Control")
+    st.markdown("### ⚡ LEYLA // COMMAND")
+    st.markdown('<span class="status-badge">● SYSTÈME ACTIF</span>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     if st.button("➕ Nouvelle Discussion", use_container_width=True):
         st.session_state.session_id = str(uuid.uuid4())[:8]
         st.rerun()
@@ -89,7 +176,7 @@ with st.sidebar:
 
     # --- FONCTIONNALITÉS JARVIS ---
     st.markdown("---")
-    st.markdown("### 👑 Fonctions LEYLA")
+    st.markdown("### 👑 Modules Exécutifs")
 
     if st.button("🎧 Écoute Passive (Wake Word)", use_container_width=True):
         st.toast("Pour activer l'écoute passive, utilisez le script mobile dédié.")
@@ -110,7 +197,7 @@ with st.sidebar:
 
     # --- DÉCOUVERTE MATÉRIELLE AUTOMATIQUE ---
     st.markdown("---")
-    st.markdown("### 📱 Découverte Réseau & Appareils")
+    st.markdown("### 📱 Scanner & IoT Réseau")
 
     type_recherche = st.selectbox(
         "Cible de recherche :", ["Bluetooth Proche", "Passerelle & Appareils Wi-Fi (IoT/Caméras)"]
@@ -118,63 +205,56 @@ with st.sidebar:
 
     if st.button("🔍 Lancer le Scan Global", use_container_width=True):
         if type_recherche == "Bluetooth Proche":
-            with st.spinner("Leyla analyse les ondes Bluetooth (4s)..."):
+            with st.spinner("Leyla analyse les ondes Bluetooth..."):
                 appareils_bt = asyncio.run(utils_scan.scanner_bluetooth_proche())
                 if appareils_bt:
-                    st.success(f"{len(appareils_bt)} appareil(s) Bluetooth détecté(s) :")
+                    st.success(f"{len(appareils_bt)} appareil(s) Bluetooth détecté(s)")
                     for dev in appareils_bt:
-                        st.info(f"📱 **{dev['nom']}**\n- Adresse : `{dev['adresse']}`\n- Signal : {dev['rssi']} dBm")
+                        st.info(f"📱 **{dev['nom']}**\n- Adresse : `{dev['adresse']}`")
                 else:
-                    st.warning("Aucun appareil Bluetooth détecté à proximité.")
+                    st.warning("Aucun appareil Bluetooth détecté.")
         else:
-            with st.spinner("Cartographie complète du réseau et interrogation de la passerelle..."):
+            with st.spinner("Cartographie complète du réseau en cours..."):
                 rapport = utils_scan.scanner_reseau_complet()
                 st.session_state.inventaire_reseau = rapport['appareils']
-                
                 infos_routeur = utils_scan.interroger_interface_routeur(rapport['passerelle'])
                 
-                st.success(f"Passerelle : `{rapport['passerelle']}` | {rapport['total_appareils']} équipement(s) actif(s) !")
+                st.success(f"Passerelle : `{rapport['passerelle']}` | {rapport['total_appareils']} actif(s)")
                 if infos_routeur['accessible']:
-                    st.info(f"🌐 **Routeur Web**\n- Statut : Actif\n- Titre : {infos_routeur['titre_page']}")
+                    st.info(f"🌐 **Routeur Web** : {infos_routeur['titre_page']}")
                 else:
                     st.warning(f"🌐 Routeur Web : {infos_routeur['message']}")
 
-                for eq in rapport['appareils']:
-                    st.info(f"**{eq['type']}**\n- IP : `{eq['ip']}`\n- Ports : `{eq['ports_ouverts']}`")
-
-    # --- CONFIGURATION DES IDENTIFIANTS MATÉRIELS (SÉCURITÉ) ---
+    # --- COFFRE-FORT SÉCURISÉ ---
     st.markdown("---")
     st.markdown("### 🔐 Coffre-fort Caméras")
     with st.expander("Configurer les accès IP"):
-        ip_cible_cred = st.text_input("Adresse IP de l'appareil", placeholder="192.168.100.50")
-        user_cred = st.text_input("Nom d'utilisateur", value="admin")
+        ip_cible_cred = st.text_input("Adresse IP", placeholder="192.168.100.50")
+        user_cred = st.text_input("Utilisateur", value="admin")
         pass_cred = st.text_input("Mot de passe", type="password")
-        if st.button("Enregistrer les accès", use_container_width=True):
+        if st.button("Enregistrer", use_container_width=True):
             if ip_cible_cred:
                 db_manager.save_device_credentials(ip_cible_cred, user_cred, pass_cred)
-                st.toast(f"Accès enregistrés pour {ip_cible_cred} !")
+                st.toast("Accès enregistrés !")
 
-    # --- SECTION SOURCING MULTIMÉDIA & DOCUMENTS ---
+    # --- SECTION MULTIMÉDIA ---
     st.markdown("---")
-    st.markdown("### 🎨 Studio Multimédia & Documents")
+    st.markdown("### 🎨 Studio Multimédia")
     choix_source = st.radio(
         "Source média :",
-        ["Aucune", "📁 Fichier (Image, Vidéo, PDF, Texte)", "📷 Caméra web"],
+        ["Aucune", "📁 Fichier", "📷 Caméra web"],
         horizontal=False,
     )
 
     media_file = None
-    if choix_source == "📁 Fichier (Image, Vidéo, PDF, Texte)":
-        media_file = st.file_uploader(
-            "Téléverser un fichier", 
-            type=["jpg", "jpeg", "png", "mp4", "avi", "mov", "pdf", "txt", "csv"]
-        )
+    if choix_source == "📁 Fichier":
+        media_file = st.file_uploader("Fichier", type=["jpg", "jpeg", "png", "mp4", "pdf", "txt"])
     elif choix_source == "📷 Caméra web":
         media_file = st.camera_input("Prendre une photo")
 
     # --- GESTION DES SESSIONS ---
     st.markdown("---")
-    st.markdown("### 💬 Sessions")
+    st.markdown("### 💬 Historique Sessions")
     sessions_enregistrees = db_manager.get_all_sessions()
 
     for s_id, s_name in sessions_enregistrees:
@@ -189,11 +269,11 @@ with st.sidebar:
                     st.rerun()
 
         with col_rename:
-            if st.button("✏️", key=f"ren_{s_id}", help="Renommer"):
+            if st.button("✏️", key=f"ren_{s_id}"):
                 st.session_state[f"editing_{s_id}"] = True
 
         with col_del:
-            if st.button("🗑️", key=f"del_{s_id}", help="Supprimer"):
+            if st.button("🗑️", key=f"del_{s_id}"):
                 db_manager.delete_session(s_id)
                 if is_active:
                     st.session_state.session_id = str(uuid.uuid4())[:8]
@@ -201,17 +281,27 @@ with st.sidebar:
 
         if st.session_state.get(f"editing_{s_id}", False):
             nouveau_nom = st.text_input("Nom :", value=s_name, key=f"input_ren_{s_id}")
-            col_val, col_ann = st.columns(2)
-            with col_val:
-                if st.button("OK", key=f"val_{s_id}"):
-                    if nouveau_nom:
-                        db_manager.rename_session(s_id, nouveau_nom)
-                        st.session_state[f"editing_{s_id}"] = False
-                        st.rerun()
-            with col_ann:
-                if st.button("X", key=f"ann_{s_id}"):
+            if st.button("OK", key=f"val_{s_id}"):
+                if nouveau_nom:
+                    db_manager.rename_session(s_id, nouveau_nom)
                     st.session_state[f"editing_{s_id}"] = False
                     st.rerun()
+
+# --- HEADER PRINCIPAL ---
+st.markdown(
+    f"""
+    <div style='display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 20px;'>
+        <div>
+            <h2 style='margin: 0; background: linear-gradient(90deg, #00f2fe, #4facfe); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Leyla Core OS</h2>
+            <p style='margin: 0; color: #8b949e; font-size: 0.9rem;'>Command Center & Edge Agent - Connecté pour {user_name}</p>
+        </div>
+        <div>
+            <span class='status-badge'>MODE SECOURISÉ EDGE</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- AFFICHAGE DE L'HISTORIQUE ---
 messages = db_manager.get_history(st.session_state.session_id)
@@ -231,15 +321,13 @@ for m in messages:
                 st.write(content)
 
 # --- CONTRÔLES VOCAUX INTERACTIFS ---
-col_v1, col_v2, col_v3, col_v4 = st.columns([1, 1, 1, 5])
+col_v1, col_v2, col_v3, col_v4 = st.columns([1, 1, 1, 6])
 with col_v1:
-    btn_parler = st.button("🎙", help="Dictée vocale (Micro)")
+    btn_parler = st.button("🎙️ Micro", help="Dictée vocale")
 with col_v2:
-    btn_stop = st.button("⏹️", help="Arrêter la parole")
+    btn_stop = st.button("⏹️ Stop", help="Arrêter la parole")
 with col_v3:
-    if st.button("🧠", help="Mettre à jour la mémoire long terme"):
-        utils_memoire.extraire_et_sauvegarder_faits(messages)
-        st.toast("Mémoire de Leyla synchronisée !")
+    btn_sync = st.button("🧠 Synchro", help="Mettre à jour la mémoire")
 
 if btn_stop:
     components.html("""<script>window.parent.window.speechSynthesis.cancel();</script>""", height=0)
@@ -265,7 +353,7 @@ if btn_parler:
     )
 
 # --- SAISIE ET TRAITEMENT DU MOTEUR ---
-prompt_saisi = st.chat_input("Écrivez ou utilisez le micro...")
+prompt_saisi = st.chat_input("Commandez Leyla ou posez votre question...")
 if prompt_saisi:
     st.session_state.message_en_cours = prompt_saisi
 
@@ -280,7 +368,6 @@ if st.session_state.message_en_cours:
     with st.chat_message("assistant"):
         historique_actuel = db_manager.get_history(st.session_state.session_id)
 
-        # Injection dynamique de l'inventaire réseau dans le contexte de l'IA
         if st.session_state.inventaire_reseau:
             contexte_reseau_str = f"[INVENTAIRE RÉSEAU ACTUEL: {st.session_state.inventaire_reseau}]"
             historique_actuel.append({"role": "system", "content": contexte_reseau_str})
@@ -294,11 +381,10 @@ if st.session_state.message_en_cours:
 
         contenu_a_sauvegarder = reponse_texte
         if reponse_image_path and os.path.exists(reponse_image_path):
-            st.image(reponse_image_path, caption="Création de Leyla", use_container_width=True)
+            st.image(reponse_image_path, caption="Création visuelle par Leyla", use_container_width=True)
             contenu_a_sauvegarder += f" [IMAGE:{reponse_image_path}]"
 
-        db_manager.save_message(st.session_state.session_id, "assistant", contenu_a_sauvegarder)
-
+        db_manager.save_number = db_manager.save_message(st.session_state.session_id, "assistant", contenu_a_sauvegarder)
         utils_memoire.extraire_et_sauvegarder_faits(db_manager.get_history(st.session_state.session_id))
 
         if activer_voix:
