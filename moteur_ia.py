@@ -38,13 +38,11 @@ st.markdown(
         font-family: 'Plus Jakarta Sans', sans-serif;
     }}
 
-    /* Fond principal bleu ciel très doux */
     .stApp {{
         background: #e0f2fe !important;
         color: #0f172a !important;
     }}
 
-    /* Filigrane central discret */
     .stApp::before {{
         content: "";
         position: fixed;
@@ -61,7 +59,6 @@ st.markdown(
         z-index: 0;
     }}
 
-    /* Panneau latéral (Sidebar) Bleu ciel épuré */
     [data-testid="stSidebar"] {{
         background: #bae6fd !important;
         border-right: 1px solid #7dd3fc !important;
@@ -71,13 +68,11 @@ st.markdown(
         color: #0369a1 !important;
     }}
 
-    /* Titres & typographies nettes */
     h1, h2, h3, h4, p, label {{
         color: #0f172a !important;
         font-weight: 600;
     }}
 
-    /* Cartes de messages style blanc/verre lumineuse */
     [data-testid="stChatMessage"] {{
         background: rgba(255, 255, 255, 0.85) !important;
         backdrop-filter: blur(10px);
@@ -89,7 +84,6 @@ st.markdown(
         color: #0f172a !important;
     }}
 
-    /* Boutons en bleu vif avec texte noir/sombre net */
     div.stButton > button {{
         background: #ffffff !important;
         border: 1px solid #38bdf8 !important;
@@ -107,7 +101,6 @@ st.markdown(
         transform: translateY(-1px);
     }}
 
-    /* Zone d'entrée de chat : Fond blanc, ÉCRITURE EN NOIR INTENSE */
     [data-testid="stChatInput"] {{
         background: #ffffff !important;
         border-radius: 12px !important;
@@ -125,7 +118,6 @@ st.markdown(
         font-weight: 400 !important;
     }}
 
-    /* Card utilisateur sidebar */
     .user-card {{
         padding: 10px 14px;
         border-radius: 8px;
@@ -158,7 +150,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- IMPORTATION DES MODULES OPTIONNELS ---
 try:
     from briefing_leyla import generer_briefing_matinal
 except ImportError:
@@ -180,7 +171,7 @@ if not user_name:
             """, 
             unsafe_allow_html=True
         )
-        nom_saisi = st.text_input("Comment dois-je vous appeler, Mon Professeur ?", placeholder="Ex: Djè Akadjé")
+        nom_saisi = st.text_input("Comment dois-je vous appeler ?", placeholder="Ex: Djè Akadjé")
         if nom_saisi:
             db_manager.save_user_name(nom_saisi)
             st.rerun()
@@ -196,7 +187,7 @@ if "message_en_cours" not in st.session_state:
 if "inventaire_reseau" not in st.session_state:
     st.session_state.inventaire_reseau = []
 
-# --- BARRE LATÉRALE (SIDEBAR BLEU CIEL) ---
+# --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
     st.markdown(
         """
@@ -214,7 +205,7 @@ with st.sidebar:
     )
     
     st.markdown(
-        f'<div class="user-card">Mon Professeur {user_name}</div>', 
+        f'<div class="user-card">{user_name}</div>', 
         unsafe_allow_html=True
     )
     st.markdown("<br>", unsafe_allow_html=True)
@@ -225,7 +216,6 @@ with st.sidebar:
 
     activer_voix = st.checkbox("🔊 Réponse vocale automatique", value=True)
 
-    # --- MODULES EXÉCUTIFS ---
     st.markdown("---")
     st.markdown("<p style='font-size: 0.85rem; font-weight: 700; color: #0369a1;'>👑 Fonctions LEYLA</p>", unsafe_allow_html=True)
 
@@ -246,7 +236,6 @@ with st.sidebar:
         utils_memoire.extraire_et_sauvegarder_faits(messages)
         st.toast("Mémoire de Leyla synchronisée !")
 
-    # --- DÉCOUVERTE MATÉRIELLE ---
     st.markdown("---")
     st.markdown("<p style='font-size: 0.85rem; font-weight: 700; color: #0369a1;'>📱 Découverte Réseau & IoT</p>", unsafe_allow_html=True)
 
@@ -271,7 +260,6 @@ with st.sidebar:
                 infos_routeur = utils_scan.interroger_interface_routeur(rapport['passerelle'])
                 st.success(f"Passerelle : `{rapport['passerelle']}` | {rapport['total_appareils']} actif(s)")
 
-    # --- COFFRE-FORT & CAMÉRAS ---
     st.markdown("---")
     with st.expander("🔐 Coffre-fort Caméras / Access IP"):
         ip_cible_cred = st.text_input("Adresse IP", placeholder="192.168.100.50")
@@ -282,7 +270,6 @@ with st.sidebar:
                 db_manager.save_device_credentials(ip_cible_cred, user_cred, pass_cred)
                 st.toast(f"Accès enregistrés pour {ip_cible_cred} !")
 
-    # --- STUDIO MULTIMÉDIA ---
     st.markdown("---")
     st.markdown("<p style='font-size: 0.85rem; font-weight: 700; color: #0369a1;'>🎨 Studio Multimédia</p>", unsafe_allow_html=True)
     choix_source = st.radio("Source média :", ["Aucune", "📁 Fichier", "📷 Caméra web"])
@@ -293,7 +280,6 @@ with st.sidebar:
     elif choix_source == "📷 Caméra web":
         media_file = st.camera_input("Prendre une photo")
 
-    # --- GESTION DES SESSIONS ---
     st.markdown("---")
     st.markdown("<p style='font-size: 0.85rem; font-weight: 700; color: #0369a1;'>💬 Sessions Enregistrées</p>", unsafe_allow_html=True)
     sessions_enregistrees = db_manager.get_all_sessions()
@@ -328,7 +314,6 @@ with st.sidebar:
                     st.session_state[f"editing_{s_id}"] = False
                     st.rerun()
 
-    # --- TÉLÉMÉTRIE EN BAS DE LA SIDEBAR ---
     st.markdown(
         """
         <div class="telemetry-box">
@@ -349,7 +334,7 @@ st.markdown(
     <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 2px solid #7dd3fc; margin-bottom: 24px;">
         <div>
             <h2 style="margin:0; font-size: 1.6rem; color: #0284c7 !important; font-weight: 800;">Leyla Core OS</h2>
-            <p style="margin:2px 0 0 0; font-size: 0.9rem; color: #334155;">Command Center & Edge Agent — Connecté pour Mon Professeur <b>{user_name}</b></p>
+            <p style="margin:2px 0 0 0; font-size: 0.9rem; color: #334155;">Command Center & Edge Agent — Connecté pour <b>{user_name}</b></p>
         </div>
         <div style="padding: 6px 14px; border-radius: 20px; background: #ffffff; border: 1px solid #0284c7; color: #0284c7; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; font-weight: 700;">
             MODE SÉCURISÉ EDGE
@@ -398,7 +383,7 @@ if btn_parler:
             recognition.lang = 'fr-FR';
             recognition.onresult = function(event) {
                 var text = event.results[0][0].transcript;
-                var chatInput = window.parent.document.querySelector('textarea[aria-label="Ordonnez, Mon Professeur..."]');
+                var chatInput = window.parent.document.querySelector('textarea[aria-label="Ordonnez..."]');
                 if (chatInput) {
                     chatInput.value = text;
                     chatInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -410,8 +395,8 @@ if btn_parler:
         height=0,
     )
 
-# --- SAISIE ET EXÉCUTION DE L'AGENT ---
-prompt_saisi = st.chat_input("Ordonnez, Mon Professeur...")
+# --- SAISIE ET EXÉCUTION DE LA REQUÊTE ---
+prompt_saisi = st.chat_input("Ordonnez...")
 if prompt_saisi:
     st.session_state.message_en_cours = prompt_saisi
 
@@ -419,19 +404,31 @@ if st.session_state.message_en_cours:
     texte_final = st.session_state.message_en_cours
     st.session_state.message_en_cours = ""
 
+    # Affichage immédiat du message utilisateur avec son média source si présent
     with st.chat_message("user"):
         st.write(texte_final)
+        if media_file is not None:
+            # Gestion de l'affichage du fichier ou de l'image source dans le chat
+            file_extension = media_file.name.split('.')[-1].lower()
+            if file_extension in ["jpg", "jpeg", "png"]:
+                st.image(media_file, caption=f"Média source : {media_file.name}", use_container_width=True)
+            elif file_extension in ["pdf", "txt", "csv"]:
+                st.info(f"📄 Fichier source attaché : **{media_file.name}**")
+            elif file_extension in ["mp4", "avi", "mov"]:
+                st.video(media_file)
+
+    # Sauvegarde du message dans la base
     db_manager.save_message(st.session_state.session_id, "user", texte_final)
 
     with st.chat_message("assistant"):
         historique_actuel = db_manager.get_history(st.session_state.session_id)
 
-        # Injection dynamique de l'inventaire réseau
         if st.session_state.inventaire_reseau:
             contexte_reseau_str = f"[INVENTAIRE RÉSEAU ACTUEL: {st.session_state.inventaire_reseau}]"
             historique_actuel.append({"role": "system", "content": contexte_reseau_str})
         
-        resultat_ia = rechercher_sur_le_web(historique_actuel, image_file=media_file)
+        # Appel du moteur en passant le nom d'utilisateur actuel
+        resultat_ia = rechercher_sur_le_web(historique_actuel, image_file=media_file, user_name=user_name)
 
         reponse_texte = resultat_ia.get("texte", "...")
         reponse_image_path = resultat_ia.get("image_path")
