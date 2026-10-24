@@ -254,7 +254,7 @@ def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = ""
                 }
             else:
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.8-flash",
                     contents=contenus_prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=consignes_systeme,
