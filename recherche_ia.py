@@ -165,8 +165,8 @@ def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = ""
     else:
         consignes_identite = (
             f"L'utilisateur actuel s'appelle {user_name}. "
-            "Ne l'appelle PAS 'Mon Professeur' (ce titre est strictement réservé à ton créateur Djè Akadjé). "
-            "Appelle-le simplement par son nom : {user_name}."
+            f"Ne l'appelle PAS 'Mon Professeur' (ce titre est strictement réservé à ton créateur Djè Akadjé). "
+            f"Appelle-le simplement par son nom : {user_name}."
         )
 
     consignes_systeme = (
@@ -247,7 +247,7 @@ def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = ""
                     with open(image_path_str, "wb") as f:
                         f.write(generated_image_bytes)
 
-                 salutation_visuelle = "Mon Professeur" if est_le_professeur else user_name
+                salutation_visuelle = "Mon Professeur" if est_le_professeur else user_name
                 return {
                     "texte": f"Voici la création graphique demandée, {salutation_visuelle} !",
                     "image_path": image_path_str,
