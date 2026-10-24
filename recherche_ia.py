@@ -12,8 +12,8 @@ import utils_memoire
 import utils_systeme
 import utils_scan
 import utils_config
-import utils_actions  # Module des actions autonomes (exploration, rapports)
-import utils_audit    # Boîte noire de traçabilité des actions
+import utils_actions  
+import utils_audit    
 from auth_manager import verifier_licence_et_recuperer_secrets
 import sys
 
@@ -41,30 +41,30 @@ DOSSIER_IMAGES = "images_generees"
 os.makedirs(DOSSIER_IMAGES, exist_ok=True)
 
 
-def obtenir_cle_api() -> str:
-    """Récupère la clé API en toute sécurité (priorité à la clé sécurisée en mémoire ou variables d'environnement)."""
-    # 1. Vérifier si la clé sécurisée a été injectée en variable d'environnement par le système de licence
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if api_key:
-        return api_key
+def obtenir_cles_api() -> list:
+    """Récupère une liste de clés API pour le basculement automatique (rotation)."""
+    cles = []
+    for var in ["GOOGLE_API_KEY", "GEMINI_API_KEY", "GEMINI_API_KEY_BACKUP", "GOOGLE_API_KEY_BACKUP"]:
+        val = os.getenv(var)
+        if val and val not in cles:
+            cles.append(val)
 
-    # 2. Fallback Streamlit secrets au cas où
     try:
-        if "GOOGLE_API_KEY" in st.secrets:
-            return st.secrets["GOOGLE_API_KEY"]
-        if "GEMINI_API_KEY" in st.secrets:
-            return st.secrets["GEMINI_API_KEY"]
+        for secret_key in ["GOOGLE_API_KEY", "GEMINI_API_KEY", "GEMINI_API_KEY_2"]:
+            if secret_key in st.secrets:
+                val = st.secrets[secret_key]
+                if val and val not in cles:
+                    cles.append(val)
     except Exception:
         pass
 
-    return ""
+    return cles
 
 
-def obtenir_client() -> genai.Client:
-    """Instancie le client GenAI à la demande."""
-    api_key = obtenir_cle_api()
-    if api_key:
-        return genai.Client(api_key=api_key)
+def obtenir_client_pour_cle(key: str) -> genai.Client:
+    """Instancie un client GenAI pour une clé spécifique."""
+    if key:
+        return genai.Client(api_key=key)
     return None
 
 
@@ -84,7 +84,7 @@ def obtenir_briefing_matinal() -> str:
 
 def synchroniser_memoire_long_terme() -> str:
     """Outil pour synchroniser la mémoire à long terme."""
-    return "Mémoire à long terme mise à jour avec succès, Mon Professeur."
+    return "Mémoire à long terme mise à jour avec succès."
 
 
 def nettoyer_reponse(texte: str) -> str:
@@ -139,13 +139,13 @@ def ajouter_signature_leyla(image_bytes: bytes) -> bytes:
         return image_bytes
 
 
-def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
-    """Moteur central de raisonnement de Leyla (Gemini 3.8 Flash)."""
-    client = obtenir_client()
+def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = "") -> dict:
+    """Moteur central de raisonnement de Leyla avec reconnaissance conditionnelle du Professeur."""
+    liste_cles = obtenir_cles_api()
 
-    if not client:
+    if not liste_cles:
         return {
-            "texte": "Alerte : Clé API Google/Gemini non détectée. Veuillez configurer les accès.",
+            "texte": "Alerte : Aucune clé API Google/Gemini détectée. Veuillez configurer les accès.",
             "image_path": None,
         }
 
@@ -154,10 +154,24 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
 
     contexte_memoire = utils_memoire.charger_contexte_memoire()
 
+    # Règle stricte pour identifier le Professeur
+    est_le_professeur = user_name and ("djè akadjé" in user_name.lower() or "djè" in user_name.lower())
+    
+    if est_le_professeur:
+        consignes_identite = (
+            f"L'utilisateur actuel est {user_name}. C'est ton créateur et ton maître. "
+            "Tu dois impérativement l'appeler 'Mon Professeur' dans chacune de tes réponses."
+        )
+    else:
+        consignes_identite = (
+            f"L'utilisateur actuel s'appelle {user_name}. "
+            "Ne l'appelle PAS 'Mon Professeur' (ce titre est strictement réservé à ton créateur Djè Akadjé). "
+            "Appelle-le simplement par son nom : {user_name}."
+        )
+
     consignes_systeme = (
         f"{contexte_memoire}\n"
-        "Tu es Leyla, l'intelligence artificielle autonome et Edge Agent de Djè Akadjé. "
-        "Appelle-le impérativement 'Mon Professeur'. "
+        f"Tu es Leyla, l'intelligence artificielle autonome et Edge Agent. {consignes_identite}\n"
         "LANGUE OBLIGATOIRE : Français. "
         "RÔLE : Assistant exécutif local capable d'interagir avec le système, les caméras, les périphériques, les bases de données et d'exécuter des actions d'exploration ou de création à la demande."
     )
@@ -168,117 +182,106 @@ def rechercher_sur_le_web(historique: list, image_file=None) -> dict:
     demande_visuelle = any(mot in derniere_requete.lower() for mot in mots_cles_visuels)
     is_image_mode = (image_file is not None) and demande_visuelle
 
-    try:
-        contenus_prompt = []
-        historique_texte = ""
-        for msg in historique_reduit:
-            role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
-            historique_texte += f"{role_label} : {msg['content']}\n"
-        contenus_prompt.append(historique_texte)
+    contenus_prompt = []
+    historique_texte = ""
+    for msg in historique_reduit:
+        role_label = "Utilisateur" if msg["role"] == "user" else "Leyla"
+        historique_texte += f"{role_label} : {msg['content']}\n"
+    contenus_prompt.append(historique_texte)
 
-        if image_file is not None and not demande_visuelle:
+    if image_file is not None and not demande_visuelle:
+        try:
             pil_img = Image.open(image_file)
             contenus_prompt.append(pil_img)
+        except Exception:
+            pass
 
-        if is_image_mode:
-            prompt_image = derniere_requete
-            if image_file is not None:
-                prompt_image = f"Adaptation visuelle de l'image : {derniere_requete}"
+    outils_disponibles = [
+        {"google_search": {}},
+        utils_systeme.lister_fichiers,
+        utils_systeme.lire_fichier,
+        utils_systeme.ecrire_fichier,
+        utils_systeme.organiser_fichiers_par_extension,
+        utils_systeme.executer_commande_python,
+        utils_actions.explorer_dossier,
+        utils_actions.creer_rapport_texte,
+        analyser_flux_camera,
+        obtenir_briefing_matinal,
+        synchroniser_memoire_long_terme,
+    ]
 
-            result_image = client.models.generate_images(
-                model="imagen-3.0-generate-002",
-                prompt=prompt_image,
-                config=types.GenerateImagesConfig(
-                    number_of_images=1,
-                    aspect_ratio="1:1",
-                    output_mime_type="image/jpeg",
-                ),
-            )
+    if utils_adb:
+        outils_disponibles.extend([utils_adb.gerer_lampe_torche, utils_adb.lister_appareils_adb])
 
-            image_path_str = None
-            if result_image.generated_images:
-                generated_image_bytes = result_image.generated_images[0].image.image_bytes
-                generated_image_bytes = ajouter_signature_leyla(generated_image_bytes)
-                nom_fichier = f"img_{uuid.uuid4().hex[:8]}.jpg"
-                image_path_str = os.path.join(DOSSIER_IMAGES, nom_fichier)
-                with open(image_path_str, "wb") as f:
-                    f.write(generated_image_bytes)
+    if utils_db:
+        outils_disponibles.extend([utils_db.interroger_base_donnees, utils_db.lister_tables_et_structure])
 
-            return {
-                "texte": "Voici la création graphique demandée, Mon Professeur !",
-                "image_path": image_path_str,
-            }
-        else:
-            outils_disponibles = [
-                {"google_search": {}},
-                utils_systeme.lister_fichiers,
-                utils_systeme.lire_fichier,
-                utils_systeme.ecrire_fichier,
-                utils_systeme.organiser_fichiers_par_extension,
-                utils_systeme.executer_commande_python,
-                utils_actions.explorer_dossier,        # Permet à Leyla d'explorer l'environnement
-                utils_actions.creer_rapport_texte,     # Permet à Leyla de générer des fichiers de synthèse
-                analyser_flux_camera,
-                obtenir_briefing_matinal,
-                synchroniser_memoire_long_terme,
-            ]
+    derniere_erreur = ""
+    for api_key in liste_cles:
+        client = obtenir_client_pour_cle(api_key)
+        if not client:
+            continue
 
-            if utils_adb:
-                outils_disponibles.extend([utils_adb.gerer_lampe_torche, utils_adb.lister_appareils_adb])
+        try:
+            if is_image_mode:
+                prompt_image = derniere_requete
+                if image_file is not None:
+                    prompt_image = f"Adaptation visuelle de l'image : {derniere_requete}"
 
-            if utils_db:
-                outils_disponibles.extend([utils_db.interroger_base_donnees, utils_db.lister_tables_et_structure])
+                result_image = client.models.generate_images(
+                    model="imagen-3.0-generate-002",
+                    prompt=prompt_image,
+                    config=types.GenerateImagesConfig(
+                        number_of_images=1,
+                        aspect_ratio="1:1",
+                        output_mime_type="image/jpeg",
+                    ),
+                )
 
-            tentatives = 4
-            response = None
-            for essai in range(tentatives):
-                try:
-                    response = client.models.generate_content(
-                        model="gemini-3.8-flash",  # Note : modèle standard Gemini Flash récent
-                        contents=contenus_prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=consignes_systeme,
-                            temperature=0.3,
-                            tools=outils_disponibles,
-                            # CORRECTION DE L'ERREUR 400 :
-                            tool_config=types.ToolConfig(
-                                include_server_side_tool_invocations=True
-                            )
-                        ),
-                    )
-                    break
-                except Exception as err:
-                    err_str = str(err)
-                    if "429" in err_str and essai < tentatives - 1:
-                        time.sleep(3 * (essai + 1))
-                        continue
-                    raise err
+                image_path_str = None
+                if result_image.generated_images:
+                    generated_image_bytes = result_image.generated_images[0].image.image_bytes
+                    generated_image_bytes = ajouter_signature_leyla(generated_image_bytes)
+                    nom_fichier = f"img_{uuid.uuid4().hex[:8]}.jpg"
+                    image_path_str = os.path.join(DOSSIER_IMAGES, nom_fichier)
+                    with open(image_path_str, "wb") as f:
+                        f.write(generated_image_bytes)
 
-            return {
-                "texte": nettoyer_reponse(response.text),
-                "image_path": None,
-            }
+                 salutation_visuelle = "Mon Professeur" if est_le_professeur else user_name
+                return {
+                    "texte": f"Voici la création graphique demandée, {salutation_visuelle} !",
+                    "image_path": image_path_str,
+                }
+            else:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=contenus_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=consignes_systeme,
+                        temperature=0.3,
+                        tools=outils_disponibles,
+                        tool_config=types.ToolConfig(
+                            include_server_side_tool_invocations=True
+                        )
+                    ),
+                )
+                return {
+                    "texte": nettoyer_reponse(response.text),
+                    "image_path": None,
+                }
 
-    except Exception as e:
-        erreur_str = str(e)
-        if "429" in erreur_str or "RESOURCE_EXHAUSTED" in erreur_str:
-            msg_err = "Mon Professeur, le quota de requêtes est temporairement saturé. Patientons un instant."
-        else:
-            msg_err = f"Une perturbation technique est survenue : {erreur_str}"
-        return {"texte": msg_err, "image_path": None}
+        except Exception as e:
+            derniere_erreur = str(e)
+            if "402" in derniere_erreur or "RESOURCE_EXHAUSTED" in derniere_erreur or "429" in derniere_erreur:
+                continue
+            else:
+                break
 
+    if "402" in derniere_erreur or "RESOURCE_EXHAUSTED" in derniere_erreur:
+        msg_err = "Les crédits de la clé API sont épuisés sur Google AI Studio. Veuillez recharger votre solde."
+    elif "429" in derniere_erreur:
+        msg_err = "Le quota de requêtes par minute est atteint. Patientons un instant."
+    else:
+        msg_err = f"Une perturbation technique est survenue : {derniere_erreur}"
 
-if __name__ == "__main__":
-    print("🔄 Vérification de la licence et de la sécurité en cours...")
-    
-    acces_autorise, resultat = verifier_licence_et_recuperer_secrets()
-    
-    if not acces_autorise:
-        print(f"\n[BLOQUÉ] {resultat}")
-        sys.exit(1)
-    
-    # Injection sécurisée de la clé récupérée depuis Supabase dans l'environnement
-    os.environ["GOOGLE_API_KEY"] = resultat
-    os.environ["GEMINI_API_KEY"] = resultat
-    
-    print("🎉 Lancement de Leyla réussi ! Clé récupérée et sécurisée en mémoire.")
+    return {"texte": msg_err, "image_path": None}
