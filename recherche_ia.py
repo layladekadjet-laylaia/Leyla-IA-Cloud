@@ -154,7 +154,6 @@ def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = ""
 
     contexte_memoire = utils_memoire.charger_contexte_memoire()
 
-    # Règle stricte pour identifier le Professeur
     est_le_professeur = user_name and ("djè akadjé" in user_name.lower() or "djè" in user_name.lower())
     
     if est_le_professeur:
@@ -172,8 +171,9 @@ def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = ""
     consignes_systeme = (
         f"{contexte_memoire}\n"
         f"Tu es Leyla, l'intelligence artificielle autonome et Edge Agent. {consignes_identite}\n"
-        "LANGUE OBLIGATOIRE : Français. "
-        "RÔLE : Assistant exécutif local capable d'interagir avec le système, les caméras, les périphériques, les bases de données et d'exécuter des actions d'exploration ou de création à la demande."
+        "LANGUE OBLIGATOIRE : Français.\n"
+        "RÔLE : Assistant exécutif local et Edge Agent de pointe capable d'interagir directement avec le système (fichiers, dossiers, ouverture de documents, exécution de scripts).\n"
+        "DIRECTIVE CRITIQUE DE COMMUNICATION : Lorsque l'utilisateur te demande d'exécuter une tâche, de chercher ou d'ouvrir un fichier, tu dois TOUJOURS répondre clairement et explicitement dans le chat pour dire si la tâche a été faite avec succès ou non. Ne reste jamais muette et explique toujours ce que tu as accompli !"
     )
 
     mots_cles_visuels = [
@@ -201,6 +201,7 @@ def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = ""
         utils_systeme.lister_fichiers,
         utils_systeme.lire_fichier,
         utils_systeme.ecrire_fichier,
+        utils_systeme.ouvrir_fichier_local,  # Ajout de l'outil d'ouverture physique
         utils_systeme.organiser_fichiers_par_extension,
         utils_systeme.executer_commande_python,
         utils_actions.explorer_dossier,
