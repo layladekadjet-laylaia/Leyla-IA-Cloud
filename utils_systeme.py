@@ -60,21 +60,50 @@ def ecrire_fichier(chemin_fichier: str, contenu: str) -> str:
     except Exception as e:
         return f"Erreur lors de l'écriture : {str(e)}"
 
-def ouvrir_fichier_local(chemin_fichier: str) -> str:
-    """Ouvre un fichier ou un document (PDF, image, texte, etc.) avec l'application par défaut du système."""
-    chemin_abs = os.path.abspath(chemin_fichier)
+def ouvrir_fichier_local(nom_recherche: str) -> str:
+    """Ouvre un fichier ou un document (PDF, image, texte, etc.) avec l'application par défaut du système de manière intelligente."""
+    # 1. Tentative d'ouverture directe si le chemin existe
+    chemin_abs = os.path.abspath(nom_recherche)
+    if os.path.exists(chemin_abs):
+        try:
+            if os.name == 'nt':
+                os.startfile(chemin_abs)
+            elif os.name == 'posix':
+                subprocess.call(('xdg-open', chemin_abs))
+            return f"Le fichier '{chemin_abs}' a été ouvert avec succès sur le système, Mon Professeur."
+        except Exception as e:
+            return f"Erreur lors de l'ouverture directe du fichier : {str(e)}"
+
+    # 2. Recherche intelligente dans les dossiers principaux (Bureau, Téléchargements, Documents)
+    dossiers_cles = [
+        os.path.expanduser("~"),
+        os.path.expanduser("~/Desktop"),
+        os.path.expanduser("~/Bureau"),
+        os.path.expanduser("~/Downloads"),
+        os.path.expanduser("~/Téléchargements"),
+        os.path.expanduser("~/Documents"),
+        "."
+    ]
     
-    if not os.path.exists(chemin_abs):
-        return f"Erreur : Le fichier '{chemin_abs}' est introuvable sur le disque."
-        
-    try:
-        if os.name == 'nt':  # Windows
-            os.startfile(chemin_abs)
-        elif os.name == 'posix':
-            subprocess.call(('xdg-open', chemin_abs))
-        return f"Le fichier '{chemin_abs}' a été ouvert avec succès sur le système."
-    except Exception as e:
-        return f"Erreur lors de l'ouverture du fichier : {str(e)}"
+    terme = nom_recherche.lower().replace("pdf", "").replace("fichier", "").replace("dossier", "").strip()
+    
+    for dossier in dossiers_cles:
+        if os.path.exists(dossier):
+            try:
+                for root, dirs, files in os.walk(dossier):
+                    for f in files:
+                        if terme in f.lower() or any(t in f.lower() for t in terme.split() if len(t) > 2):
+                            chemin_complet = os.path.join(root, f)
+                            if os.name == 'nt':
+                                os.startfile(chemin_complet)
+                            elif os.name == 'posix':
+                                subprocess.call(('xdg-open', chemin_complet))
+                            return f"J'ai localisé et ouvert le fichier '{f}' avec succès depuis '{chemin_complet}'."
+            except Exception:
+                continue
+                
+    return f"Désolé, je n'ai trouvé aucun fichier correspondant à '{nom_recherche}' dans vos dossiers principaux pour l'ouvrir."
+
 
 def organiser_fichiers_par_extension(chemin_dossier: str = ".") -> str:
     """Trie automatiquement les fichiers d'un dossier spécifié par sous-dossiers de types."""
