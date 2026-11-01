@@ -201,7 +201,7 @@ def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = ""
         utils_systeme.lister_fichiers,
         utils_systeme.lire_fichier,
         utils_systeme.ecrire_fichier,
-        utils_systeme.ouvrir_fichier_local,  # Ajout de l'outil d'ouverture physique
+        utils_systeme.ouvrir_fichier_local,  # Outil d'ouverture physique
         utils_systeme.organiser_fichiers_par_extension,
         utils_systeme.executer_commande_python,
         utils_actions.explorer_dossier,
@@ -254,20 +254,23 @@ def rechercher_sur_le_web(historique: list, image_file=None, user_name: str = ""
                     "image_path": image_path_str,
                 }
             else:
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=contenus_prompt,
+                # Utilisation d'un chat gérant automatiquement l'exécution des outils (Function Calling)
+                chat = client.chats.create(
+                    model="gemini-2.5-flash",
                     config=types.GenerateContentConfig(
                         system_instruction=consignes_systeme,
                         temperature=0.3,
                         tools=outils_disponibles,
-                        tool_config=types.ToolConfig(
-                            include_server_side_tool_invocations=True
-                        )
-                    ),
+                    )
                 )
+                
+                # Envoi du message au chat avec gestion native des outils
+                response = chat.send_message(contenus_prompt)
+                
+                texte_reponse = response.text if response.text else "Tâche système exécutée avec succès, Mon Professeur."
+                
                 return {
-                    "texte": nettoyer_reponse(response.text),
+                    "texte": nettoyer_reponse(texte_reponse),
                     "image_path": None,
                 }
 
