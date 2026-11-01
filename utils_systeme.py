@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import json
 from typing import List, Dict, Optional
+import sys
 
 # --- 1. GESTION DES FICHIERS ET DOSSIERS (ACCÈS SYSTÈMES) ---
 
@@ -33,7 +34,6 @@ def lire_fichier(chemin_fichier: str) -> str:
     if not os.path.exists(chemin_abs):
         return f"Erreur : Fichier introuvable ({chemin_abs})."
         
-    # Tentative de lecture avec plusieurs encodages pour éviter les plantages (Windows/Linux)
     for encodage in ["utf-8", "latin-1", "cp1252"]:
         try:
             with open(chemin_abs, "r", encoding=encodage) as f:
@@ -50,7 +50,6 @@ def ecrire_fichier(chemin_fichier: str, contenu: str) -> str:
     chemin_abs = os.path.abspath(chemin_fichier)
     
     try:
-        # Création automatique des dossiers parents si nécessaire
         dossier_parent = os.path.dirname(chemin_abs)
         if dossier_parent and not os.path.exists(dossier_parent):
             os.makedirs(dossier_parent, exist_ok=True)
@@ -60,6 +59,22 @@ def ecrire_fichier(chemin_fichier: str, contenu: str) -> str:
         return f"Fichier enregistré avec succès : '{chemin_abs}', Mon Professeur."
     except Exception as e:
         return f"Erreur lors de l'écriture : {str(e)}"
+
+def ouvrir_fichier_local(chemin_fichier: str) -> str:
+    """Ouvre un fichier ou un document (PDF, image, texte, etc.) avec l'application par défaut du système."""
+    chemin_abs = os.path.abspath(chemin_fichier)
+    
+    if not os.path.exists(chemin_abs):
+        return f"Erreur : Le fichier '{chemin_abs}' est introuvable sur le disque."
+        
+    try:
+        if os.name == 'nt':  # Windows
+            os.startfile(chemin_abs)
+        elif os.name == 'posix':
+            subprocess.call(('xdg-open', chemin_abs))
+        return f"Le fichier '{chemin_abs}' a été ouvert avec succès sur le système."
+    except Exception as e:
+        return f"Erreur lors de l'ouverture du fichier : {str(e)}"
 
 def organiser_fichiers_par_extension(chemin_dossier: str = ".") -> str:
     """Trie automatiquement les fichiers d'un dossier spécifié par sous-dossiers de types."""
@@ -72,7 +87,6 @@ def organiser_fichiers_par_extension(chemin_dossier: str = ".") -> str:
         
         compte = 0
         for f in fichiers:
-            # Ignorer le script temporaire de Leyla s'il traîne
             if f == "_temp_script_leyla.py":
                 continue
 
@@ -85,7 +99,6 @@ def organiser_fichiers_par_extension(chemin_dossier: str = ".") -> str:
             chemin_source = os.path.join(chemin_abs, f)
             chemin_destination = os.path.join(dossier_cible, f)
             
-            # Éviter les conflits si le fichier existe déjà
             if not os.path.exists(chemin_destination):
                 shutil.move(chemin_source, chemin_destination)
                 compte += 1
@@ -104,16 +117,14 @@ def executer_commande_python(code: str, dossier_travail: str = ".") -> str:
         with open(fichier_temp, "w", encoding="utf-8") as f:
             f.write(code)
             
-        # Utilisation de l'exécutable Python courant (sys.executable) pour garantir le bon environnement
         resultat = subprocess.run(
             [sys.executable, fichier_temp],
             capture_output=True,
             text=True,
-            timeout=30,  # Sécurité anti-boucle infinie (30 secondes max)
+            timeout=30,
             cwd=os.path.abspath(dossier_travail)
         )
         
-        # Nettoyage systématique
         if os.path.exists(fichier_temp):
             os.remove(fichier_temp)
         
